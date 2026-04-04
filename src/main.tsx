@@ -1,14 +1,28 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App.tsx";
+import { HomePage } from "./HomePage";
+import { About } from "./About";
+// import App from "./App.tsx";
 import "./index.css";
-import { Amplify } from "aws-amplify";
-import outputs from "../amplify_outputs.json";
+// import { Amplify } from "aws-amplify";
+// import outputs from "../amplify_outputs.json";
+import { createBrowserRouter } from "react-router";
+import { RouterProvider } from "react-router/dom";
 
-Amplify.configure(outputs);
+const router = createBrowserRouter([
+  {
+    path: "/",
+    children: [
+      { index: true, element: <HomePage /> },
+      { path: "about", element: <About /> },
+    ]
+  },
+]);
+
+// Amplify.configure(outputs);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <RouterProvider router={router} />
   </React.StrictMode>
 );
