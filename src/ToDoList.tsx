@@ -4,11 +4,11 @@ import { generateClient } from "aws-amplify/data";
 
 const client = generateClient<Schema>();
 
-function App() {
+function ToDoList() {
   const [todos, setTodos] = useState<Array<Schema["Todo"]["type"]>>([]);
 
   useEffect(() => {
-    console.log("RENDERED")
+    console.log("RENDERED");
     client.models.Todo.observeQuery().subscribe({
       next: (data) => setTodos([...data.items]),
     });
@@ -28,7 +28,7 @@ function App() {
         ))}
       </ul>
       <div>
-        🥳 App successfully hosted. Try creating a new todo.
+        🥳 ToDoList successfully hosted. Try creating a new todo.
         <br />
         <a href="https://docs.amplify.aws/react/start/quickstart/#make-frontend-updates">
           Review next step of this tutorial.
@@ -38,4 +38,4 @@ function App() {
   );
 }
 
-export default App;
+export default ToDoList;
