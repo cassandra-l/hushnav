@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { HomePage } from "./HomePage";
+import { Home } from "./home.tsx";
 import { About } from "./About";
 import ToDoList from "./ToDoList.tsx";
 import "./index.css";
@@ -14,7 +14,7 @@ const router = createBrowserRouter([
     path: "/",
 
     children: [
-      { index: true, element: <HomePage /> },
+      { index: true, element: <Home /> },
       { path: "about", element: <About /> },
       { path: "todolist", element: <ToDoList /> },
     ],
