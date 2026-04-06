@@ -1,7 +1,9 @@
 import { Logo } from "./components/logo";
 import { FeatureCard } from "./components/feature-card";
+import { useNavigate } from "react-router-dom";
 
 export function Home() {
+  const navigate = useNavigate();
   return (
     <main className="flex flex-col items-center justify-center min-h-screen">
       <Logo />
@@ -13,7 +15,10 @@ export function Home() {
 
       <div className="flex flex-col gap-3 mb-7">
         {/* Find Quiet Route button */}
-        <button className="flex gap-2 justify-center items-center w-80 h-14.5 bg-[#1E2939]/80 border border-[#364153]/50 text-white rounded-2xl shadow-md">
+        <button
+          onClick={() => navigate("/map")}
+          className="flex gap-2 justify-center items-center w-80 h-14.5 bg-[#1E2939]/80 border border-[#364153]/50 text-white rounded-2xl shadow-md"
+        >
           {/* Icon */}
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -34,7 +39,10 @@ export function Home() {
         </button>
 
         {/* Find Calm button */}
-        <button className="flex gap-2 justify-center items-center w-80 h-14.5 bg-[#7DB0A6] border border-[#7DB0A6] p-4 rounded-2xl text-white shadow-md">
+        <button
+          onClick={() => navigate("/support")}
+          className="flex gap-2 justify-center items-center w-80 h-14.5 bg-[#7DB0A6] border border-[#7DB0A6] p-4 rounded-2xl text-white shadow-md"
+        >
           {/* Icon */}
           <svg
             xmlns="http://www.w3.org/2000/svg"
