@@ -1,7 +1,11 @@
 import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
 
-const XButton = ({ className = "" }: { className?: string }) => {
+interface XButtonProps {
+  className?: string;
+}
+
+export function XButton({ className = "" }: XButtonProps) {
   const navigate = useNavigate();
 
   return (
@@ -12,7 +16,7 @@ const XButton = ({ className = "" }: { className?: string }) => {
         fixed top-6 right-6 z-50 
         flex h-12 w-12 items-center justify-center 
         rounded-full shadow-sm backdrop-blur-sm transition-all 
-        bg-[#FFFFFF]/50 border border-[#FFFFFF]/60 
+        bg-white/60 border border-white/50 
         text-[#5A9A8E] 
         hover:bg-white/80 active:scale-95 
         ${className}
@@ -22,6 +26,4 @@ const XButton = ({ className = "" }: { className?: string }) => {
       <X size={24} strokeWidth={2.5} />
     </button>
   );
-};
-
-export default XButton;
+}
