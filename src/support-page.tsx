@@ -1,4 +1,4 @@
-import { XButton } from './XButton';
+import { XButton } from './components/x-button';
 
 export function SupportPage() {
   return (
