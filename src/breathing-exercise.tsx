@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { XButton } from './components/x-button';
 
 interface BreathingExerciseProps {
@@ -39,7 +39,7 @@ export function BreathingExercise({ onClose }: BreathingExerciseProps) {
         }
       `}</style>
 
-      <XButton />
+      <XButton onClose={onClose} />
 
       <div className="relative flex flex-col items-center">
         <div className="relative flex items-center justify-center">
