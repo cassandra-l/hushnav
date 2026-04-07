@@ -1,12 +1,9 @@
+import { XButton } from './XButton';
+
 export function SupportPage() {
   return (
     <div className="flex min-h-screen items-center justify-center p-4 font-sans">
-
-  <button className="fixed top-6 right-6 flex h-12 w-12 items-center justify-center rounded-full bg-white/50 border border-white/60 text-[#5A9A8E] shadow-sm backdrop-blur-sm transition-all hover:bg-white/80 active:scale-95 z-50">
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
-    </svg>
-  </button>
+      <XButton />
 
   <div className="w-full max-w-sm rounded-[2.5rem] bg-white p-8 shadow-2xl shadow-gray-200/50">
     <div className="flex flex-col items-start gap-4">
