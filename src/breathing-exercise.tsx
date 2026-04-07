@@ -28,7 +28,6 @@ export function BreathingExercise({ onClose }: BreathingExerciseProps) {
 
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#E6F2EF] p-6 font-sans text-[#1E2939]">
-      {/* Animation Styles */}
       <style>{`
         @keyframes drain {
           from { stroke-dashoffset: 0; }
@@ -50,7 +49,7 @@ export function BreathingExercise({ onClose }: BreathingExerciseProps) {
             <circle cx="120" cy="120" r="90" stroke="#C5DCD6" strokeWidth="8" fill="transparent" />
             
             <circle 
-              key={phase} // Forces animation restart when phase flips
+              key={phase} 
               cx="120" cy="120" r="90" 
               stroke="#1E2939" strokeWidth="8" fill="transparent" 
               strokeLinecap="round"
