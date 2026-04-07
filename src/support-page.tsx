@@ -1,6 +1,6 @@
 import { BreathingExercise } from './breathing-exercise';
 import { XButton } from './components/x-button';
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 export function SupportPage() {
   const [showExercise, setShowExercise] = useState(false);

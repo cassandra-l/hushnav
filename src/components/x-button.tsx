@@ -5,12 +5,13 @@ interface XButtonProps {
   className?: string;
   onClose?: () => void;
 }
-const navigate = useNavigate();
-export function XButton({ className = "", onClose=() => navigate("/") }: XButtonProps) {
-  
+
+export function XButton({ className = "", onClose = undefined}: XButtonProps) {
+  const navigate = useNavigate();
+
   return (
     <button
-      onClick={onClose}
+      onClick={onClose ? onClose : () => navigate("/")}
       type="button"
       className={`
         fixed top-6 right-6 z-50 
