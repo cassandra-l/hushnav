@@ -1,11 +1,16 @@
+import { useState } from "react";
 import { MicButton } from "./components/mic-button";
+import { PopUp } from "./components/pop-up";
 
 export function Map() {
+  // Pop-up state
+  const [isPopUpOpen, setIsPopUpOpen] = useState(false);
+
   return (
     <main>
       <h1>Map Page</h1>
-      <p>This is where users see the map and enter their destination.</p>
-      <MicButton />
+      <MicButton onClick={() => setIsPopUpOpen(true)} />
+      {isPopUpOpen && <PopUp onClose={() => setIsPopUpOpen(false)} />}
     </main>
   );
 }

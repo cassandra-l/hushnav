@@ -1,6 +1,13 @@
-export function MicButton() {
+interface Props {
+  onClick: () => void;
+}
+
+export function MicButton(props: Props) {
   return (
-    <button className="flex justify-center items-center border border-white/60 bg-[#7DB0A6]/80 w-14.5 h-14.5 rounded-full">
+    <button
+      onClick={props.onClick}
+      className="flex justify-center items-center border border-white/60 bg-[#7DB0A6]/80 w-14.5 h-14.5 rounded-full"
+    >
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width="24"
