@@ -1,17 +1,54 @@
-import { type ClientSchema, a, defineData } from "@aws-amplify/backend";
-
 /*== STEP 1 ===============================================================
 The section below creates a Todo database table with a "content" field. Try
 adding a new "isDone" field as a boolean. The authorization rule below
 specifies that any user authenticated via an API key can "create", "read",
 "update", and "delete" any "Todo" records.
 =========================================================================*/
+import { type ClientSchema, a, defineData } from "@aws-amplify/backend";
+
 const schema = a.schema({
-  Todo: a
+  Node: a
     .model({
-      content: a.string(),
+      node_id: a.integer().required(),
+      lat: a.float().required(),
+      lon: a.float().required(),
     })
-    .authorization((allow) => [allow.publicApiKey()]),
+    .identifier(["node_id"]),
+
+  Edge: a
+    .model({
+      edge_id: a.integer().required(),
+      u: a.integer().required(),
+      v: a.integer().required(),
+      length: a.float().required(),
+    })
+    .identifier(["edge_id"]),
+
+  NoiseSensor: a
+    .model({
+      device_id: a.string().required(),
+      current_db: a.float(),
+      last_updated: a.datetime(),
+    })
+    .identifier(["device_id"]),
+
+  PedestrianSensor: a
+    .model({
+      location_id: a.integer().required(),
+      current_count: a.integer(),
+      observation_time: a.datetime(),
+    })
+    .identifier(["location_id"]),
+
+  EdgeWeight: a
+    .model({
+      edge_id: a.integer().required(),
+      final_cost: a.float(),
+      noise_db: a.float(),
+      is_high_noise: a.boolean(),
+      observation_time: a.datetime(),
+    })
+    .identifier(["edge_id"]),
 });
 
 export type Schema = ClientSchema<typeof schema>;
@@ -20,7 +57,6 @@ export const data = defineData({
   schema,
   authorizationModes: {
     defaultAuthorizationMode: "apiKey",
-    // API Key is used for a.allow.public() rules
     apiKeyAuthorizationMode: {
       expiresInDays: 30,
     },
