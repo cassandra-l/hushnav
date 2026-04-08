@@ -10,6 +10,8 @@ frontend:
   phases:
     preBuild:
       commands:
+        - npm ci
+        - npm install @parcel/watcher-linux-x64-glibc --save-optional
         - npm install --include=optional
     build:
       commands:
