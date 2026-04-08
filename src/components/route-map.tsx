@@ -1,4 +1,4 @@
-import Map, { Marker, NavigationControl } from "react-map-gl";
+import Map, { Marker, NavigationControl } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 // Props for the map component
@@ -12,14 +12,14 @@ export function RouteMap({ startLocation, destination }: RouteMapProps) {
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
   // Temporary default centre point for Melbourne CBD
-  // Later, this can be updated based on real route coordinates from the backend
+  // Later, this can be updated using real route coordinates from the backend
   const melbourneCBD = {
     longitude: 144.9631,
     latitude: -37.8136,
     zoom: 13,
   };
 
-  // If no token is found, show a friendly message instead of crashing
+  // If no token is found, show a helpful message instead of crashing
   if (!mapboxToken) {
     return (
       <div className="h-72 rounded-2xl bg-[#DDEAE7] border border-[#C7D8D3] flex items-center justify-center text-center px-6 text-[#6A7282]">
@@ -38,8 +38,8 @@ export function RouteMap({ startLocation, destination }: RouteMapProps) {
         {/* Zoom and compass controls */}
         <NavigationControl position="top-right" />
 
-        {/* Temporary marker for Melbourne CBD */}
-        {/* Later you can replace this with start/destination coordinates */}
+        {/* Temporary marker in Melbourne CBD */}
+        {/* Later this should become start/destination markers */}
         <Marker longitude={144.9631} latitude={-37.8136} color="#1E2939" />
       </Map>
     </div>
