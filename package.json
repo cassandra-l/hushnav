@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:backend": "tsx server.ts"
   },
   "dependencies": {
     "@aws-amplify/ui-react": "~6.13.2",
@@ -16,7 +17,14 @@
     "@capacitor/ios": "^8.3.0",
     "@tailwindcss/vite": "^4.2.2",
     "aws-amplify": "~6.15.10",
+    "axios": "^1.14.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.1",
+    "express": "^5.2.1",
     "framer-motion": "^12.38.0",
+    "geojson": "^0.5.0",
+    "lucide-react": "^1.7.0",
+    "pg": "^8.20.0",
     "react": "~18.3.1",
     "react-dom": "~18.3.1",
     "react-router": "^7.14.0",
@@ -33,8 +41,12 @@
     "@eslint/compat": "~2.0.1",
     "@eslint/eslintrc": "~3.3.3",
     "@eslint/js": "~9.39.2",
+
     "@types/geojson": "^7946.0.16",
     "@types/pg": "^8.20.0",
+
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/react": "~18.3.27",
     "@types/react-dom": "~18.3.7",
     "@typescript-eslint/eslint-plugin": "~8.53.0",
@@ -48,7 +60,12 @@
     "globals": "~17.0.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
+    "tsx": "^4.21.0",
     "typescript": "~5.9.3",
-    "vite": "~7.3.1"
+    "vite": "~7.3.1",
+    "@parcel/watcher": "^2.4.1"
+  },
+  "optionalDependencies": {
+    "@parcel/watcher-linux-x64-glibc": "2.2.0"
   }
 }

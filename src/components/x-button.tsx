@@ -3,14 +3,15 @@ import { X } from 'lucide-react';
 
 interface XButtonProps {
   className?: string;
+  onClose?: () => void;
 }
 
-export function XButton({ className = "" }: XButtonProps) {
+export function XButton({ className = "", onClose = undefined}: XButtonProps) {
   const navigate = useNavigate();
 
   return (
     <button
-      onClick={() => navigate("/")}
+      onClick={onClose ? onClose : () => navigate("/")}
       type="button"
       className={`
         fixed top-6 right-6 z-50 
