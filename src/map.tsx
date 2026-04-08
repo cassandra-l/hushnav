@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { MicButton } from "./components/mic-button";
 import { PopUp } from "./components/pop-up";
 import { RouteMap } from "./components/route-map";
+import { VolumeBar } from "./components/noise-volume-bar";
 import type {
   PlanRouteResponse,
   RoutePreference,
@@ -38,9 +39,6 @@ export function Map() {
   };
 
   // Formats route length into user-friendly text
-  // Example:
-  // 362.08 -> 362 m
-  // 1200 -> 1.20 km
   const formatRouteLength = (meters: number) => {
     if (meters < 1000) {
       return `${Math.round(meters)} m`;
@@ -53,7 +51,6 @@ export function Map() {
   const handlePlanRoute = async () => {
     setError("");
 
-    // Basic form validation
     if (!startLocation.trim() || !destination.trim()) {
       setRouteData(null);
       setError("Please enter both a start location and destination.");
@@ -69,7 +66,6 @@ export function Map() {
       return;
     }
 
-    // Prevent requests if backend base URL has not been set
     if (!API_BASE_URL) {
       setRouteData(null);
       setError(
@@ -81,7 +77,6 @@ export function Map() {
     setLoading(true);
 
     try {
-      // Request body based on teammate's backend contract
       const requestBody = {
         startQuery: startLocation,
         endQuery: destination,
@@ -95,7 +90,6 @@ export function Map() {
         body: JSON.stringify(requestBody),
       });
 
-      // Read as text first so the app does not crash on empty or invalid JSON
       const rawText = await response.text();
 
       console.log("Route response status:", response.status);
@@ -130,7 +124,6 @@ export function Map() {
     } catch (err) {
       setRouteData(null);
 
-      // TypeError is common when the backend server is offline
       if (err instanceof TypeError) {
         setError(
           "Cannot connect to the backend server right now. Please make sure it is running on localhost:3000."
@@ -147,7 +140,6 @@ export function Map() {
 
   return (
     <main className="min-h-screen px-4 sm:px-6 py-6 max-w-7xl mx-auto">
-      {/* Back button */}
       <button
         onClick={() => navigate("/")}
         className="mb-4 text-sm text-[#1E2939] font-medium hover:underline"
@@ -155,7 +147,6 @@ export function Map() {
         ← Back
       </button>
 
-      {/* Page header */}
       <div className="mb-6">
         <h1 className="text-3xl font-semibold text-[#1E2939]">
           Plan Your Quiet Route
@@ -165,14 +156,10 @@ export function Map() {
         </p>
       </div>
 
-      {/* Main responsive page layout */}
       <div className="flex flex-col lg:flex-row gap-6 items-start">
-        {/* Left column */}
         <div className="w-full lg:w-[420px] flex flex-col gap-5">
-          {/* Route planning form */}
           <section className="bg-white/70 rounded-3xl shadow-md p-5 border border-white/60">
             <div className="flex flex-col gap-4">
-              {/* Start location */}
               <div>
                 <label
                   htmlFor="startLocation"
@@ -193,7 +180,6 @@ export function Map() {
                 </p>
               </div>
 
-              {/* Destination */}
               <div>
                 <label
                   htmlFor="destination"
@@ -214,8 +200,6 @@ export function Map() {
                 </p>
               </div>
 
-              {/* Route preference buttons
-                  Note: backend does not currently use this value yet. */}
               <div>
                 <label className="block text-sm font-medium text-[#1E2939] mb-2">
                   Route preference
@@ -245,7 +229,6 @@ export function Map() {
                 </div>
               </div>
 
-              {/* Submit button */}
               <button
                 onClick={handlePlanRoute}
                 disabled={loading}
@@ -254,14 +237,19 @@ export function Map() {
                 {loading ? "Finding route..." : "Find Quiet Route"}
               </button>
 
-              {/* Error message */}
               {error && (
                 <p className="text-sm text-red-600 font-medium">{error}</p>
               )}
             </div>
           </section>
 
-          {/* Empty state before first request */}
+          <section className="bg-white/60 rounded-3xl shadow-md p-5 border border-white/60">
+            <h2 className="text-lg font-semibold text-[#1E2939] mb-3">
+              Live Noise Meter
+            </h2>
+            <VolumeBar />
+          </section>
+
           {!routeData && (
             <section className="bg-white/60 rounded-3xl shadow-md p-5 border border-white/60">
               <h2 className="text-lg font-semibold text-[#1E2939] mb-2">
@@ -274,7 +262,6 @@ export function Map() {
             </section>
           )}
 
-          {/* Real backend route summary */}
           {routeData && (
             <section className="bg-white/75 rounded-3xl shadow-md p-5 border border-white/60">
               <h2 className="text-lg font-semibold text-[#1E2939] mb-4">
@@ -340,7 +327,6 @@ export function Map() {
           )}
         </div>
 
-        {/* Right column: map */}
         <div className="w-full flex-1">
           <section className="bg-white/60 rounded-3xl shadow-md p-5 border border-white/60">
             <div className="flex items-center justify-between mb-3">
@@ -357,12 +343,10 @@ export function Map() {
         </div>
       </div>
 
-      {/* Floating microphone button */}
       <div className="fixed bottom-6 right-6">
         <MicButton onClick={() => setIsPopUpOpen(true)} />
       </div>
 
-      {/* Microphone popup */}
       {isPopUpOpen && <PopUp onClose={() => setIsPopUpOpen(false)} />}
     </main>
   );

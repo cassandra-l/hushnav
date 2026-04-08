@@ -1,3 +1,15 @@
 {
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "axios": "^1.14.0",
+    "dotenv": "^17.4.1",
+    "geojson": "^0.5.0",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.161",
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^25.5.2",
+    "@types/pg": "^8.20.0"
+  }
 }
