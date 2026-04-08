@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Search, MapPin, Navigation } from "lucide-react";
+import {
+  ArrowLeft,
+  Search,
+  MapPin,
+  Navigation,
+  ChevronUp,
+  ChevronDown,
+} from "lucide-react";
 import { MicButton } from "./components/mic-button";
 import { PopUp } from "./components/pop-up";
 import { RouteMap } from "./components/route-map";
@@ -14,6 +21,9 @@ export function Map() {
 
   // Controls microphone popup visibility
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
+
+  // Mobile-only state to collapse/expand the top search panel
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(true);
 
   // User text input state
   const [startLocation, setStartLocation] = useState("");
@@ -111,6 +121,11 @@ export function Map() {
       }
 
       setRouteData(data as PlanRouteResponse);
+
+      // After route is found on mobile, collapse the top panel
+      if (window.innerWidth < 1024) {
+        setIsMobileSearchOpen(false);
+      }
     } catch (err) {
       setRouteData(null);
 
@@ -136,11 +151,8 @@ export function Map() {
           Mobile layout:
           - full-screen map with floating overlays */}
       <div className="h-full w-full lg:grid lg:grid-cols-[380px_1fr]">
-        {/* Left panel:
-            hidden as a sidebar on mobile because mobile uses floating overlays
-            visible on desktop */}
+        {/* Desktop sidebar */}
         <aside className="hidden lg:flex lg:flex-col h-full bg-white border-r border-[#E8EEEC] z-20">
-          {/* Desktop header */}
           <div className="px-5 pt-5 pb-4 border-b border-[#E8EEEC]">
             <div className="flex items-center gap-3 mb-4">
               <button
@@ -167,7 +179,7 @@ export function Map() {
                 htmlFor="desktopStartLocation"
                 className="block text-xs font-medium text-[#4A5565] mb-2"
               >
-                Origin
+                Start
               </label>
 
               <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white px-4 py-3">
@@ -301,95 +313,132 @@ export function Map() {
         <div className="relative h-full w-full">
           <RouteMap routeData={routeData} />
 
-          {/* Mobile top floating search panel */}
-          <section className="absolute top-4 left-4 right-4 z-10 lg:hidden">
-            <div className="bg-white/92 backdrop-blur-sm rounded-[28px] shadow-xl p-4 border border-white/70">
-              <div className="flex items-center gap-3 mb-4">
-                <button
-                  onClick={() => navigate("/")}
-                  className="w-10 h-10 rounded-full bg-[#F7FAF9] border border-[#E8EEEC] flex items-center justify-center text-[#1E2939] shadow-sm"
-                  aria-label="Go back"
-                >
-                  <ArrowLeft size={18} />
-                </button>
-
-                <div>
-                  <h1 className="text-[24px] leading-tight font-semibold text-[#1E2939]">
+          {/* Mobile collapsed button */}
+          {!isMobileSearchOpen && (
+            <div className="absolute top-4 left-4 right-4 z-10 lg:hidden">
+              <button
+                type="button"
+                onClick={() => setIsMobileSearchOpen(true)}
+                className="w-full bg-white/92 backdrop-blur-sm rounded-2xl shadow-lg border border-white/70 px-4 py-3 flex items-center justify-between"
+              >
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-[#1E2939]">
                     Quiet Route
-                  </h1>
-                  <p className="text-sm text-[#6A7282]">
-                    Find the calmest path through the city
+                  </p>
+                  <p className="text-xs text-[#6A7282]">
+                    {startLocation && destination
+                      ? `${startLocation} → ${destination}`
+                      : "Open search"}
                   </p>
                 </div>
-              </div>
 
-              {/* Mobile start input */}
-              <div className="mb-3">
-                <label
-                  htmlFor="mobileStartLocation"
-                  className="block text-xs font-medium text-[#4A5565] mb-2"
-                >
-                  Origin
-                </label>
-
-                <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white/80 px-4 py-3">
-                  <div className="w-8 h-8 rounded-full bg-[#D4B896] flex items-center justify-center shrink-0">
-                    <Navigation size={16} className="text-white" />
-                  </div>
-
-                  <Search size={16} className="text-[#5A9A8E] shrink-0" />
-
-                  <input
-                    id="mobileStartLocation"
-                    type="text"
-                    value={startLocation}
-                    onChange={(e) => setStartLocation(e.target.value)}
-                    placeholder="Enter start location"
-                    className="w-full bg-transparent outline-none text-[14px] text-[#1E2939] placeholder:text-[#8B98A5]"
-                  />
-                </div>
-              </div>
-
-              {/* Mobile destination input */}
-              <div className="mb-4">
-                <label
-                  htmlFor="mobileDestination"
-                  className="block text-xs font-medium text-[#4A5565] mb-2"
-                >
-                  Destination
-                </label>
-
-                <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white/80 px-4 py-3">
-                  <div className="w-8 h-8 rounded-full bg-[#7DB0A6] flex items-center justify-center shrink-0">
-                    <MapPin size={16} className="text-white" />
-                  </div>
-
-                  <Search size={16} className="text-[#5A9A8E] shrink-0" />
-
-                  <input
-                    id="mobileDestination"
-                    type="text"
-                    value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
-                    placeholder="Enter destination"
-                    className="w-full bg-transparent outline-none text-[14px] text-[#1E2939] placeholder:text-[#8B98A5]"
-                  />
-                </div>
-              </div>
-
-              <button
-                onClick={handlePlanRoute}
-                disabled={loading}
-                className="w-full rounded-2xl bg-[#5A9A8E] text-white py-3 font-medium shadow-md disabled:opacity-70"
-              >
-                {loading ? "Finding quiet route..." : "Find Quiet Route"}
+                <ChevronDown size={18} className="text-[#1E2939]" />
               </button>
-
-              {error && (
-                <p className="text-sm text-red-600 font-medium mt-3">{error}</p>
-              )}
             </div>
-          </section>
+          )}
+
+          {/* Mobile top floating search panel */}
+          {isMobileSearchOpen && (
+            <section className="absolute top-4 left-4 right-4 z-10 lg:hidden">
+              <div className="bg-white/92 backdrop-blur-sm rounded-[28px] shadow-xl p-4 border border-white/70">
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => navigate("/")}
+                      className="w-10 h-10 rounded-full bg-[#F7FAF9] border border-[#E8EEEC] flex items-center justify-center text-[#1E2939] shadow-sm"
+                      aria-label="Go back"
+                    >
+                      <ArrowLeft size={18} />
+                    </button>
+
+                    <div>
+                      <h1 className="text-[24px] leading-tight font-semibold text-[#1E2939]">
+                        Quiet Route
+                      </h1>
+                      <p className="text-sm text-[#6A7282]">
+                        Find the calmest path through the city
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsMobileSearchOpen(false)}
+                    className="w-9 h-9 rounded-full bg-[#F7FAF9] border border-[#E8EEEC] flex items-center justify-center text-[#1E2939] shrink-0"
+                    aria-label="Collapse panel"
+                  >
+                    <ChevronUp size={18} />
+                  </button>
+                </div>
+
+                {/* Mobile start input */}
+                <div className="mb-3">
+                  <label
+                    htmlFor="mobileStartLocation"
+                    className="block text-xs font-medium text-[#4A5565] mb-2"
+                  >
+                    Start
+                  </label>
+
+                  <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white/80 px-4 py-3">
+                    <div className="w-8 h-8 rounded-full bg-[#D4B896] flex items-center justify-center shrink-0">
+                      <Navigation size={16} className="text-white" />
+                    </div>
+
+                    <Search size={16} className="text-[#5A9A8E] shrink-0" />
+
+                    <input
+                      id="mobileStartLocation"
+                      type="text"
+                      value={startLocation}
+                      onChange={(e) => setStartLocation(e.target.value)}
+                      placeholder="Enter start location"
+                      className="w-full bg-transparent outline-none text-[14px] text-[#1E2939] placeholder:text-[#8B98A5]"
+                    />
+                  </div>
+                </div>
+
+                {/* Mobile destination input */}
+                <div className="mb-4">
+                  <label
+                    htmlFor="mobileDestination"
+                    className="block text-xs font-medium text-[#4A5565] mb-2"
+                  >
+                    Destination
+                  </label>
+
+                  <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white/80 px-4 py-3">
+                    <div className="w-8 h-8 rounded-full bg-[#7DB0A6] flex items-center justify-center shrink-0">
+                      <MapPin size={16} className="text-white" />
+                    </div>
+
+                    <Search size={16} className="text-[#5A9A8E] shrink-0" />
+
+                    <input
+                      id="mobileDestination"
+                      type="text"
+                      value={destination}
+                      onChange={(e) => setDestination(e.target.value)}
+                      placeholder="Enter destination"
+                      className="w-full bg-transparent outline-none text-[14px] text-[#1E2939] placeholder:text-[#8B98A5]"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={handlePlanRoute}
+                  disabled={loading}
+                  className="w-full rounded-2xl bg-[#5A9A8E] text-white py-3 font-medium shadow-md disabled:opacity-70"
+                >
+                  {loading ? "Finding quiet route..." : "Find Quiet Route"}
+                </button>
+
+                {error && (
+                  <p className="text-sm text-red-600 font-medium mt-3">{error}</p>
+                )}
+              </div>
+            </section>
+          )}
 
           {/* Mobile bottom info bar */}
           <section className="absolute bottom-4 left-4 right-4 z-10 lg:hidden">
@@ -480,7 +529,7 @@ export function Map() {
             </button>
           </div>
 
-          {/* Desktop mic button can sit on map corner */}
+          {/* Desktop mic button */}
           <div className="hidden lg:block absolute bottom-6 right-6 z-10">
             <MicButton onClick={() => setIsPopUpOpen(true)} />
           </div>

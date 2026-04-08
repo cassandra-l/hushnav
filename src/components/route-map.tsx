@@ -18,27 +18,28 @@ type RouteMapProps = {
 export function RouteMap({ routeData }: RouteMapProps) {
   const mapRef = useRef<MapRef | null>(null);
 
-  // Mapbox token from .env
+  // Read Mapbox token from .env
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
-  // Default Melbourne view before a route is loaded
+  // Default Melbourne CBD view before a route is loaded
   const melbourneCBD = {
     longitude: 144.9631,
     latitude: -37.8136,
     zoom: 14.5,
   };
 
-  // Convert backend route geometry into GeoJSON feature for Mapbox
+  // Convert backend route geometry into a GeoJSON feature for Mapbox
   const routeGeoJson = useMemo(() => {
     if (
       !routeData ||
       routeData.route.geojson.type !== "LineString" ||
+      !routeData.route.geojson.coordinates ||
       routeData.route.geojson.coordinates.length === 0
     ) {
       return null;
     }
 
-    return {
+    const feature = {
       type: "Feature" as const,
       properties: {},
       geometry: {
@@ -46,14 +47,22 @@ export function RouteMap({ routeData }: RouteMapProps) {
         coordinates: routeData.route.geojson.coordinates,
       },
     };
+
+    console.log("Route GeoJSON feature:", feature);
+    console.log(
+      "Route coordinate count:",
+      routeData.route.geojson.coordinates.length
+    );
+
+    return feature;
   }, [routeData]);
 
-  // Fit map to route bounds once route data arrives
+  // Fit the map to the route bounds after data arrives
   useEffect(() => {
     if (!mapRef.current || !routeData) return;
 
     const coordinates = routeData.route.geojson.coordinates;
-    if (!coordinates.length) return;
+    if (!coordinates || coordinates.length === 0) return;
 
     let minLng = coordinates[0][0];
     let minLat = coordinates[0][1];
@@ -67,16 +76,31 @@ export function RouteMap({ routeData }: RouteMapProps) {
       if (lat > maxLat) maxLat = lat;
     }
 
+    // Extra left padding on desktop so the route is not hidden behind the sidebar
+    const isDesktop = window.innerWidth >= 1024;
+
     mapRef.current.fitBounds(
       [
         [minLng, minLat],
         [maxLng, maxLat],
       ],
       {
-        padding: 80,
+        padding: isDesktop
+          ? { top: 80, right: 80, bottom: 80, left: 420 }
+          : { top: 80, right: 40, bottom: 140, left: 40 },
         duration: 1200,
       }
     );
+  }, [routeData]);
+
+  // Helpful debug logs
+  useEffect(() => {
+    if (routeData) {
+      console.log("Start resolved name:", routeData.start.resolvedName);
+      console.log("End resolved name:", routeData.end.resolvedName);
+      console.log("Route length:", routeData.route.totalLength);
+      console.log("Route coordinates:", routeData.route.geojson.coordinates);
+    }
   }, [routeData]);
 
   // Fallback if Mapbox token is missing
@@ -94,9 +118,9 @@ export function RouteMap({ routeData }: RouteMapProps) {
         ref={mapRef}
         initialViewState={melbourneCBD}
         mapboxAccessToken={mapboxToken}
-        mapStyle="mapbox://styles/mapbox/light-v11"
+        mapStyle="mapbox://styles/mapbox/streets-v12"
       >
-        {/* Zoom controls */}
+        {/* Standard map controls */}
         <NavigationControl position="top-right" />
 
         {/* Start marker */}
@@ -119,36 +143,46 @@ export function RouteMap({ routeData }: RouteMapProps) {
 
         {/* Quiet route line */}
         {routeGeoJson && (
-          <Source id="planned-route" type="geojson" data={routeGeoJson}>
-            <>
-              {/* Soft glow under the line */}
-              <Layer
-                id="planned-route-glow"
-                type="line"
-                paint={{
-                  "line-color": "#A9D1C8",
-                  "line-width": 10,
-                  "line-opacity": 0.35,
-                  "line-blur": 1.2,
-                }}
-              />
+          <Source
+            id="planned-route"
+            type="geojson"
+            data={routeGeoJson}
+            key={JSON.stringify(routeData?.route.geojson.coordinates)}
+          >
+            {/* Soft glow under the route */}
+            <Layer
+              id="planned-route-glow"
+              type="line"
+              paint={{
+                "line-color": "#A9D1C8",
+                "line-width": 10,
+                "line-opacity": 0.35,
+                "line-blur": 1.2,
+              }}
+              layout={{
+                "line-join": "round",
+                "line-cap": "round",
+              }}
+            />
 
-              {/* Main route line */}
-              <Layer
-                id="planned-route-line"
-                type="line"
-                paint={{
-                  "line-color": "#7DB0A6",
-                  "line-width": 6,
-                  "line-opacity": 0.95,
-                }}
-              />
-            </>
+            {/* Main visible route line */}
+            <Layer
+              id="planned-route-line"
+              type="line"
+              paint={{
+                "line-color": "#7DB0A6",
+                "line-width": 6,
+                "line-opacity": 0.95,
+              }}
+              layout={{
+                "line-join": "round",
+                "line-cap": "round",
+              }}
+            />
           </Source>
         )}
 
-        {/* Small mock safe-space markers to match prototype feel.
-            Replace later with real safe-space data if available. */}
+        {/* Optional mock quiet-space markers for presentation/demo feel */}
         <Marker longitude={144.9639} latitude={-37.8102}>
           <div className="w-8 h-8 rounded-full bg-white border-2 border-[#E8EEEC] shadow-md flex items-center justify-center">
             <Trees size={14} className="text-[#7DB0A6]" />
