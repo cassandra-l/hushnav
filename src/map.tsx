@@ -8,10 +8,7 @@ import type {
   RoutePreference,
 } from "./types/route";
 
-// Base URL for backend API
-// Ask your teammate for the correct value and place it in .env
-// Example:
-// VITE_API_BASE_URL=http://localhost:3000
+// Backend base URL from the Vite environment file
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export function Map() {
@@ -33,14 +30,26 @@ export function Map() {
   // Stores the real route response from the backend
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
 
-  // Converts the route preference value into display text
+  // Converts route preference into nicer UI text
   const formatPreferenceLabel = (value: RoutePreference) => {
     if (value === "quietest") return "Quietest";
     if (value === "balanced") return "Balanced";
     return "Fastest";
   };
 
-  // Sends the route planning request to the backend
+  // Formats route length into user-friendly text
+  // Example:
+  // 362.08 -> 362 m
+  // 1200 -> 1.20 km
+  const formatRouteLength = (meters: number) => {
+    if (meters < 1000) {
+      return `${Math.round(meters)} m`;
+    }
+
+    return `${(meters / 1000).toFixed(2)} km`;
+  };
+
+  // Sends route planning request to backend
   const handlePlanRoute = async () => {
     setError("");
 
@@ -60,7 +69,7 @@ export function Map() {
       return;
     }
 
-    // Prevent requests if the base URL has not been set yet
+    // Prevent requests if backend base URL has not been set
     if (!API_BASE_URL) {
       setRouteData(null);
       setError(
@@ -72,7 +81,7 @@ export function Map() {
     setLoading(true);
 
     try {
-      // Build request body based on teammate's backend contract
+      // Request body based on teammate's backend contract
       const requestBody = {
         startQuery: startLocation,
         endQuery: destination,
@@ -86,17 +95,47 @@ export function Map() {
         body: JSON.stringify(requestBody),
       });
 
-      const data = await response.json();
+      // Read as text first so the app does not crash on empty or invalid JSON
+      const rawText = await response.text();
 
-      if (!response.ok) {
-        throw new Error(data?.error || "Failed to plan route.");
+      console.log("Route response status:", response.status);
+      console.log("Route response text:", rawText);
+
+      let data: PlanRouteResponse | { error?: string } | null = null;
+
+      if (rawText.trim()) {
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          throw new Error(
+            "Backend returned a response, but it was not valid JSON."
+          );
+        }
       }
 
-      setRouteData(data);
+      if (!response.ok) {
+        const errorMessage =
+          data && "error" in data && data.error
+            ? data.error
+            : `Request failed with status ${response.status}.`;
+
+        throw new Error(errorMessage);
+      }
+
+      if (!data) {
+        throw new Error("Backend returned an empty response.");
+      }
+
+      setRouteData(data as PlanRouteResponse);
     } catch (err) {
       setRouteData(null);
 
-      if (err instanceof Error) {
+      // TypeError is common when the backend server is offline
+      if (err instanceof TypeError) {
+        setError(
+          "Cannot connect to the backend server right now. Please make sure it is running on localhost:3000."
+        );
+      } else if (err instanceof Error) {
         setError(err.message);
       } else {
         setError("Something went wrong while planning your route.");
@@ -176,9 +215,7 @@ export function Map() {
               </div>
 
               {/* Route preference buttons
-                  Note: backend does not currently use this value yet.
-                  We still keep it in the UI because it fits the product concept
-                  and can be connected later when supported. */}
+                  Note: backend does not currently use this value yet. */}
               <div>
                 <label className="block text-sm font-medium text-[#1E2939] mb-2">
                   Route preference
@@ -214,7 +251,7 @@ export function Map() {
                 disabled={loading}
                 className="w-full bg-[#1E2939]/85 text-white py-3 rounded-2xl shadow-md font-medium disabled:opacity-70"
               >
-                {loading ? "Planning route..." : "Plan Route"}
+                {loading ? "Finding route..." : "Find Quiet Route"}
               </button>
 
               {/* Error message */}
@@ -269,14 +306,14 @@ export function Map() {
                 <div className="flex justify-between gap-4">
                   <span className="font-medium">Route length</span>
                   <span className="text-right">
-                    {routeData.route.totalLength}
+                    {formatRouteLength(routeData.route.totalLength)}
                   </span>
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span className="font-medium">Route cost</span>
+                  <span className="font-medium">Route score</span>
                   <span className="text-right">
-                    {routeData.route.totalCost}
+                    {routeData.route.totalCost.toFixed(2)}
                   </span>
                 </div>
 
@@ -296,9 +333,8 @@ export function Map() {
               </div>
 
               <p className="text-[#4A5565] mt-4 text-sm">
-                The backend currently returns route geometry and resolved
-                start/end locations. Step-by-step directions and estimated time
-                are not yet available.
+                Route score is the backend’s weighted value used for route
+                selection, influenced by distance, noise, and crowd conditions.
               </p>
             </section>
           )}
