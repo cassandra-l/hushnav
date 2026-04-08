@@ -1,15 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Search, MapPin, Navigation } from "lucide-react";
 import { MicButton } from "./components/mic-button";
 import { PopUp } from "./components/pop-up";
 import { RouteMap } from "./components/route-map";
-import { VolumeBar } from "./components/noise-volume-bar";
-import type {
-  PlanRouteResponse,
-  RoutePreference,
-} from "./types/route";
+import type { PlanRouteResponse } from "./types/route";
 
-// Backend base URL from the Vite environment file
+// Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export function Map() {
@@ -18,39 +15,37 @@ export function Map() {
   // Controls microphone popup visibility
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
 
-  // Form input state
+  // User input state
   const [startLocation, setStartLocation] = useState("");
   const [destination, setDestination] = useState("");
-  const [preference, setPreference] =
-    useState<RoutePreference>("quietest");
 
-  // Loading and error states
+  // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   // Stores the real route response from the backend
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
 
-  // Converts route preference into nicer UI text
-  const formatPreferenceLabel = (value: RoutePreference) => {
-    if (value === "quietest") return "Quietest";
-    if (value === "balanced") return "Balanced";
-    return "Fastest";
-  };
-
-  // Formats route length into user-friendly text
+  // Format distance from meters into readable text
   const formatRouteLength = (meters: number) => {
     if (meters < 1000) {
       return `${Math.round(meters)} m`;
     }
 
-    return `${(meters / 1000).toFixed(2)} km`;
+    return `${(meters / 1000).toFixed(1)} km`;
   };
 
-  // Sends route planning request to backend
+  // Simple frontend walking-time estimate
+  // Backend does not currently return duration, so this gives a UI-friendly estimate
+  const estimateWalkingMinutes = (meters: number) => {
+    return Math.max(1, Math.round(meters / 84));
+  };
+
+  // Send the quiet-route request to backend
   const handlePlanRoute = async () => {
     setError("");
 
+    // Basic validation
     if (!startLocation.trim() || !destination.trim()) {
       setRouteData(null);
       setError("Please enter both a start location and destination.");
@@ -68,15 +63,14 @@ export function Map() {
 
     if (!API_BASE_URL) {
       setRouteData(null);
-      setError(
-        "API base URL not set. Add VITE_API_BASE_URL to your .env file."
-      );
+      setError("API base URL not set. Add VITE_API_BASE_URL to your .env file.");
       return;
     }
 
     setLoading(true);
 
     try {
+      // Quietest route only: backend currently plans the quiet route
       const requestBody = {
         startQuery: startLocation,
         endQuery: destination,
@@ -90,6 +84,7 @@ export function Map() {
         body: JSON.stringify(requestBody),
       });
 
+      // Read text first so invalid JSON or empty responses do not crash the app
       const rawText = await response.text();
 
       console.log("Route response status:", response.status);
@@ -126,7 +121,7 @@ export function Map() {
 
       if (err instanceof TypeError) {
         setError(
-          "Cannot connect to the backend server right now. Please make sure it is running on localhost:3000."
+          "Cannot connect to the backend server right now. Please make sure it is running."
         );
       } else if (err instanceof Error) {
         setError(err.message);
@@ -139,214 +134,196 @@ export function Map() {
   };
 
   return (
-    <main className="min-h-screen px-4 sm:px-6 py-6 max-w-7xl mx-auto">
-      <button
-        onClick={() => navigate("/")}
-        className="mb-4 text-sm text-[#1E2939] font-medium hover:underline"
-      >
-        ← Back
-      </button>
+    <main className="relative h-screen w-full overflow-hidden bg-[#D5E8E5]">
+      {/* Full-screen map sits underneath the floating UI */}
+      <RouteMap routeData={routeData} />
 
-      <div className="mb-6">
-        <h1 className="text-3xl font-semibold text-[#1E2939]">
-          Plan Your Quiet Route
-        </h1>
-        <p className="text-[#6A7282] mt-1">
-          Find a calmer path through the Melbourne CBD.
-        </p>
-      </div>
+      {/* Top floating search panel */}
+      <section className="absolute top-4 left-4 right-4 z-10">
+        <div className="bg-white/92 backdrop-blur-sm rounded-[28px] shadow-xl p-4 border border-white/70">
+          {/* Header row */}
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => navigate("/")}
+              className="w-10 h-10 rounded-full bg-[#F7FAF9] border border-[#E8EEEC] flex items-center justify-center text-[#1E2939] shadow-sm"
+              aria-label="Go back"
+            >
+              <ArrowLeft size={18} />
+            </button>
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-        <div className="w-full lg:w-[420px] flex flex-col gap-5">
-          <section className="bg-white/70 rounded-3xl shadow-md p-5 border border-white/60">
-            <div className="flex flex-col gap-4">
-              <div>
-                <label
-                  htmlFor="startLocation"
-                  className="block text-sm font-medium text-[#1E2939] mb-2"
-                >
-                  Start location
-                </label>
-                <input
-                  id="startLocation"
-                  type="text"
-                  value={startLocation}
-                  onChange={(e) => setStartLocation(e.target.value)}
-                  placeholder="e.g. Flinders Street Station"
-                  className="w-full rounded-2xl border border-[#D5D7DA] px-4 py-3 bg-white text-[#1E2939] outline-none"
-                />
-                <p className="text-xs text-[#6A7282] mt-2">
-                  Enter a Melbourne CBD starting point.
+            <div>
+              <h1 className="text-[24px] leading-tight font-semibold text-[#1E2939]">
+                Quiet Route
+              </h1>
+              <p className="text-sm text-[#6A7282]">
+                Find the calmest path through the city
+              </p>
+            </div>
+          </div>
+
+          {/* Start input */}
+          <div className="mb-3">
+            <label
+              htmlFor="startLocation"
+              className="block text-xs font-medium text-[#4A5565] mb-2"
+            >
+              Origin
+            </label>
+
+            <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white/80 px-4 py-3">
+              <div className="w-8 h-8 rounded-full bg-[#D4B896] flex items-center justify-center shrink-0">
+                <Navigation size={16} className="text-white" />
+              </div>
+
+              <Search size={16} className="text-[#5A9A8E] shrink-0" />
+
+              <input
+                id="startLocation"
+                type="text"
+                value={startLocation}
+                onChange={(e) => setStartLocation(e.target.value)}
+                placeholder="Enter start location"
+                className="w-full bg-transparent outline-none text-[14px] text-[#1E2939] placeholder:text-[#8B98A5]"
+              />
+            </div>
+          </div>
+
+          {/* Destination input */}
+          <div className="mb-4">
+            <label
+              htmlFor="destination"
+              className="block text-xs font-medium text-[#4A5565] mb-2"
+            >
+              Destination
+            </label>
+
+            <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white/80 px-4 py-3">
+              <div className="w-8 h-8 rounded-full bg-[#7DB0A6] flex items-center justify-center shrink-0">
+                <MapPin size={16} className="text-white" />
+              </div>
+
+              <Search size={16} className="text-[#5A9A8E] shrink-0" />
+
+              <input
+                id="destination"
+                type="text"
+                value={destination}
+                onChange={(e) => setDestination(e.target.value)}
+                placeholder="Enter destination"
+                className="w-full bg-transparent outline-none text-[14px] text-[#1E2939] placeholder:text-[#8B98A5]"
+              />
+            </div>
+          </div>
+
+          {/* Action button */}
+          <button
+            onClick={handlePlanRoute}
+            disabled={loading}
+            className="w-full rounded-2xl bg-[#5A9A8E] text-white py-3 font-medium shadow-md disabled:opacity-70"
+          >
+            {loading ? "Finding quiet route..." : "Find Quiet Route"}
+          </button>
+
+          {/* Error message */}
+          {error && (
+            <p className="text-sm text-red-600 font-medium mt-3">{error}</p>
+          )}
+        </div>
+      </section>
+
+      {/* Bottom floating route info bar */}
+      <section className="absolute bottom-4 left-4 right-4 z-10">
+        <div className="bg-white/95 backdrop-blur-sm rounded-[28px] shadow-xl border border-white/80 overflow-hidden">
+          {routeData ? (
+            <div className="grid grid-cols-4 items-center text-center">
+              {/* Noise level */}
+              <div className="px-3 py-4 border-r border-[#E8EEEC]">
+                <p className="text-xs text-[#6A7282]">Noise Level</p>
+                <p className="text-[15px] font-medium text-[#5A9A8E]">Quiet</p>
+              </div>
+
+              {/* Distance */}
+              <div className="px-3 py-4 border-r border-[#E8EEEC]">
+                <p className="text-xs text-[#6A7282]">Distance</p>
+                <p className="text-[15px] font-medium text-[#1E2939]">
+                  {formatRouteLength(routeData.route.totalLength)}
                 </p>
               </div>
 
-              <div>
-                <label
-                  htmlFor="destination"
-                  className="block text-sm font-medium text-[#1E2939] mb-2"
-                >
-                  Destination
-                </label>
-                <input
-                  id="destination"
-                  type="text"
-                  value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
-                  placeholder="e.g. State Library Victoria"
-                  className="w-full rounded-2xl border border-[#D5D7DA] px-4 py-3 bg-white text-[#1E2939] outline-none"
-                />
-                <p className="text-xs text-[#6A7282] mt-2">
-                  Choose where you want to go.
+              {/* Duration */}
+              <div className="px-3 py-4 border-r border-[#E8EEEC]">
+                <p className="text-xs text-[#6A7282]">Duration</p>
+                <p className="text-[15px] font-medium text-[#1E2939]">
+                  {estimateWalkingMinutes(routeData.route.totalLength)} min
                 </p>
               </div>
 
+              {/* Exit button */}
+              <div className="px-3 py-4">
+                <button
+                  onClick={() => {
+                    setRouteData(null);
+                    setError("");
+                  }}
+                  className="bg-[#5A9A8E] text-white rounded-2xl px-5 py-2.5 font-medium shadow-sm"
+                >
+                  Exit
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="px-5 py-4 flex items-center justify-between gap-4">
               <div>
-                <label className="block text-sm font-medium text-[#1E2939] mb-2">
-                  Route preference
-                </label>
-
-                <div className="grid grid-cols-3 gap-2">
-                  {(["quietest", "balanced", "fastest"] as RoutePreference[]).map(
-                    (option) => {
-                      const isSelected = preference === option;
-
-                      return (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => setPreference(option)}
-                          className={`rounded-2xl px-3 py-3 text-sm font-medium border transition ${
-                            isSelected
-                              ? "bg-[#1E2939]/85 text-white border-[#1E2939]/85"
-                              : "bg-white text-[#1E2939] border-[#D5D7DA]"
-                          }`}
-                        >
-                          {formatPreferenceLabel(option)}
-                        </button>
-                      );
-                    }
-                  )}
-                </div>
+                <p className="text-sm font-medium text-[#1E2939]">
+                  Quiet Route Preview
+                </p>
+                <p className="text-xs text-[#6A7282] mt-1">
+                  Search for a start point and destination to display your route.
+                </p>
               </div>
 
               <button
-                onClick={handlePlanRoute}
-                disabled={loading}
-                className="w-full bg-[#1E2939]/85 text-white py-3 rounded-2xl shadow-md font-medium disabled:opacity-70"
+                onClick={() => navigate("/")}
+                className="bg-[#5A9A8E] text-white rounded-2xl px-5 py-2.5 font-medium shadow-sm shrink-0"
               >
-                {loading ? "Finding route..." : "Find Quiet Route"}
+                Exit
               </button>
-
-              {error && (
-                <p className="text-sm text-red-600 font-medium">{error}</p>
-              )}
             </div>
-          </section>
-
-          <section className="bg-white/60 rounded-3xl shadow-md p-5 border border-white/60">
-            <h2 className="text-lg font-semibold text-[#1E2939] mb-3">
-              Live Noise Meter
-            </h2>
-            <VolumeBar />
-          </section>
-
-          {!routeData && (
-            <section className="bg-white/60 rounded-3xl shadow-md p-5 border border-white/60">
-              <h2 className="text-lg font-semibold text-[#1E2939] mb-2">
-                Route Preview
-              </h2>
-              <p className="text-[#6A7282] text-sm">
-                Enter a start point and destination to generate a quieter route
-                and display it on the map.
-              </p>
-            </section>
-          )}
-
-          {routeData && (
-            <section className="bg-white/75 rounded-3xl shadow-md p-5 border border-white/60">
-              <h2 className="text-lg font-semibold text-[#1E2939] mb-4">
-                Route Summary
-              </h2>
-
-              <div className="space-y-3 text-sm text-[#1E2939]">
-                <div className="flex justify-between gap-4">
-                  <span className="font-medium">From</span>
-                  <span className="text-right">
-                    {routeData.start.resolvedName}
-                  </span>
-                </div>
-
-                <div className="flex justify-between gap-4">
-                  <span className="font-medium">To</span>
-                  <span className="text-right">
-                    {routeData.end.resolvedName}
-                  </span>
-                </div>
-
-                <div className="flex justify-between gap-4">
-                  <span className="font-medium">Preference</span>
-                  <span className="text-right">
-                    {formatPreferenceLabel(preference)}
-                  </span>
-                </div>
-
-                <div className="flex justify-between gap-4">
-                  <span className="font-medium">Route length</span>
-                  <span className="text-right">
-                    {formatRouteLength(routeData.route.totalLength)}
-                  </span>
-                </div>
-
-                <div className="flex justify-between gap-4">
-                  <span className="font-medium">Route score</span>
-                  <span className="text-right">
-                    {routeData.route.totalCost.toFixed(2)}
-                  </span>
-                </div>
-
-                <div className="flex justify-between gap-4">
-                  <span className="font-medium">Edges used</span>
-                  <span className="text-right">
-                    {routeData.route.edgeIds.length}
-                  </span>
-                </div>
-
-                <div className="flex justify-between gap-4">
-                  <span className="font-medium">Nodes used</span>
-                  <span className="text-right">
-                    {routeData.route.nodeIds.length}
-                  </span>
-                </div>
-              </div>
-
-              <p className="text-[#4A5565] mt-4 text-sm">
-                Route score is the backend’s weighted value used for route
-                selection, influenced by distance, noise, and crowd conditions.
-              </p>
-            </section>
           )}
         </div>
+      </section>
 
-        <div className="w-full flex-1">
-          <section className="bg-white/60 rounded-3xl shadow-md p-5 border border-white/60">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold text-[#1E2939]">
-                Map Preview
-              </h2>
-              <span className="text-xs text-[#6A7282]">
-                Melbourne CBD view
-              </span>
-            </div>
-
-            <RouteMap routeData={routeData} />
-          </section>
-        </div>
-      </div>
-
-      <div className="fixed bottom-6 right-6">
+      {/* Floating microphone button */}
+      <div className="absolute bottom-28 left-4 z-10">
         <MicButton onClick={() => setIsPopUpOpen(true)} />
       </div>
 
+      {/* Optional second floating calm button to match the style more closely */}
+      <div className="absolute bottom-28 right-4 z-10">
+        <button
+          type="button"
+          className="w-16 h-16 rounded-full bg-[#5A9A8E] text-white shadow-xl flex items-center justify-center border-4 border-white/70"
+          aria-label="Calm tools"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="26"
+            height="26"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12.8 19.6A2 2 0 1 0 14 16H2" />
+            <path d="M17.5 8a2.5 2.5 0 1 1 2 4H2" />
+            <path d="M9.8 4.4A2 2 0 1 1 11 8H2" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Mic popup */}
       {isPopUpOpen && <PopUp onClose={() => setIsPopUpOpen(false)} />}
     </main>
   );
