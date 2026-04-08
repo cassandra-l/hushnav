@@ -2,9 +2,12 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MicButton } from "./components/mic-button";
 import { PopUp } from "./components/pop-up";
+import { RouteMap } from "./components/route-map"; // Map component
 
+// Type for route preference dropdown
 type RoutePreference = "quietest" | "balanced" | "fastest";
 
+// Type for route result (mock data for now)
 type RouteResult = {
   routeName: string;
   distance: string;
@@ -19,25 +22,42 @@ type RouteResult = {
 export function Map() {
   const navigate = useNavigate();
 
+  // -------------------------
+  // STATE MANAGEMENT
+  // -------------------------
+
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
+
   const [startLocation, setStartLocation] = useState("");
   const [destination, setDestination] = useState("");
-  const [preference, setPreference] = useState<RoutePreference>("quietest");
+
+  const [preference, setPreference] =
+    useState<RoutePreference>("quietest");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
+
+  const [routeResult, setRouteResult] =
+    useState<RouteResult | null>(null);
+
+  // -------------------------
+  // HANDLE ROUTE PLANNING
+  // -------------------------
 
   const handlePlanRoute = async () => {
     setError("");
 
+    // Validation: ensure inputs are filled
     if (!startLocation.trim() || !destination.trim()) {
       setRouteResult(null);
       setError("Please enter both a start location and destination.");
       return;
     }
 
+    // Validation: prevent same start + destination
     if (
-      startLocation.trim().toLowerCase() === destination.trim().toLowerCase()
+      startLocation.trim().toLowerCase() ===
+      destination.trim().toLowerCase()
     ) {
       setRouteResult(null);
       setError("Start location and destination cannot be the same.");
@@ -47,7 +67,9 @@ export function Map() {
     setLoading(true);
 
     try {
-      // Temporary mock response until backend is connected
+      // -------------------------
+      // MOCK DATA (replace later with backend API)
+      // -------------------------
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       let mockRoute: RouteResult;
@@ -64,8 +86,8 @@ export function Map() {
           crowdLevel: "Low",
           directions: [
             `Start at ${startLocation}.`,
-            "Head north along a quieter side street near Swanston Street.",
-            "Continue through a lower foot traffic section toward Little Lonsdale Street.",
+            "Head north along a quieter side street.",
+            "Continue through a low traffic section.",
             `Arrive at ${destination}.`,
           ],
         };
@@ -76,13 +98,13 @@ export function Map() {
           estimatedTime: "21 mins",
           quietScore: 78,
           notes:
-            "This route balances lower noise levels with a shorter travel time.",
+            "This route balances lower noise with travel efficiency.",
           quietSpaces: 2,
           crowdLevel: "Moderate",
           directions: [
             `Start at ${startLocation}.`,
-            "Walk through a moderately busy street with quieter connecting paths.",
-            "Continue toward the city centre using a balanced route option.",
+            "Walk through mixed traffic streets.",
+            "Take a quieter connecting street.",
             `Arrive at ${destination}.`,
           ],
         };
@@ -93,13 +115,13 @@ export function Map() {
           estimatedTime: "18 mins",
           quietScore: 60,
           notes:
-            "This route is quicker, but may include busier streets and noisier sections.",
+            "This route is faster but may include busy streets.",
           quietSpaces: 1,
           crowdLevel: "High",
           directions: [
             `Start at ${startLocation}.`,
-            "Take the most direct path through the main pedestrian corridor.",
-            "Continue straight through a busier section of the CBD.",
+            "Take the most direct route.",
+            "Continue through main pedestrian areas.",
             `Arrive at ${destination}.`,
           ],
         };
@@ -116,6 +138,9 @@ export function Map() {
 
   return (
     <main className="min-h-screen px-6 py-6 max-w-md mx-auto">
+      {/* -------------------------
+          BACK BUTTON
+      ------------------------- */}
       <button
         onClick={() => navigate("/")}
         className="mb-4 text-sm text-[#1E2939] font-medium"
@@ -123,6 +148,9 @@ export function Map() {
         ← Back
       </button>
 
+      {/* -------------------------
+          PAGE HEADER
+      ------------------------- */}
       <div className="mb-6">
         <h1 className="text-3xl font-semibold text-[#1E2939]">
           Plan Your Quiet Route
@@ -132,56 +160,50 @@ export function Map() {
         </p>
       </div>
 
+      {/* -------------------------
+          INPUT FORM
+      ------------------------- */}
       <section className="bg-white/70 rounded-3xl shadow-md p-5 mb-5 border border-white/60">
         <div className="flex flex-col gap-4">
+          {/* Start location */}
           <div>
-            <label
-              htmlFor="start"
-              className="block text-sm font-medium text-[#1E2939] mb-2"
-            >
+            <label className="block text-sm font-medium text-[#1E2939] mb-2">
               Start location
             </label>
             <input
-              id="start"
               type="text"
               value={startLocation}
               onChange={(e) => setStartLocation(e.target.value)}
               placeholder="e.g. Flinders Street Station"
-              className="w-full rounded-2xl border border-[#D5D7DA] px-4 py-3 bg-white text-[#1E2939] outline-none"
+              className="w-full rounded-2xl border border-[#D5D7DA] px-4 py-3"
             />
           </div>
 
+          {/* Destination */}
           <div>
-            <label
-              htmlFor="destination"
-              className="block text-sm font-medium text-[#1E2939] mb-2"
-            >
+            <label className="block text-sm font-medium text-[#1E2939] mb-2">
               Destination
             </label>
             <input
-              id="destination"
               type="text"
               value={destination}
               onChange={(e) => setDestination(e.target.value)}
               placeholder="e.g. State Library Victoria"
-              className="w-full rounded-2xl border border-[#D5D7DA] px-4 py-3 bg-white text-[#1E2939] outline-none"
+              className="w-full rounded-2xl border border-[#D5D7DA] px-4 py-3"
             />
           </div>
 
+          {/* Preference */}
           <div>
-            <label
-              htmlFor="preference"
-              className="block text-sm font-medium text-[#1E2939] mb-2"
-            >
+            <label className="block text-sm font-medium text-[#1E2939] mb-2">
               Route preference
             </label>
             <select
-              id="preference"
               value={preference}
               onChange={(e) =>
                 setPreference(e.target.value as RoutePreference)
               }
-              className="w-full rounded-2xl border border-[#D5D7DA] px-4 py-3 bg-white text-[#1E2939] outline-none"
+              className="w-full rounded-2xl border border-[#D5D7DA] px-4 py-3"
             >
               <option value="quietest">Quietest</option>
               <option value="balanced">Balanced</option>
@@ -189,80 +211,67 @@ export function Map() {
             </select>
           </div>
 
+          {/* Button */}
           <button
             onClick={handlePlanRoute}
             disabled={loading}
-            className="w-full bg-[#1E2939]/85 text-white py-3 rounded-2xl shadow-md font-medium disabled:opacity-70"
+            className="w-full bg-[#1E2939]/85 text-white py-3 rounded-2xl shadow-md"
           >
             {loading ? "Planning route..." : "Plan Route"}
           </button>
 
+          {/* Error message */}
           {error && (
-            <p className="text-sm text-red-600 font-medium">{error}</p>
+            <p className="text-sm text-red-600">{error}</p>
           )}
         </div>
       </section>
 
+      {/* -------------------------
+          MAP SECTION (Mapbox)
+      ------------------------- */}
       <section className="bg-white/60 rounded-3xl shadow-md p-5 mb-5 border border-white/60">
-        <h2 className="text-lg font-semibold text-[#1E2939] mb-3">
-          Map Preview
-        </h2>
-        <div className="h-72 rounded-2xl bg-[#DDEAE7] border border-[#C7D8D3] flex items-center justify-center text-center px-6 text-[#6A7282]">
-          Map will appear here once the route API or map library is connected.
-        </div>
+        <h2 className="text-lg font-semibold mb-3">Map Preview</h2>
+
+        {/* Real map component */}
+        <RouteMap
+          startLocation={startLocation}
+          destination={destination}
+        />
       </section>
 
+      {/* -------------------------
+          ROUTE RESULT
+      ------------------------- */}
       {routeResult && (
         <>
+          {/* Summary */}
           <section className="bg-white/75 rounded-3xl shadow-md p-5 mb-5 border border-white/60">
-            <h2 className="text-lg font-semibold text-[#1E2939] mb-3">
+            <h2 className="text-lg font-semibold mb-3">
               Route Summary
             </h2>
 
-            <div className="flex flex-col gap-2 text-[#1E2939]">
-              <p>
-                <span className="font-medium">From:</span> {startLocation}
-              </p>
-              <p>
-                <span className="font-medium">To:</span> {destination}
-              </p>
-              <p>
-                <span className="font-medium">Route:</span>{" "}
-                {routeResult.routeName}
-              </p>
-              <p>
-                <span className="font-medium">Preference:</span> {preference}
-              </p>
-              <p>
-                <span className="font-medium">Distance:</span>{" "}
-                {routeResult.distance}
-              </p>
-              <p>
-                <span className="font-medium">Estimated time:</span>{" "}
-                {routeResult.estimatedTime}
-              </p>
-              <p>
-                <span className="font-medium">Quiet score:</span>{" "}
-                {routeResult.quietScore}/100
-              </p>
-              <p>
-                <span className="font-medium">Crowd level:</span>{" "}
-                {routeResult.crowdLevel}
-              </p>
-              <p>
-                <span className="font-medium">Quiet spaces nearby:</span>{" "}
-                {routeResult.quietSpaces}
-              </p>
-              <p className="text-[#4A5565] mt-2">{routeResult.notes}</p>
-            </div>
+            <p><b>From:</b> {startLocation}</p>
+            <p><b>To:</b> {destination}</p>
+            <p><b>Route:</b> {routeResult.routeName}</p>
+            <p><b>Distance:</b> {routeResult.distance}</p>
+            <p><b>Time:</b> {routeResult.estimatedTime}</p>
+            <p><b>Quiet score:</b> {routeResult.quietScore}/100</p>
+            <p><b>Crowd level:</b> {routeResult.crowdLevel}</p>
+            <p><b>Quiet spaces:</b> {routeResult.quietSpaces}</p>
+
+            <p className="mt-2 text-[#4A5565]">
+              {routeResult.notes}
+            </p>
           </section>
 
+          {/* Directions */}
           <section className="bg-white/75 rounded-3xl shadow-md p-5 mb-5 border border-white/60">
-            <h2 className="text-lg font-semibold text-[#1E2939] mb-3">
+            <h2 className="text-lg font-semibold mb-3">
               Directions
             </h2>
 
-            <ol className="list-decimal list-inside text-[#1E2939] space-y-2">
+            <ol className="list-decimal list-inside space-y-2">
               {routeResult.directions.map((step, index) => (
                 <li key={index}>{step}</li>
               ))}
@@ -271,11 +280,17 @@ export function Map() {
         </>
       )}
 
+      {/* -------------------------
+          MIC BUTTON (FLOATING)
+      ------------------------- */}
       <div className="fixed bottom-6 right-6">
         <MicButton onClick={() => setIsPopUpOpen(true)} />
       </div>
 
-      {isPopUpOpen && <PopUp onClose={() => setIsPopUpOpen(false)} />}
+      {/* Pop-up */}
+      {isPopUpOpen && (
+        <PopUp onClose={() => setIsPopUpOpen(false)} />
+      )}
     </main>
   );
 }
