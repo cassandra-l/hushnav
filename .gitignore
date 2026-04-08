@@ -1,4 +1,6 @@
+# -------------------------
 # Logs
+# -------------------------
 logs
 *.log
 npm-debug.log*
@@ -7,23 +9,47 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# -------------------------
+# Node / build
+# -------------------------
 node_modules
 dist
 dist-ssr
+
+# -------------------------
+# Environment variables (DO NOT COMMIT)
+# -------------------------
+.env
+.env.*
 *.local
 
-# Editor directories and files
+# -------------------------
+# OS / system files
+# -------------------------
+.DS_Store
+
+# -------------------------
+# Editor / IDE
+# -------------------------
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-# amplify
+# -------------------------
+# Amplify
+# -------------------------
 .amplify
 amplify_outputs*
 amplifyconfiguration*
+
+# -------------------------
+# Optional (good practice)
+# -------------------------
+coverage
+.tmp
+.cache
