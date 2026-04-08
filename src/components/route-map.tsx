@@ -10,7 +10,7 @@ import { MapPin, Navigation, Trees, Building2 } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { PlanRouteResponse } from "../types/route";
 
-// Props for the map component
+// Props for map component
 type RouteMapProps = {
   routeData: PlanRouteResponse | null;
 };
@@ -18,17 +18,17 @@ type RouteMapProps = {
 export function RouteMap({ routeData }: RouteMapProps) {
   const mapRef = useRef<MapRef | null>(null);
 
-  // Read Mapbox token from .env
+  // Mapbox token from .env
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
-  // Default Melbourne CBD view before a route is loaded
+  // Default Melbourne view before a route is loaded
   const melbourneCBD = {
     longitude: 144.9631,
     latitude: -37.8136,
-    zoom: 15,
+    zoom: 14.5,
   };
 
-  // Build GeoJSON line feature from backend route coordinates
+  // Convert backend route geometry into GeoJSON feature for Mapbox
   const routeGeoJson = useMemo(() => {
     if (
       !routeData ||
@@ -48,12 +48,11 @@ export function RouteMap({ routeData }: RouteMapProps) {
     };
   }, [routeData]);
 
-  // Fit the map to the route when route data arrives
+  // Fit map to route bounds once route data arrives
   useEffect(() => {
     if (!mapRef.current || !routeData) return;
 
     const coordinates = routeData.route.geojson.coordinates;
-
     if (!coordinates.length) return;
 
     let minLng = coordinates[0][0];
@@ -74,30 +73,30 @@ export function RouteMap({ routeData }: RouteMapProps) {
         [maxLng, maxLat],
       ],
       {
-        padding: 90,
+        padding: 80,
         duration: 1200,
       }
     );
   }, [routeData]);
 
-  // Friendly fallback if the token is missing
+  // Fallback if Mapbox token is missing
   if (!mapboxToken) {
     return (
-      <div className="h-screen w-full bg-[#DDEAE7] flex items-center justify-center text-center px-6 text-[#6A7282]">
+      <div className="h-full w-full bg-[#DDEAE7] flex items-center justify-center text-center px-6 text-[#6A7282]">
         Mapbox token not found. Add VITE_MAPBOX_TOKEN to your .env file.
       </div>
     );
   }
 
   return (
-    <div className="h-screen w-full">
+    <div className="h-full w-full">
       <Map
         ref={mapRef}
         initialViewState={melbourneCBD}
         mapboxAccessToken={mapboxToken}
         mapStyle="mapbox://styles/mapbox/light-v11"
       >
-        {/* Standard map controls */}
+        {/* Zoom controls */}
         <NavigationControl position="top-right" />
 
         {/* Start marker */}
@@ -121,21 +120,35 @@ export function RouteMap({ routeData }: RouteMapProps) {
         {/* Quiet route line */}
         {routeGeoJson && (
           <Source id="planned-route" type="geojson" data={routeGeoJson}>
-            <Layer
-              id="planned-route-line"
-              type="line"
-              paint={{
-                "line-color": "#7DB0A6",
-                "line-width": 6,
-                "line-opacity": 0.9,
-                "line-blur": 0.2,
-              }}
-            />
+            <>
+              {/* Soft glow under the line */}
+              <Layer
+                id="planned-route-glow"
+                type="line"
+                paint={{
+                  "line-color": "#A9D1C8",
+                  "line-width": 10,
+                  "line-opacity": 0.35,
+                  "line-blur": 1.2,
+                }}
+              />
+
+              {/* Main route line */}
+              <Layer
+                id="planned-route-line"
+                type="line"
+                paint={{
+                  "line-color": "#7DB0A6",
+                  "line-width": 6,
+                  "line-opacity": 0.95,
+                }}
+              />
+            </>
           </Source>
         )}
 
-        {/* Optional small mock quiet-space markers to make the map feel richer.
-            Remove or replace these later with real quiet-space data. */}
+        {/* Small mock safe-space markers to match prototype feel.
+            Replace later with real safe-space data if available. */}
         <Marker longitude={144.9639} latitude={-37.8102}>
           <div className="w-8 h-8 rounded-full bg-white border-2 border-[#E8EEEC] shadow-md flex items-center justify-center">
             <Trees size={14} className="text-[#7DB0A6]" />
