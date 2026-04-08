@@ -1,6 +1,6 @@
 import { geocodePlace } from "./geocode";
 import { getQuietestRouteFromCoordinates } from "./route";
-
+import type { LineString } from "geojson";
 export type Coordinate = {
   lat: number;
   lng: number;
@@ -32,7 +32,7 @@ export type PlanRouteResponse = {
     totalLength: number;
     edgeIds: number[];
     nodeIds: number[];
-    geojson: GeoJSON.LineString;
+    geojson: LineString;
   };
 };
 
