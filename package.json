@@ -41,6 +41,10 @@
     "@eslint/compat": "~2.0.1",
     "@eslint/eslintrc": "~3.3.3",
     "@eslint/js": "~9.39.2",
+
+    "@types/geojson": "^7946.0.16",
+    "@types/pg": "^8.20.0",
+
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/react": "~18.3.27",
@@ -58,7 +62,10 @@
     "tailwindcss": "^4.2.2",
     "tsx": "^4.21.0",
     "typescript": "~5.9.3",
+
     "vite": "~7.3.1",
+
+    
     "@parcel/watcher": "^2.4.1"
   },
   "optionalDependencies": {

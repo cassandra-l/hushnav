@@ -1,6 +1,13 @@
 import { pool } from "./db";
 import type { LineString, MultiLineString } from "geojson";
 
+type NoiseMapRow = {
+  edge_id: number;
+  noise_db: number | null;
+  is_high_noise: boolean | null;
+  geojson: string | null;
+};
+
 export type NoiseMapFeature = {
   type: "Feature";
   properties: {
@@ -21,7 +28,7 @@ export async function getNoiseMapData(): Promise<NoiseMapFeatureCollection> {
   const client = await pool.connect();
 
   try {
-    const result = await client.query(
+    const result = await client.query<NoiseMapRow>(
       `
       SELECT
         e.edge_id,
@@ -44,7 +51,7 @@ export async function getNoiseMapData(): Promise<NoiseMapFeatureCollection> {
           isHighNoise: row.is_high_noise ?? false,
           noiseCategory: row.is_high_noise ? "high" : "non-high",
         },
-        geometry: JSON.parse(row.geojson),
+        geometry: JSON.parse(row.geojson as string) as LineString | MultiLineString,
       }));
 
     return {
