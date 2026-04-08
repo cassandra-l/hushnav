@@ -10,13 +10,15 @@ frontend:
     preBuild:
       commands:
         - npm install
+        - npm install --include=optional
     build:
       commands:
         - npm run build
+        - npm install --include=optional
   artifacts:
     baseDirectory: dist
     files:
-      - '**/*'
+      - "**/*"
   cache:
     paths:
       - .npm/**/*
