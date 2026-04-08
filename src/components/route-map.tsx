@@ -8,38 +8,41 @@ type RouteMapProps = {
 };
 
 export function RouteMap({ startLocation, destination }: RouteMapProps) {
-  // Read the Mapbox token from the Vite environment file
+  // Read Mapbox token from the Vite environment file
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
-  // Temporary default centre point for Melbourne CBD
-  // Later, this can be updated using real route coordinates from the backend
+  // Default map view centred on Melbourne CBD
+  // Later this can be updated based on real coordinates from the backend
   const melbourneCBD = {
     longitude: 144.9631,
     latitude: -37.8136,
     zoom: 13,
   };
 
-  // If no token is found, show a helpful message instead of crashing
+  // Friendly fallback if token is missing
   if (!mapboxToken) {
     return (
-      <div className="h-72 rounded-2xl bg-[#DDEAE7] border border-[#C7D8D3] flex items-center justify-center text-center px-6 text-[#6A7282]">
+      <div className="h-[420px] rounded-2xl bg-[#DDEAE7] border border-[#C7D8D3] flex items-center justify-center text-center px-6 text-[#6A7282]">
         Mapbox token not found. Add VITE_MAPBOX_TOKEN to your .env file.
       </div>
     );
   }
 
   return (
-    <div className="h-72 w-full rounded-2xl overflow-hidden border border-[#C7D8D3]">
+    <div className="h-[420px] w-full rounded-2xl overflow-hidden border border-[#C7D8D3]">
       <Map
         initialViewState={melbourneCBD}
         mapboxAccessToken={mapboxToken}
         mapStyle="mapbox://styles/mapbox/streets-v12"
       >
-        {/* Zoom and compass controls */}
+        {/* Standard zoom and compass controls */}
         <NavigationControl position="top-right" />
 
-        {/* Temporary marker in Melbourne CBD */}
-        {/* Later this should become start/destination markers */}
+        {/* Temporary Melbourne CBD marker
+            Later this should be replaced with:
+            - start marker
+            - destination marker
+            - route polyline from backend coordinates */}
         <Marker longitude={144.9631} latitude={-37.8136} color="#1E2939" />
       </Map>
     </div>
