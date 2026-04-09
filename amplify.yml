@@ -3,13 +3,17 @@ backend:
   phases:
     build:
       commands:
-        - npm install --include=optional
+        - node -v
+        - npm -v
+        - npm ci --include=optional
         - npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID
 frontend:
   phases:
     preBuild:
       commands:
-        - npm install --include=optional
+        - node -v
+        - npm -v
+        - npm ci --include=optional
     build:
       commands:
         - npm run build
