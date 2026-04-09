@@ -49,7 +49,7 @@ const schema = a.schema({
       observation_time: a.datetime(),
     })
     .identifier(["edge_id"]),
-});
+}).authorization((allow) => [allow.publicApiKey()]);
 
 export type Schema = ClientSchema<typeof schema>;
 
