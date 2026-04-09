@@ -1,6 +1,5 @@
 import { Logo } from "./components/logo";
 import { FeatureCard } from "./components/feature-card";
-import { useNavigate } from "react-router-dom";
 
 export function Home() {
   const navigate = useNavigate();
