@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -15,6 +15,110 @@ import type { PlanRouteResponse } from "./types/route";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? "";
+
+// Shape of a Mapbox suggestion we care about
+type LocationSuggestion = {
+  id: string;
+  place_name: string;
+  center: [number, number];
+};
+
+// Small reusable input with autocomplete dropdown
+type AutocompleteInputProps = {
+  id: string;
+  label: string;
+  value: string;
+  placeholder: string;
+  iconType: "start" | "destination";
+  suggestions: LocationSuggestion[];
+  isOpen: boolean;
+  loading: boolean;
+  onChange: (value: string) => void;
+  onSelect: (suggestion: LocationSuggestion) => void;
+  onFocus: () => void;
+};
+
+function AutocompleteInput({
+  id,
+  label,
+  value,
+  placeholder,
+  iconType,
+  suggestions,
+  isOpen,
+  loading,
+  onChange,
+  onSelect,
+  onFocus,
+}: AutocompleteInputProps) {
+  const isStart = iconType === "start";
+
+  return (
+    <div className="mb-3">
+      <label
+        htmlFor={id}
+        className="block text-xs font-medium text-[#4A5565] mb-2"
+      >
+        {label}
+      </label>
+
+      <div className="relative">
+        <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white px-4 py-3">
+          <div
+            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+              isStart ? "bg-[#D4B896]" : "bg-[#7DB0A6]"
+            }`}
+          >
+            {isStart ? (
+              <Navigation size={16} className="text-white" />
+            ) : (
+              <MapPin size={16} className="text-white" />
+            )}
+          </div>
+
+          <Search size={16} className="text-[#5A9A8E] shrink-0" />
+
+          <input
+            id={id}
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={onFocus}
+            placeholder={placeholder}
+            autoComplete="off"
+            className="w-full bg-transparent outline-none text-[14px] text-[#1E2939] placeholder:text-[#8B98A5]"
+          />
+        </div>
+
+        {isOpen && (
+          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 overflow-hidden rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">
+            {loading ? (
+              <div className="px-4 py-3 text-sm text-[#6A7282]">
+                Searching...
+              </div>
+            ) : suggestions.length > 0 ? (
+              suggestions.map((suggestion) => (
+                <button
+                  key={suggestion.id}
+                  type="button"
+                  onClick={() => onSelect(suggestion)}
+                  className="w-full px-4 py-3 text-left text-sm text-[#1E2939] hover:bg-[#F7FAF9] border-b border-[#EEF4F2] last:border-b-0"
+                >
+                  {suggestion.place_name}
+                </button>
+              ))
+            ) : value.trim().length >= 2 ? (
+              <div className="px-4 py-3 text-sm text-[#6A7282]">
+                No matching locations found
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function Map() {
   const navigate = useNavigate();
@@ -29,12 +133,38 @@ export function Map() {
   const [startLocation, setStartLocation] = useState("");
   const [destination, setDestination] = useState("");
 
+  // Optional selected suggestion state
+  // We keep this for future use, even though your backend currently accepts text queries.
+  const [selectedStart, setSelectedStart] = useState<LocationSuggestion | null>(
+    null
+  );
+  const [selectedDestination, setSelectedDestination] =
+    useState<LocationSuggestion | null>(null);
+
+  // Suggestion dropdown state
+  const [startSuggestions, setStartSuggestions] = useState<LocationSuggestion[]>(
+    []
+  );
+  const [destinationSuggestions, setDestinationSuggestions] = useState<
+    LocationSuggestion[]
+  >([]);
+  const [isStartSuggestionsOpen, setIsStartSuggestionsOpen] = useState(false);
+  const [isDestinationSuggestionsOpen, setIsDestinationSuggestionsOpen] =
+    useState(false);
+  const [isStartSuggestionsLoading, setIsStartSuggestionsLoading] =
+    useState(false);
+  const [isDestinationSuggestionsLoading, setIsDestinationSuggestionsLoading] =
+    useState(false);
+
   // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   // Stores real backend route data
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
+
+  // Wrapper used to close dropdowns when clicking outside
+  const searchPanelRef = useRef<HTMLDivElement | null>(null);
 
   // Format distance from meters to a cleaner UI label
   const formatRouteLength = (meters: number) => {
@@ -47,9 +177,126 @@ export function Map() {
     return Math.max(1, Math.round(meters / 84));
   };
 
+  // Shared autocomplete fetcher
+  const fetchSuggestions = useMemo(() => {
+    return async (query: string): Promise<LocationSuggestion[]> => {
+      if (!MAPBOX_TOKEN || query.trim().length < 2) return [];
+
+      // Restrict roughly to Melbourne area for more relevant results
+      const bbox = "144.5937,-38.4339,145.5125,-37.5113";
+
+      const url =
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+          query.trim()
+        )}.json` +
+        `?access_token=${MAPBOX_TOKEN}` +
+        `&autocomplete=true` +
+        `&limit=5` +
+        `&country=au` +
+        `&bbox=${bbox}`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      return data.features ?? [];
+    };
+  }, []);
+
+  // Close dropdowns when clicking outside the search area
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        searchPanelRef.current &&
+        !searchPanelRef.current.contains(event.target as Node)
+      ) {
+        setIsStartSuggestionsOpen(false);
+        setIsDestinationSuggestionsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Fetch start suggestions with debounce
+  useEffect(() => {
+    if (!MAPBOX_TOKEN || startLocation.trim().length < 2) {
+      setStartSuggestions([]);
+      setIsStartSuggestionsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const run = async () => {
+      try {
+        setIsStartSuggestionsLoading(true);
+        const results = await fetchSuggestions(startLocation);
+        if (!controller.signal.aborted) {
+          setStartSuggestions(results);
+        }
+      } catch (err) {
+        if (!controller.signal.aborted) {
+          console.error("Failed to fetch start suggestions:", err);
+          setStartSuggestions([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsStartSuggestionsLoading(false);
+        }
+      }
+    };
+
+    const timeout = setTimeout(run, 250);
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeout);
+    };
+  }, [startLocation, fetchSuggestions]);
+
+  // Fetch destination suggestions with debounce
+  useEffect(() => {
+    if (!MAPBOX_TOKEN || destination.trim().length < 2) {
+      setDestinationSuggestions([]);
+      setIsDestinationSuggestionsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const run = async () => {
+      try {
+        setIsDestinationSuggestionsLoading(true);
+        const results = await fetchSuggestions(destination);
+        if (!controller.signal.aborted) {
+          setDestinationSuggestions(results);
+        }
+      } catch (err) {
+        if (!controller.signal.aborted) {
+          console.error("Failed to fetch destination suggestions:", err);
+          setDestinationSuggestions([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsDestinationSuggestionsLoading(false);
+        }
+      }
+    };
+
+    const timeout = setTimeout(run, 250);
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeout);
+    };
+  }, [destination, fetchSuggestions]);
+
   // Handles quiet-route request
   const handlePlanRoute = async () => {
     setError("");
+    setIsStartSuggestionsOpen(false);
+    setIsDestinationSuggestionsOpen(false);
 
     if (!startLocation.trim() || !destination.trim()) {
       setRouteData(null);
@@ -58,8 +305,7 @@ export function Map() {
     }
 
     if (
-      startLocation.trim().toLowerCase() ===
-      destination.trim().toLowerCase()
+      startLocation.trim().toLowerCase() === destination.trim().toLowerCase()
     ) {
       setRouteData(null);
       setError("Start location and destination cannot be the same.");
@@ -75,7 +321,7 @@ export function Map() {
     setLoading(true);
 
     try {
-      // Backend currently plans the quietest route
+      // Backend currently plans the quietest route using text queries
       const requestBody = {
         startQuery: startLocation,
         endQuery: destination,
@@ -145,15 +391,13 @@ export function Map() {
 
   return (
     <main className="relative h-screen w-full overflow-hidden bg-[#D5E8E5]">
-      {/* Desktop layout:
-          - left panel like Google Maps
-          - map fills remaining space
-          Mobile layout:
-          - full-screen map with floating overlays */}
       <div className="h-full w-full lg:grid lg:grid-cols-[380px_1fr]">
         {/* Desktop sidebar */}
         <aside className="hidden lg:flex lg:flex-col h-full bg-white border-r border-[#E8EEEC] z-20">
-          <div className="px-5 pt-5 pb-4 border-b border-[#E8EEEC]">
+          <div
+            ref={searchPanelRef}
+            className="px-5 pt-5 pb-4 border-b border-[#E8EEEC]"
+          >
             <div className="flex items-center gap-3 mb-4">
               <button
                 onClick={() => navigate("/")}
@@ -173,59 +417,59 @@ export function Map() {
               </div>
             </div>
 
-            {/* Desktop start input */}
-            <div className="mb-3">
-              <label
-                htmlFor="desktopStartLocation"
-                className="block text-xs font-medium text-[#4A5565] mb-2"
-              >
-                Start
-              </label>
+            <AutocompleteInput
+              id="desktopStartLocation"
+              label="Start"
+              value={startLocation}
+              placeholder="Enter start location"
+              iconType="start"
+              suggestions={startSuggestions}
+              isOpen={isStartSuggestionsOpen}
+              loading={isStartSuggestionsLoading}
+              onChange={(value) => {
+                setStartLocation(value);
+                setSelectedStart(null);
+                setIsStartSuggestionsOpen(value.trim().length >= 2);
+              }}
+              onSelect={(suggestion) => {
+                setStartLocation(suggestion.place_name);
+                setSelectedStart(suggestion);
+                setIsStartSuggestionsOpen(false);
+              }}
+              onFocus={() => {
+                if (startLocation.trim().length >= 2) {
+                  setIsStartSuggestionsOpen(true);
+                }
+                setIsDestinationSuggestionsOpen(false);
+              }}
+            />
 
-              <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white px-4 py-3">
-                <div className="w-8 h-8 rounded-full bg-[#D4B896] flex items-center justify-center shrink-0">
-                  <Navigation size={16} className="text-white" />
-                </div>
-
-                <Search size={16} className="text-[#5A9A8E] shrink-0" />
-
-                <input
-                  id="desktopStartLocation"
-                  type="text"
-                  value={startLocation}
-                  onChange={(e) => setStartLocation(e.target.value)}
-                  placeholder="Enter start location"
-                  className="w-full bg-transparent outline-none text-[14px] text-[#1E2939] placeholder:text-[#8B98A5]"
-                />
-              </div>
-            </div>
-
-            {/* Desktop destination input */}
-            <div className="mb-4">
-              <label
-                htmlFor="desktopDestination"
-                className="block text-xs font-medium text-[#4A5565] mb-2"
-              >
-                Destination
-              </label>
-
-              <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white px-4 py-3">
-                <div className="w-8 h-8 rounded-full bg-[#7DB0A6] flex items-center justify-center shrink-0">
-                  <MapPin size={16} className="text-white" />
-                </div>
-
-                <Search size={16} className="text-[#5A9A8E] shrink-0" />
-
-                <input
-                  id="desktopDestination"
-                  type="text"
-                  value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
-                  placeholder="Enter destination"
-                  className="w-full bg-transparent outline-none text-[14px] text-[#1E2939] placeholder:text-[#8B98A5]"
-                />
-              </div>
-            </div>
+            <AutocompleteInput
+              id="desktopDestination"
+              label="Destination"
+              value={destination}
+              placeholder="Enter destination"
+              iconType="destination"
+              suggestions={destinationSuggestions}
+              isOpen={isDestinationSuggestionsOpen}
+              loading={isDestinationSuggestionsLoading}
+              onChange={(value) => {
+                setDestination(value);
+                setSelectedDestination(null);
+                setIsDestinationSuggestionsOpen(value.trim().length >= 2);
+              }}
+              onSelect={(suggestion) => {
+                setDestination(suggestion.place_name);
+                setSelectedDestination(suggestion);
+                setIsDestinationSuggestionsOpen(false);
+              }}
+              onFocus={() => {
+                if (destination.trim().length >= 2) {
+                  setIsDestinationSuggestionsOpen(true);
+                }
+                setIsStartSuggestionsOpen(false);
+              }}
+            />
 
             <button
               onClick={handlePlanRoute}
@@ -339,8 +583,11 @@ export function Map() {
 
           {/* Mobile top floating search panel */}
           {isMobileSearchOpen && (
-            <section className="absolute top-4 left-4 right-4 z-10 lg:hidden">
-              <div className="bg-white/92 backdrop-blur-sm rounded-[28px] shadow-xl p-4 border border-white/70">
+            <section className="absolute top-4 left-4 right-4 z-20 lg:hidden">
+              <div
+                ref={searchPanelRef}
+                className="bg-white/92 backdrop-blur-sm rounded-[28px] shadow-xl p-4 border border-white/70"
+              >
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div className="flex items-center gap-3">
                     <button
@@ -371,59 +618,59 @@ export function Map() {
                   </button>
                 </div>
 
-                {/* Mobile start input */}
-                <div className="mb-3">
-                  <label
-                    htmlFor="mobileStartLocation"
-                    className="block text-xs font-medium text-[#4A5565] mb-2"
-                  >
-                    Start
-                  </label>
+                <AutocompleteInput
+                  id="mobileStartLocation"
+                  label="Start"
+                  value={startLocation}
+                  placeholder="Enter start location"
+                  iconType="start"
+                  suggestions={startSuggestions}
+                  isOpen={isStartSuggestionsOpen}
+                  loading={isStartSuggestionsLoading}
+                  onChange={(value) => {
+                    setStartLocation(value);
+                    setSelectedStart(null);
+                    setIsStartSuggestionsOpen(value.trim().length >= 2);
+                  }}
+                  onSelect={(suggestion) => {
+                    setStartLocation(suggestion.place_name);
+                    setSelectedStart(suggestion);
+                    setIsStartSuggestionsOpen(false);
+                  }}
+                  onFocus={() => {
+                    if (startLocation.trim().length >= 2) {
+                      setIsStartSuggestionsOpen(true);
+                    }
+                    setIsDestinationSuggestionsOpen(false);
+                  }}
+                />
 
-                  <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white/80 px-4 py-3">
-                    <div className="w-8 h-8 rounded-full bg-[#D4B896] flex items-center justify-center shrink-0">
-                      <Navigation size={16} className="text-white" />
-                    </div>
-
-                    <Search size={16} className="text-[#5A9A8E] shrink-0" />
-
-                    <input
-                      id="mobileStartLocation"
-                      type="text"
-                      value={startLocation}
-                      onChange={(e) => setStartLocation(e.target.value)}
-                      placeholder="Enter start location"
-                      className="w-full bg-transparent outline-none text-[14px] text-[#1E2939] placeholder:text-[#8B98A5]"
-                    />
-                  </div>
-                </div>
-
-                {/* Mobile destination input */}
-                <div className="mb-4">
-                  <label
-                    htmlFor="mobileDestination"
-                    className="block text-xs font-medium text-[#4A5565] mb-2"
-                  >
-                    Destination
-                  </label>
-
-                  <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white/80 px-4 py-3">
-                    <div className="w-8 h-8 rounded-full bg-[#7DB0A6] flex items-center justify-center shrink-0">
-                      <MapPin size={16} className="text-white" />
-                    </div>
-
-                    <Search size={16} className="text-[#5A9A8E] shrink-0" />
-
-                    <input
-                      id="mobileDestination"
-                      type="text"
-                      value={destination}
-                      onChange={(e) => setDestination(e.target.value)}
-                      placeholder="Enter destination"
-                      className="w-full bg-transparent outline-none text-[14px] text-[#1E2939] placeholder:text-[#8B98A5]"
-                    />
-                  </div>
-                </div>
+                <AutocompleteInput
+                  id="mobileDestination"
+                  label="Destination"
+                  value={destination}
+                  placeholder="Enter destination"
+                  iconType="destination"
+                  suggestions={destinationSuggestions}
+                  isOpen={isDestinationSuggestionsOpen}
+                  loading={isDestinationSuggestionsLoading}
+                  onChange={(value) => {
+                    setDestination(value);
+                    setSelectedDestination(null);
+                    setIsDestinationSuggestionsOpen(value.trim().length >= 2);
+                  }}
+                  onSelect={(suggestion) => {
+                    setDestination(suggestion.place_name);
+                    setSelectedDestination(suggestion);
+                    setIsDestinationSuggestionsOpen(false);
+                  }}
+                  onFocus={() => {
+                    if (destination.trim().length >= 2) {
+                      setIsDestinationSuggestionsOpen(true);
+                    }
+                    setIsStartSuggestionsOpen(false);
+                  }}
+                />
 
                 <button
                   onClick={handlePlanRoute}
