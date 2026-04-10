@@ -12,6 +12,8 @@ import { MicButton } from "./components/mic-button";
 import { PopUp } from "./components/pop-up";
 import { RouteMap } from "./components/route-map";
 import type { PlanRouteResponse } from "./types/route";
+import { useAudioMonitor } from "./hook/useAudioMonitor";
+import { VolumeBar } from "./components/noise-volume-bar";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? "";
@@ -201,6 +203,9 @@ export function Map() {
   const navigate = useNavigate();
 
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
+  const { volume, isMonitoring, startMonitoring, stopMonitoring } =
+    useAudioMonitor();
+
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(true);
 
   const [startLocation, setStartLocation] = useState("");
@@ -209,9 +214,9 @@ export function Map() {
   const [, setSelectedStart] = useState<LocationSuggestion | null>(null);
   const [, setSelectedDestination] = useState<LocationSuggestion | null>(null);
 
-  const [startSuggestions, setStartSuggestions] = useState<LocationSuggestion[]>(
-    []
-  );
+  const [startSuggestions, setStartSuggestions] = useState<
+    LocationSuggestion[]
+  >([]);
   const [destinationSuggestions, setDestinationSuggestions] = useState<
     LocationSuggestion[]
   >([]);
@@ -250,7 +255,7 @@ export function Map() {
   const fetchSearchBoxSuggestions = useMemo(() => {
     return async (
       query: string,
-      sessionToken: string
+      sessionToken: string,
     ): Promise<LocationSuggestion[]> => {
       const trimmed = query.trim();
 
@@ -277,11 +282,15 @@ export function Map() {
       if (!response.ok) {
         const body = await response.text();
         console.error("Search Box suggest failed:", response.status, body);
-        throw new Error(`Suggest request failed with status ${response.status}`);
+        throw new Error(
+          `Suggest request failed with status ${response.status}`,
+        );
       }
 
       const data: SearchBoxSuggestResponse = await response.json();
-      const suggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
+      const suggestions = Array.isArray(data.suggestions)
+        ? data.suggestions
+        : [];
 
       return suggestions
         .filter((item) => item.mapbox_id)
@@ -305,7 +314,7 @@ export function Map() {
   const retrieveSearchBoxSuggestion = useMemo(() => {
     return async (
       mapboxId: string,
-      sessionToken: string
+      sessionToken: string,
     ): Promise<LocationSuggestion | null> => {
       if (!hasMapboxToken) {
         return null;
@@ -318,7 +327,7 @@ export function Map() {
       });
 
       const url = `https://api.mapbox.com/search/searchbox/v1/retrieve/${encodeURIComponent(
-        mapboxId
+        mapboxId,
       )}?${params.toString()}`;
 
       const response = await fetch(url);
@@ -326,11 +335,15 @@ export function Map() {
       if (!response.ok) {
         const body = await response.text();
         console.error("Search Box retrieve failed:", response.status, body);
-        throw new Error(`Retrieve request failed with status ${response.status}`);
+        throw new Error(
+          `Retrieve request failed with status ${response.status}`,
+        );
       }
 
       const data: SearchBoxRetrieveResponse = await response.json();
-      const feature = Array.isArray(data.features) ? data.features[0] : undefined;
+      const feature = Array.isArray(data.features)
+        ? data.features[0]
+        : undefined;
 
       if (!feature) {
         return null;
@@ -384,7 +397,7 @@ export function Map() {
         setIsStartSuggestionsLoading(true);
         const results = await fetchSearchBoxSuggestions(
           startLocation,
-          startSessionTokenRef.current
+          startSessionTokenRef.current,
         );
 
         if (!cancelled) {
@@ -424,7 +437,7 @@ export function Map() {
         setIsDestinationSuggestionsLoading(true);
         const results = await fetchSearchBoxSuggestions(
           destination,
-          destinationSessionTokenRef.current
+          destinationSessionTokenRef.current,
         );
 
         if (!cancelled) {
@@ -454,7 +467,7 @@ export function Map() {
     try {
       const retrieved = await retrieveSearchBoxSuggestion(
         suggestion.mapboxId,
-        startSessionTokenRef.current
+        startSessionTokenRef.current,
       );
 
       const finalValue = retrieved ?? suggestion;
@@ -481,7 +494,7 @@ export function Map() {
     try {
       const retrieved = await retrieveSearchBoxSuggestion(
         suggestion.mapboxId,
-        destinationSessionTokenRef.current
+        destinationSessionTokenRef.current,
       );
 
       const finalValue = retrieved ?? suggestion;
@@ -523,7 +536,9 @@ export function Map() {
 
     if (!API_BASE_URL) {
       setRouteData(null);
-      setError("API base URL not set. Add VITE_API_BASE_URL to your .env file.");
+      setError(
+        "API base URL not set. Add VITE_API_BASE_URL to your .env file.",
+      );
       return;
     }
 
@@ -555,7 +570,7 @@ export function Map() {
           data = JSON.parse(rawText);
         } catch {
           throw new Error(
-            "Backend returned a response, but it was not valid JSON."
+            "Backend returned a response, but it was not valid JSON.",
           );
         }
       }
@@ -583,7 +598,7 @@ export function Map() {
 
       if (err instanceof TypeError) {
         setError(
-          "Cannot connect to the backend server right now. Please make sure it is running."
+          "Cannot connect to the backend server right now. Please make sure it is running.",
         );
       } else if (err instanceof Error) {
         setError(err.message);
@@ -713,7 +728,8 @@ export function Map() {
                     <div className="flex justify-between gap-4">
                       <span className="text-[#6A7282]">Duration</span>
                       <span className="font-medium">
-                        {estimateWalkingMinutes(routeData.route.totalLength)} min
+                        {estimateWalkingMinutes(routeData.route.totalLength)}{" "}
+                        min
                       </span>
                     </div>
 
@@ -749,8 +765,8 @@ export function Map() {
                   Quiet Route Preview
                 </h2>
                 <p className="text-sm text-[#6A7282]">
-                  Search for a start point and destination to display the quietest
-                  route on the map.
+                  Search for a start point and destination to display the
+                  quietest route on the map.
                 </p>
               </div>
             )}
@@ -877,12 +893,15 @@ export function Map() {
 
                 {!hasMapboxToken && (
                   <p className="text-sm text-red-600 font-medium mt-3">
-                    Mapbox token missing. Add VITE_MAPBOX_TOKEN to your .env file.
+                    Mapbox token missing. Add VITE_MAPBOX_TOKEN to your .env
+                    file.
                   </p>
                 )}
 
                 {error && (
-                  <p className="text-sm text-red-600 font-medium mt-3">{error}</p>
+                  <p className="text-sm text-red-600 font-medium mt-3">
+                    {error}
+                  </p>
                 )}
               </div>
             </section>
@@ -947,8 +966,15 @@ export function Map() {
             </div>
           </section>
 
+          {/* Mobile Version */}
           <div className="absolute bottom-28 left-4 z-10 lg:hidden">
-            <MicButton onClick={() => setIsPopUpOpen(true)} />
+            {isMonitoring && <VolumeBar volume={volume} />}
+            <MicButton
+              onClick={
+                isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)
+              }
+              isActive={isMonitoring}
+            />
           </div>
 
           <div className="absolute bottom-28 right-4 z-10 lg:hidden">
@@ -975,13 +1001,33 @@ export function Map() {
             </button>
           </div>
 
+          {/* Desktop version */}
           <div className="hidden lg:block absolute bottom-6 right-6 z-10">
-            <MicButton onClick={() => setIsPopUpOpen(true)} />
+            {/* Volume Bar */}
+            {isMonitoring && <VolumeBar volume={volume} />}
+            {/* Mic Button */}
+            <MicButton
+              onClick={
+                isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)
+              }
+              isActive={isMonitoring}
+            />
           </div>
         </div>
       </div>
-
-      {isPopUpOpen && <PopUp onClose={() => setIsPopUpOpen(false)} />}
+      {/* Pop-up */}
+      {isPopUpOpen && (
+        <PopUp
+          onClose={() => setIsPopUpOpen(false)}
+          // When user click Allow button
+          onAllow={async () => {
+            // First close pop-up
+            setIsPopUpOpen(false);
+            // And then trigger browser permission
+            await startMonitoring();
+          }}
+        />
+      )}
     </main>
   );
 }
