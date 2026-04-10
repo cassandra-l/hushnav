@@ -13,97 +13,61 @@ import { PopUp } from "./components/pop-up";
 import { RouteMap } from "./components/route-map";
 import type { PlanRouteResponse } from "./types/route";
 
-// Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? "";
-
-// Wider inner-city box so results are still focused, but not too strict
-const SEARCH_BBOX = {
-  minLng: 144.93,
-  minLat: -37.83,
-  maxLng: 144.995,
-  maxLat: -37.795,
-};
 
 const CBD_CENTER = {
   lng: 144.9631,
   lat: -37.8136,
 };
 
+// Keep this a bit wider than the exact CBD so edge results still appear.
+const MELBOURNE_INNER_BBOX = "144.92,-37.835,145.01,-37.79";
+
 type LocationSuggestion = {
   id: string;
+  mapboxId: string;
   place_name: string;
-  center: [number, number];
+  center?: [number, number];
 };
 
-// Local CBD / inner-city landmarks to improve shorthand matches
-const LANDMARK_SUGGESTIONS: LocationSuggestion[] = [
-  {
-    id: "local-rmit-city",
-    place_name: "RMIT University Melbourne City Campus",
-    center: [144.9631, -37.807],
-  },
-  {
-    id: "local-rmit-building80",
-    place_name: "RMIT Building 80, Swanston Street, Melbourne",
-    center: [144.9637, -37.8081],
-  },
-  {
-    id: "local-marvel",
-    place_name: "Marvel Stadium, Docklands",
-    center: [144.9473, -37.8165],
-  },
-  {
-    id: "local-flinders",
-    place_name: "Flinders Street Station",
-    center: [144.9671, -37.8183],
-  },
-  {
-    id: "local-southern-cross",
-    place_name: "Southern Cross Station",
-    center: [144.9523, -37.8184],
-  },
-  {
-    id: "local-parliament",
-    place_name: "Parliament Station, Melbourne",
-    center: [144.9732, -37.811],
-  },
-  {
-    id: "local-state-library",
-    place_name: "State Library Victoria",
-    center: [144.9652, -37.8097],
-  },
-  {
-    id: "local-melbourne-central",
-    place_name: "Melbourne Central",
-    center: [144.9629, -37.8102],
-  },
-  {
-    id: "local-qv",
-    place_name: "QV Melbourne",
-    center: [144.9655, -37.8107],
-  },
-  {
-    id: "local-emporium",
-    place_name: "Emporium Melbourne",
-    center: [144.9634, -37.811],
-  },
-  {
-    id: "local-federation-square",
-    place_name: "Federation Square",
-    center: [144.969, -37.8179],
-  },
-  {
-    id: "local-crown",
-    place_name: "Crown Melbourne",
-    center: [144.9584, -37.8226],
-  },
-  {
-    id: "local-docklands",
-    place_name: "Docklands, Melbourne",
-    center: [144.9478, -37.8148],
-  },
-];
+type SearchBoxSuggestFeature = {
+  type?: string;
+  name?: string;
+  name_preferred?: string;
+  mapbox_id?: string;
+  full_address?: string;
+  place_formatted?: string;
+  feature_type?: string;
+  coordinates?: {
+    longitude?: number;
+    latitude?: number;
+  };
+};
+
+type SearchBoxSuggestResponse = {
+  suggestions?: SearchBoxSuggestFeature[];
+};
+
+type SearchBoxRetrieveFeature = {
+  geometry?: {
+    type?: string;
+    coordinates?: [number, number];
+  };
+  properties?: {
+    name?: string;
+    name_preferred?: string;
+    full_address?: string;
+    place_formatted?: string;
+    mapbox_id?: string;
+    feature_type?: string;
+    address?: string;
+  };
+};
+
+type SearchBoxRetrieveResponse = {
+  features?: SearchBoxRetrieveFeature[];
+};
 
 type AutocompleteInputProps = {
   id: string;
@@ -172,7 +136,7 @@ function AutocompleteInput({
         </div>
 
         {isOpen && (
-          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 overflow-hidden rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">
+          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 overflow-hidden rounded-2xl border border-[#DCE7E3] bg-white shadow-xl max-h-80 overflow-y-auto">
             {loading ? (
               <div className="px-4 py-3 text-sm text-[#6A7282]">
                 Searching...
@@ -190,7 +154,7 @@ function AutocompleteInput({
               ))
             ) : value.trim().length >= 2 ? (
               <div className="px-4 py-3 text-sm text-[#6A7282]">
-                No matching locations found
+                No matching results found
               </div>
             ) : null}
           </div>
@@ -198,6 +162,39 @@ function AutocompleteInput({
       </div>
     </div>
   );
+}
+
+function createSessionToken() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function buildSuggestionLabel(feature: SearchBoxSuggestFeature) {
+  const parts = [
+    feature.name_preferred || feature.name || "",
+    feature.place_formatted || "",
+    feature.full_address || "",
+  ].filter(Boolean);
+
+  const uniqueParts = Array.from(new Set(parts));
+
+  return uniqueParts.join(", ");
+}
+
+function buildRetrievedLabel(feature: SearchBoxRetrieveFeature) {
+  const props = feature.properties ?? {};
+
+  const parts = [
+    props.full_address || "",
+    props.name_preferred || props.name || "",
+    props.place_formatted || "",
+  ].filter(Boolean);
+
+  const uniqueParts = Array.from(new Set(parts));
+  return uniqueParts.join(", ");
 }
 
 export function Map() {
@@ -239,6 +236,9 @@ export function Map() {
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
   const mobileSearchPanelRef = useRef<HTMLDivElement | null>(null);
 
+  const startSessionTokenRef = useRef<string>(createSessionToken());
+  const destinationSessionTokenRef = useRef<string>(createSessionToken());
+
   const formatRouteLength = (meters: number) => {
     if (meters < 1000) return `${Math.round(meters)} m`;
     return `${(meters / 1000).toFixed(1)} km`;
@@ -248,128 +248,111 @@ export function Map() {
     return Math.max(1, Math.round(meters / 84));
   };
 
-  const aliasMap = useMemo<Record<string, string>>(
-    () => ({
-      rmit: "RMIT University Melbourne",
-      "rmit university": "RMIT University Melbourne",
-      "building 80": "RMIT Building 80 Melbourne",
-      "rmit building 80": "RMIT Building 80 Melbourne",
-      marvel: "Marvel Stadium Melbourne",
-      "marvel stadium": "Marvel Stadium Melbourne",
-      flinders: "Flinders Street Station",
-      "flinders station": "Flinders Street Station",
-      "flinders street": "Flinders Street Station",
-      "southern cross": "Southern Cross Station",
-      "southern cross station": "Southern Cross Station",
-      parliament: "Parliament Station Melbourne",
-      "state library": "State Library Victoria",
-      "melbourne central": "Melbourne Central",
-      "melb central": "Melbourne Central",
-      qv: "QV Melbourne",
-      emporium: "Emporium Melbourne",
-      docklands: "Docklands Melbourne",
-      crown: "Crown Melbourne",
-      "fed square": "Federation Square",
-      federation: "Federation Square",
-    }),
-    []
-  );
+  const hasMapboxToken = useMemo(() => MAPBOX_TOKEN.trim().length > 0, []);
 
-  const getLocalMatches = useMemo(() => {
-    return (query: string): LocationSuggestion[] => {
-      const q = query.trim().toLowerCase();
-      if (q.length < 2) return [];
-
-      const queryWords = q.split(/\s+/).filter(Boolean);
-
-      return LANDMARK_SUGGESTIONS.filter((place) => {
-        const placeText = place.place_name.toLowerCase();
-
-        // Match either the full query or all individual words
-        return (
-          placeText.includes(q) ||
-          queryWords.every((word) => placeText.includes(word))
-        );
-      }).slice(0, 6);
-    };
-  }, []);
-
-  const mergeSuggestions = (
-    localResults: LocationSuggestion[],
-    mapboxResults: LocationSuggestion[]
-  ) => {
-    const merged = [...localResults, ...mapboxResults];
-    const unique = new Map<string, LocationSuggestion>();
-
-    for (const item of merged) {
-      const key = item.place_name.toLowerCase();
-      if (!unique.has(key)) {
-        unique.set(key, item);
-      }
-    }
-
-    return Array.from(unique.values()).slice(0, 6);
-  };
-
-  const fetchSuggestions = useMemo(() => {
-    return async (query: string): Promise<LocationSuggestion[]> => {
+  const fetchSearchBoxSuggestions = useMemo(() => {
+    return async (
+      query: string,
+      sessionToken: string
+    ): Promise<LocationSuggestion[]> => {
       const trimmed = query.trim();
-      if (trimmed.length < 2) return [];
 
-      const normalised = trimmed.toLowerCase();
-      const boostedQuery = aliasMap[normalised] ?? trimmed;
-
-      const localMatches = getLocalMatches(trimmed);
-
-      // Even if Mapbox fails, local suggestions still work
-      if (!MAPBOX_TOKEN) {
-        return localMatches;
+      if (trimmed.length < 2 || !hasMapboxToken) {
+        return [];
       }
 
-      try {
-        const url =
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-            boostedQuery
-          )}.json` +
-          `?access_token=${MAPBOX_TOKEN}` +
-          `&autocomplete=true` +
-          `&limit=6` +
-          `&country=au` +
-          `&language=en` +
-          `&bbox=${SEARCH_BBOX.minLng},${SEARCH_BBOX.minLat},${SEARCH_BBOX.maxLng},${SEARCH_BBOX.maxLat}` +
-          `&proximity=${CBD_CENTER.lng},${CBD_CENTER.lat}`;
+      const params = new URLSearchParams({
+        q: trimmed,
+        access_token: MAPBOX_TOKEN,
+        session_token: sessionToken,
+        limit: "8",
+        language: "en",
+        country: "au",
+        proximity: `${CBD_CENTER.lng},${CBD_CENTER.lat}`,
+        bbox: MELBOURNE_INNER_BBOX,
+        types: "street,address,poi,place,locality,neighborhood",
+      });
 
-        const response = await fetch(url);
+      const url = `https://api.mapbox.com/search/searchbox/v1/suggest?${params.toString()}`;
 
-        if (!response.ok) {
-          return localMatches;
-        }
+      const response = await fetch(url);
 
-        const data = await response.json();
-        const features = Array.isArray(data.features) ? data.features : [];
-
-        const mapboxResults: LocationSuggestion[] = features
-          .filter(
-            (feature: any) =>
-              feature &&
-              typeof feature.id === "string" &&
-              typeof feature.place_name === "string" &&
-              Array.isArray(feature.center) &&
-              feature.center.length >= 2
-          )
-          .map((feature: any) => ({
-            id: feature.id,
-            place_name: feature.place_name,
-            center: [feature.center[0], feature.center[1]] as [number, number],
-          }));
-
-        return mergeSuggestions(localMatches, mapboxResults);
-      } catch (err) {
-        console.error("Mapbox suggestion fetch failed:", err);
-        return localMatches;
+      if (!response.ok) {
+        const body = await response.text();
+        console.error("Search Box suggest failed:", response.status, body);
+        throw new Error(`Suggest request failed with status ${response.status}`);
       }
+
+      const data: SearchBoxSuggestResponse = await response.json();
+      const suggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
+
+      return suggestions
+        .filter((item) => item.mapbox_id)
+        .map((item, index) => {
+          const lng = item.coordinates?.longitude;
+          const lat = item.coordinates?.latitude;
+
+          return {
+            id: `${item.mapbox_id}-${index}`,
+            mapboxId: item.mapbox_id as string,
+            place_name: buildSuggestionLabel(item),
+            center:
+              typeof lng === "number" && typeof lat === "number"
+                ? ([lng, lat] as [number, number])
+                : undefined,
+          };
+        });
     };
-  }, [aliasMap, getLocalMatches]);
+  }, [hasMapboxToken]);
+
+  const retrieveSearchBoxSuggestion = useMemo(() => {
+    return async (
+      mapboxId: string,
+      sessionToken: string
+    ): Promise<LocationSuggestion | null> => {
+      if (!hasMapboxToken) {
+        return null;
+      }
+
+      const params = new URLSearchParams({
+        access_token: MAPBOX_TOKEN,
+        session_token: sessionToken,
+        language: "en",
+      });
+
+      const url = `https://api.mapbox.com/search/searchbox/v1/retrieve/${encodeURIComponent(
+        mapboxId
+      )}?${params.toString()}`;
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        const body = await response.text();
+        console.error("Search Box retrieve failed:", response.status, body);
+        throw new Error(`Retrieve request failed with status ${response.status}`);
+      }
+
+      const data: SearchBoxRetrieveResponse = await response.json();
+      const feature = Array.isArray(data.features) ? data.features[0] : undefined;
+
+      if (!feature) {
+        return null;
+      }
+
+      const coordinates = feature.geometry?.coordinates;
+      const label = buildRetrievedLabel(feature);
+
+      return {
+        id: feature.properties?.mapbox_id ?? mapboxId,
+        mapboxId: feature.properties?.mapbox_id ?? mapboxId,
+        place_name: label || feature.properties?.name || "",
+        center:
+          Array.isArray(coordinates) && coordinates.length >= 2
+            ? ([coordinates[0], coordinates[1]] as [number, number])
+            : undefined,
+      };
+    };
+  }, [hasMapboxToken]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -391,7 +374,7 @@ export function Map() {
   }, []);
 
   useEffect(() => {
-    if (startLocation.trim().length < 2) {
+    if (startLocation.trim().length < 2 || !hasMapboxToken) {
       setStartSuggestions([]);
       setIsStartSuggestionsLoading(false);
       return;
@@ -402,7 +385,10 @@ export function Map() {
     const run = async () => {
       try {
         setIsStartSuggestionsLoading(true);
-        const results = await fetchSuggestions(startLocation);
+        const results = await fetchSearchBoxSuggestions(
+          startLocation,
+          startSessionTokenRef.current
+        );
 
         if (!cancelled) {
           setStartSuggestions(results);
@@ -425,10 +411,10 @@ export function Map() {
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [startLocation, fetchSuggestions]);
+  }, [startLocation, fetchSearchBoxSuggestions, hasMapboxToken]);
 
   useEffect(() => {
-    if (destination.trim().length < 2) {
+    if (destination.trim().length < 2 || !hasMapboxToken) {
       setDestinationSuggestions([]);
       setIsDestinationSuggestionsLoading(false);
       return;
@@ -439,7 +425,10 @@ export function Map() {
     const run = async () => {
       try {
         setIsDestinationSuggestionsLoading(true);
-        const results = await fetchSuggestions(destination);
+        const results = await fetchSearchBoxSuggestions(
+          destination,
+          destinationSessionTokenRef.current
+        );
 
         if (!cancelled) {
           setDestinationSuggestions(results);
@@ -462,7 +451,59 @@ export function Map() {
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [destination, fetchSuggestions]);
+  }, [destination, fetchSearchBoxSuggestions, hasMapboxToken]);
+
+  const handleStartSelect = async (suggestion: LocationSuggestion) => {
+    try {
+      const retrieved = await retrieveSearchBoxSuggestion(
+        suggestion.mapboxId,
+        startSessionTokenRef.current
+      );
+
+      const finalValue = retrieved ?? suggestion;
+
+      setStartLocation(finalValue.place_name);
+      setSelectedStart(finalValue);
+      setIsStartSuggestionsOpen(false);
+      setStartSuggestions([]);
+
+      // End the current billing/search session and create a fresh one
+      // for the next search interaction.
+      startSessionTokenRef.current = createSessionToken();
+    } catch (err) {
+      console.error("Failed to retrieve selected start suggestion:", err);
+      setStartLocation(suggestion.place_name);
+      setSelectedStart(suggestion);
+      setIsStartSuggestionsOpen(false);
+      setStartSuggestions([]);
+      startSessionTokenRef.current = createSessionToken();
+    }
+  };
+
+  const handleDestinationSelect = async (suggestion: LocationSuggestion) => {
+    try {
+      const retrieved = await retrieveSearchBoxSuggestion(
+        suggestion.mapboxId,
+        destinationSessionTokenRef.current
+      );
+
+      const finalValue = retrieved ?? suggestion;
+
+      setDestination(finalValue.place_name);
+      setSelectedDestination(finalValue);
+      setIsDestinationSuggestionsOpen(false);
+      setDestinationSuggestions([]);
+
+      destinationSessionTokenRef.current = createSessionToken();
+    } catch (err) {
+      console.error("Failed to retrieve selected destination suggestion:", err);
+      setDestination(suggestion.place_name);
+      setSelectedDestination(suggestion);
+      setIsDestinationSuggestionsOpen(false);
+      setDestinationSuggestions([]);
+      destinationSessionTokenRef.current = createSessionToken();
+    }
+  };
 
   const handlePlanRoute = async () => {
     setError("");
@@ -597,12 +638,9 @@ export function Map() {
                 setStartLocation(value);
                 setSelectedStart(null);
                 setIsStartSuggestionsOpen(value.trim().length >= 2);
+                startSessionTokenRef.current = createSessionToken();
               }}
-              onSelect={(suggestion) => {
-                setStartLocation(suggestion.place_name);
-                setSelectedStart(suggestion);
-                setIsStartSuggestionsOpen(false);
-              }}
+              onSelect={handleStartSelect}
               onFocus={() => {
                 if (startLocation.trim().length >= 2) {
                   setIsStartSuggestionsOpen(true);
@@ -624,12 +662,9 @@ export function Map() {
                 setDestination(value);
                 setSelectedDestination(null);
                 setIsDestinationSuggestionsOpen(value.trim().length >= 2);
+                destinationSessionTokenRef.current = createSessionToken();
               }}
-              onSelect={(suggestion) => {
-                setDestination(suggestion.place_name);
-                setSelectedDestination(suggestion);
-                setIsDestinationSuggestionsOpen(false);
-              }}
+              onSelect={handleDestinationSelect}
               onFocus={() => {
                 if (destination.trim().length >= 2) {
                   setIsDestinationSuggestionsOpen(true);
@@ -645,6 +680,12 @@ export function Map() {
             >
               {loading ? "Finding quiet route..." : "Find Quiet Route"}
             </button>
+
+            {!hasMapboxToken && (
+              <p className="text-sm text-red-600 font-medium mt-3">
+                Mapbox token missing. Add VITE_MAPBOX_TOKEN to your .env file.
+              </p>
+            )}
 
             {error && (
               <p className="text-sm text-red-600 font-medium mt-3">{error}</p>
@@ -794,12 +835,9 @@ export function Map() {
                     setStartLocation(value);
                     setSelectedStart(null);
                     setIsStartSuggestionsOpen(value.trim().length >= 2);
+                    startSessionTokenRef.current = createSessionToken();
                   }}
-                  onSelect={(suggestion) => {
-                    setStartLocation(suggestion.place_name);
-                    setSelectedStart(suggestion);
-                    setIsStartSuggestionsOpen(false);
-                  }}
+                  onSelect={handleStartSelect}
                   onFocus={() => {
                     if (startLocation.trim().length >= 2) {
                       setIsStartSuggestionsOpen(true);
@@ -821,12 +859,9 @@ export function Map() {
                     setDestination(value);
                     setSelectedDestination(null);
                     setIsDestinationSuggestionsOpen(value.trim().length >= 2);
+                    destinationSessionTokenRef.current = createSessionToken();
                   }}
-                  onSelect={(suggestion) => {
-                    setDestination(suggestion.place_name);
-                    setSelectedDestination(suggestion);
-                    setIsDestinationSuggestionsOpen(false);
-                  }}
+                  onSelect={handleDestinationSelect}
                   onFocus={() => {
                     if (destination.trim().length >= 2) {
                       setIsDestinationSuggestionsOpen(true);
@@ -842,6 +877,12 @@ export function Map() {
                 >
                   {loading ? "Finding quiet route..." : "Find Quiet Route"}
                 </button>
+
+                {!hasMapboxToken && (
+                  <p className="text-sm text-red-600 font-medium mt-3">
+                    Mapbox token missing. Add VITE_MAPBOX_TOKEN to your .env file.
+                  </p>
+                )}
 
                 {error && (
                   <p className="text-sm text-red-600 font-medium mt-3">{error}</p>
