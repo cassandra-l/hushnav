@@ -206,11 +206,8 @@ export function Map() {
   const [startLocation, setStartLocation] = useState("");
   const [destination, setDestination] = useState("");
 
-  const [selectedStart, setSelectedStart] = useState<LocationSuggestion | null>(
-    null
-  );
-  const [selectedDestination, setSelectedDestination] =
-    useState<LocationSuggestion | null>(null);
+  const [, setSelectedStart] = useState<LocationSuggestion | null>(null);
+  const [, setSelectedDestination] = useState<LocationSuggestion | null>(null);
 
   const [startSuggestions, setStartSuggestions] = useState<LocationSuggestion[]>(
     []
