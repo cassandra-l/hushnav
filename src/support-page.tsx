@@ -1,6 +1,14 @@
+import { BreathingExercise } from './breathing-exercise';
 import { XButton } from './components/x-button';
+import { useState } from 'react';
 
 export function SupportPage() {
+  const [showExercise, setShowExercise] = useState(false);
+
+  if (showExercise) {
+    return <BreathingExercise onClose={() => setShowExercise(false)} />;
+  }
+
   return (
     // using a full screen container and centering the card in the middle of the screen
     <div className="flex min-h-screen items-center justify-center p-4 font-sans">
@@ -34,7 +42,5 @@ export function SupportPage() {
       </button>
 
     </div>
-  </div>
-</div>
   );
 }
