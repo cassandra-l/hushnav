@@ -17,14 +17,94 @@ import type { PlanRouteResponse } from "./types/route";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? "";
 
-// Shape of a Mapbox suggestion we care about
+// Wider inner-city box so results are still focused, but not too strict
+const SEARCH_BBOX = {
+  minLng: 144.93,
+  minLat: -37.83,
+  maxLng: 144.995,
+  maxLat: -37.795,
+};
+
+const CBD_CENTER = {
+  lng: 144.9631,
+  lat: -37.8136,
+};
+
 type LocationSuggestion = {
   id: string;
   place_name: string;
   center: [number, number];
 };
 
-// Small reusable input with autocomplete dropdown
+// Local CBD / inner-city landmarks to improve shorthand matches
+const LANDMARK_SUGGESTIONS: LocationSuggestion[] = [
+  {
+    id: "local-rmit-city",
+    place_name: "RMIT University Melbourne City Campus",
+    center: [144.9631, -37.807],
+  },
+  {
+    id: "local-rmit-building80",
+    place_name: "RMIT Building 80, Swanston Street, Melbourne",
+    center: [144.9637, -37.8081],
+  },
+  {
+    id: "local-marvel",
+    place_name: "Marvel Stadium, Docklands",
+    center: [144.9473, -37.8165],
+  },
+  {
+    id: "local-flinders",
+    place_name: "Flinders Street Station",
+    center: [144.9671, -37.8183],
+  },
+  {
+    id: "local-southern-cross",
+    place_name: "Southern Cross Station",
+    center: [144.9523, -37.8184],
+  },
+  {
+    id: "local-parliament",
+    place_name: "Parliament Station, Melbourne",
+    center: [144.9732, -37.811],
+  },
+  {
+    id: "local-state-library",
+    place_name: "State Library Victoria",
+    center: [144.9652, -37.8097],
+  },
+  {
+    id: "local-melbourne-central",
+    place_name: "Melbourne Central",
+    center: [144.9629, -37.8102],
+  },
+  {
+    id: "local-qv",
+    place_name: "QV Melbourne",
+    center: [144.9655, -37.8107],
+  },
+  {
+    id: "local-emporium",
+    place_name: "Emporium Melbourne",
+    center: [144.9634, -37.811],
+  },
+  {
+    id: "local-federation-square",
+    place_name: "Federation Square",
+    center: [144.969, -37.8179],
+  },
+  {
+    id: "local-crown",
+    place_name: "Crown Melbourne",
+    center: [144.9584, -37.8226],
+  },
+  {
+    id: "local-docklands",
+    place_name: "Docklands, Melbourne",
+    center: [144.9478, -37.8148],
+  },
+];
+
 type AutocompleteInputProps = {
   id: string;
   label: string;
@@ -123,92 +203,184 @@ function AutocompleteInput({
 export function Map() {
   const navigate = useNavigate();
 
-  // Controls microphone popup visibility
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
-
-  // Mobile-only state to collapse/expand the top search panel
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(true);
 
-  // User text input state
   const [startLocation, setStartLocation] = useState("");
   const [destination, setDestination] = useState("");
 
-  // Optional selected suggestion state
-  // We keep this for future use, even though your backend currently accepts text queries.
   const [selectedStart, setSelectedStart] = useState<LocationSuggestion | null>(
     null
   );
   const [selectedDestination, setSelectedDestination] =
     useState<LocationSuggestion | null>(null);
 
-  // Suggestion dropdown state
   const [startSuggestions, setStartSuggestions] = useState<LocationSuggestion[]>(
     []
   );
   const [destinationSuggestions, setDestinationSuggestions] = useState<
     LocationSuggestion[]
   >([]);
+
   const [isStartSuggestionsOpen, setIsStartSuggestionsOpen] = useState(false);
   const [isDestinationSuggestionsOpen, setIsDestinationSuggestionsOpen] =
     useState(false);
+
   const [isStartSuggestionsLoading, setIsStartSuggestionsLoading] =
     useState(false);
   const [isDestinationSuggestionsLoading, setIsDestinationSuggestionsLoading] =
     useState(false);
 
-  // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Stores real backend route data
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
 
-  // Wrapper used to close dropdowns when clicking outside
-  const searchPanelRef = useRef<HTMLDivElement | null>(null);
+  const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
+  const mobileSearchPanelRef = useRef<HTMLDivElement | null>(null);
 
-  // Format distance from meters to a cleaner UI label
   const formatRouteLength = (meters: number) => {
     if (meters < 1000) return `${Math.round(meters)} m`;
     return `${(meters / 1000).toFixed(1)} km`;
   };
 
-  // Temporary walking-time estimate until backend returns duration
   const estimateWalkingMinutes = (meters: number) => {
     return Math.max(1, Math.round(meters / 84));
   };
 
-  // Shared autocomplete fetcher
-  const fetchSuggestions = useMemo(() => {
-    return async (query: string): Promise<LocationSuggestion[]> => {
-      if (!MAPBOX_TOKEN || query.trim().length < 2) return [];
+  const aliasMap = useMemo<Record<string, string>>(
+    () => ({
+      rmit: "RMIT University Melbourne",
+      "rmit university": "RMIT University Melbourne",
+      "building 80": "RMIT Building 80 Melbourne",
+      "rmit building 80": "RMIT Building 80 Melbourne",
+      marvel: "Marvel Stadium Melbourne",
+      "marvel stadium": "Marvel Stadium Melbourne",
+      flinders: "Flinders Street Station",
+      "flinders station": "Flinders Street Station",
+      "flinders street": "Flinders Street Station",
+      "southern cross": "Southern Cross Station",
+      "southern cross station": "Southern Cross Station",
+      parliament: "Parliament Station Melbourne",
+      "state library": "State Library Victoria",
+      "melbourne central": "Melbourne Central",
+      "melb central": "Melbourne Central",
+      qv: "QV Melbourne",
+      emporium: "Emporium Melbourne",
+      docklands: "Docklands Melbourne",
+      crown: "Crown Melbourne",
+      "fed square": "Federation Square",
+      federation: "Federation Square",
+    }),
+    []
+  );
 
-      // Restrict roughly to Melbourne area for more relevant results
-      const bbox = "144.5937,-38.4339,145.5125,-37.5113";
+  const getLocalMatches = useMemo(() => {
+    return (query: string): LocationSuggestion[] => {
+      const q = query.trim().toLowerCase();
+      if (q.length < 2) return [];
 
-      const url =
-        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
-          query.trim()
-        )}.json` +
-        `?access_token=${MAPBOX_TOKEN}` +
-        `&autocomplete=true` +
-        `&limit=5` +
-        `&country=au` +
-        `&bbox=${bbox}`;
+      const queryWords = q.split(/\s+/).filter(Boolean);
 
-      const response = await fetch(url);
-      const data = await response.json();
+      return LANDMARK_SUGGESTIONS.filter((place) => {
+        const placeText = place.place_name.toLowerCase();
 
-      return data.features ?? [];
+        // Match either the full query or all individual words
+        return (
+          placeText.includes(q) ||
+          queryWords.every((word) => placeText.includes(word))
+        );
+      }).slice(0, 6);
     };
   }, []);
 
-  // Close dropdowns when clicking outside the search area
+  const mergeSuggestions = (
+    localResults: LocationSuggestion[],
+    mapboxResults: LocationSuggestion[]
+  ) => {
+    const merged = [...localResults, ...mapboxResults];
+    const unique = new Map<string, LocationSuggestion>();
+
+    for (const item of merged) {
+      const key = item.place_name.toLowerCase();
+      if (!unique.has(key)) {
+        unique.set(key, item);
+      }
+    }
+
+    return Array.from(unique.values()).slice(0, 6);
+  };
+
+  const fetchSuggestions = useMemo(() => {
+    return async (query: string): Promise<LocationSuggestion[]> => {
+      const trimmed = query.trim();
+      if (trimmed.length < 2) return [];
+
+      const normalised = trimmed.toLowerCase();
+      const boostedQuery = aliasMap[normalised] ?? trimmed;
+
+      const localMatches = getLocalMatches(trimmed);
+
+      // Even if Mapbox fails, local suggestions still work
+      if (!MAPBOX_TOKEN) {
+        return localMatches;
+      }
+
+      try {
+        const url =
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(
+            boostedQuery
+          )}.json` +
+          `?access_token=${MAPBOX_TOKEN}` +
+          `&autocomplete=true` +
+          `&limit=6` +
+          `&country=au` +
+          `&language=en` +
+          `&bbox=${SEARCH_BBOX.minLng},${SEARCH_BBOX.minLat},${SEARCH_BBOX.maxLng},${SEARCH_BBOX.maxLat}` +
+          `&proximity=${CBD_CENTER.lng},${CBD_CENTER.lat}`;
+
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          return localMatches;
+        }
+
+        const data = await response.json();
+        const features = Array.isArray(data.features) ? data.features : [];
+
+        const mapboxResults: LocationSuggestion[] = features
+          .filter(
+            (feature: any) =>
+              feature &&
+              typeof feature.id === "string" &&
+              typeof feature.place_name === "string" &&
+              Array.isArray(feature.center) &&
+              feature.center.length >= 2
+          )
+          .map((feature: any) => ({
+            id: feature.id,
+            place_name: feature.place_name,
+            center: [feature.center[0], feature.center[1]] as [number, number],
+          }));
+
+        return mergeSuggestions(localMatches, mapboxResults);
+      } catch (err) {
+        console.error("Mapbox suggestion fetch failed:", err);
+        return localMatches;
+      }
+    };
+  }, [aliasMap, getLocalMatches]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        searchPanelRef.current &&
-        !searchPanelRef.current.contains(event.target as Node)
-      ) {
+      const target = event.target as Node;
+
+      const clickedInsideDesktop =
+        desktopSearchPanelRef.current?.contains(target) ?? false;
+      const clickedInsideMobile =
+        mobileSearchPanelRef.current?.contains(target) ?? false;
+
+      if (!clickedInsideDesktop && !clickedInsideMobile) {
         setIsStartSuggestionsOpen(false);
         setIsDestinationSuggestionsOpen(false);
       }
@@ -218,30 +390,30 @@ export function Map() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Fetch start suggestions with debounce
   useEffect(() => {
-    if (!MAPBOX_TOKEN || startLocation.trim().length < 2) {
+    if (startLocation.trim().length < 2) {
       setStartSuggestions([]);
       setIsStartSuggestionsLoading(false);
       return;
     }
 
-    const controller = new AbortController();
+    let cancelled = false;
 
     const run = async () => {
       try {
         setIsStartSuggestionsLoading(true);
         const results = await fetchSuggestions(startLocation);
-        if (!controller.signal.aborted) {
+
+        if (!cancelled) {
           setStartSuggestions(results);
         }
       } catch (err) {
-        if (!controller.signal.aborted) {
+        if (!cancelled) {
           console.error("Failed to fetch start suggestions:", err);
           setStartSuggestions([]);
         }
       } finally {
-        if (!controller.signal.aborted) {
+        if (!cancelled) {
           setIsStartSuggestionsLoading(false);
         }
       }
@@ -250,35 +422,35 @@ export function Map() {
     const timeout = setTimeout(run, 250);
 
     return () => {
-      controller.abort();
+      cancelled = true;
       clearTimeout(timeout);
     };
   }, [startLocation, fetchSuggestions]);
 
-  // Fetch destination suggestions with debounce
   useEffect(() => {
-    if (!MAPBOX_TOKEN || destination.trim().length < 2) {
+    if (destination.trim().length < 2) {
       setDestinationSuggestions([]);
       setIsDestinationSuggestionsLoading(false);
       return;
     }
 
-    const controller = new AbortController();
+    let cancelled = false;
 
     const run = async () => {
       try {
         setIsDestinationSuggestionsLoading(true);
         const results = await fetchSuggestions(destination);
-        if (!controller.signal.aborted) {
+
+        if (!cancelled) {
           setDestinationSuggestions(results);
         }
       } catch (err) {
-        if (!controller.signal.aborted) {
+        if (!cancelled) {
           console.error("Failed to fetch destination suggestions:", err);
           setDestinationSuggestions([]);
         }
       } finally {
-        if (!controller.signal.aborted) {
+        if (!cancelled) {
           setIsDestinationSuggestionsLoading(false);
         }
       }
@@ -287,12 +459,11 @@ export function Map() {
     const timeout = setTimeout(run, 250);
 
     return () => {
-      controller.abort();
+      cancelled = true;
       clearTimeout(timeout);
     };
   }, [destination, fetchSuggestions]);
 
-  // Handles quiet-route request
   const handlePlanRoute = async () => {
     setError("");
     setIsStartSuggestionsOpen(false);
@@ -321,7 +492,6 @@ export function Map() {
     setLoading(true);
 
     try {
-      // Backend currently plans the quietest route using text queries
       const requestBody = {
         startQuery: startLocation,
         endQuery: destination,
@@ -335,7 +505,6 @@ export function Map() {
         body: JSON.stringify(requestBody),
       });
 
-      // Read text first so invalid JSON does not crash the page
       const rawText = await response.text();
 
       console.log("Route response status:", response.status);
@@ -368,7 +537,6 @@ export function Map() {
 
       setRouteData(data as PlanRouteResponse);
 
-      // After route is found on mobile, collapse the top panel
       if (window.innerWidth < 1024) {
         setIsMobileSearchOpen(false);
       }
@@ -392,10 +560,9 @@ export function Map() {
   return (
     <main className="relative h-screen w-full overflow-hidden bg-[#D5E8E5]">
       <div className="h-full w-full lg:grid lg:grid-cols-[380px_1fr]">
-        {/* Desktop sidebar */}
         <aside className="hidden lg:flex lg:flex-col h-full bg-white border-r border-[#E8EEEC] z-20">
           <div
-            ref={searchPanelRef}
+            ref={desktopSearchPanelRef}
             className="px-5 pt-5 pb-4 border-b border-[#E8EEEC]"
           >
             <div className="flex items-center gap-3 mb-4">
@@ -484,7 +651,6 @@ export function Map() {
             )}
           </div>
 
-          {/* Desktop route details panel */}
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {routeData ? (
               <div className="space-y-4">
@@ -553,11 +719,9 @@ export function Map() {
           </div>
         </aside>
 
-        {/* Map area */}
         <div className="relative h-full w-full">
           <RouteMap routeData={routeData} />
 
-          {/* Mobile collapsed button */}
           {!isMobileSearchOpen && (
             <div className="absolute top-4 left-4 right-4 z-10 lg:hidden">
               <button
@@ -581,11 +745,10 @@ export function Map() {
             </div>
           )}
 
-          {/* Mobile top floating search panel */}
           {isMobileSearchOpen && (
             <section className="absolute top-4 left-4 right-4 z-20 lg:hidden">
               <div
-                ref={searchPanelRef}
+                ref={mobileSearchPanelRef}
                 className="bg-white/92 backdrop-blur-sm rounded-[28px] shadow-xl p-4 border border-white/70"
               >
                 <div className="flex items-start justify-between gap-3 mb-4">
@@ -687,7 +850,6 @@ export function Map() {
             </section>
           )}
 
-          {/* Mobile bottom info bar */}
           <section className="absolute bottom-4 left-4 right-4 z-10 lg:hidden">
             <div className="bg-white/95 backdrop-blur-sm rounded-[28px] shadow-xl border border-white/80 overflow-hidden">
               {routeData ? (
@@ -747,7 +909,6 @@ export function Map() {
             </div>
           </section>
 
-          {/* Floating action buttons on mobile only */}
           <div className="absolute bottom-28 left-4 z-10 lg:hidden">
             <MicButton onClick={() => setIsPopUpOpen(true)} />
           </div>
@@ -776,14 +937,12 @@ export function Map() {
             </button>
           </div>
 
-          {/* Desktop mic button */}
           <div className="hidden lg:block absolute bottom-6 right-6 z-10">
             <MicButton onClick={() => setIsPopUpOpen(true)} />
           </div>
         </div>
       </div>
 
-      {/* Mic popup */}
       {isPopUpOpen && <PopUp onClose={() => setIsPopUpOpen(false)} />}
     </main>
   );
