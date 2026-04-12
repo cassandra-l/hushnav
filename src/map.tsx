@@ -21,8 +21,9 @@ const CBD_CENTER = {
   lat: -37.8136,
 };
 
-// Keep this a bit wider than the exact CBD so edge results still appear.
-const MELBOURNE_INNER_BBOX = "144.92,-37.835,145.01,-37.79";
+// Wider inner Melbourne bounds so edge areas like Docklands/Southbank/East Melbourne
+// are still included in suggestions and route planning.
+const MELBOURNE_INNER_BBOX = "144.88,-37.86,145.05,-37.77";
 
 type LocationSuggestion = {
   id: string;
@@ -180,7 +181,6 @@ function buildSuggestionLabel(feature: SearchBoxSuggestFeature) {
   ].filter(Boolean);
 
   const uniqueParts = Array.from(new Set(parts));
-
   return uniqueParts.join(", ");
 }
 
@@ -206,8 +206,12 @@ export function Map() {
   const [startLocation, setStartLocation] = useState("");
   const [destination, setDestination] = useState("");
 
-  const [, setSelectedStart] = useState<LocationSuggestion | null>(null);
-  const [, setSelectedDestination] = useState<LocationSuggestion | null>(null);
+  // Keep the selected suggestions so we can send exact coordinates
+  // to the backend instead of only sending text.
+  const [selectedStart, setSelectedStart] =
+    useState<LocationSuggestion | null>(null);
+  const [selectedDestination, setSelectedDestination] =
+    useState<LocationSuggestion | null>(null);
 
   const [startSuggestions, setStartSuggestions] = useState<LocationSuggestion[]>(
     []
@@ -464,8 +468,7 @@ export function Map() {
       setIsStartSuggestionsOpen(false);
       setStartSuggestions([]);
 
-      // End the current billing/search session and create a fresh one
-      // for the next search interaction.
+      // Start a fresh session token for the next search interaction.
       startSessionTokenRef.current = createSessionToken();
     } catch (err) {
       console.error("Failed to retrieve selected start suggestion:", err);
@@ -530,7 +533,23 @@ export function Map() {
     setLoading(true);
 
     try {
+      // Send exact selected coordinates when available.
+      // Fall back to text queries if the user typed without selecting a suggestion.
       const requestBody = {
+        start:
+          selectedStart?.center && selectedStart.center.length >= 2
+            ? {
+                lng: selectedStart.center[0],
+                lat: selectedStart.center[1],
+              }
+            : undefined,
+        end:
+          selectedDestination?.center && selectedDestination.center.length >= 2
+            ? {
+                lng: selectedDestination.center[0],
+                lat: selectedDestination.center[1],
+              }
+            : undefined,
         startQuery: startLocation,
         endQuery: destination,
       };
@@ -949,30 +968,6 @@ export function Map() {
 
           <div className="absolute bottom-28 left-4 z-10 lg:hidden">
             <MicButton onClick={() => setIsPopUpOpen(true)} />
-          </div>
-
-          <div className="absolute bottom-28 right-4 z-10 lg:hidden">
-            <button
-              type="button"
-              className="w-16 h-16 rounded-full bg-[#5A9A8E] text-white shadow-xl flex items-center justify-center border-4 border-white/70"
-              aria-label="Calm tools"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="26"
-                height="26"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12.8 19.6A2 2 0 1 0 14 16H2" />
-                <path d="M17.5 8a2.5 2.5 0 1 1 2 4H2" />
-                <path d="M9.8 4.4A2 2 0 1 1 11 8H2" />
-              </svg>
-            </button>
           </div>
 
           <div className="hidden lg:block absolute bottom-6 right-6 z-10">

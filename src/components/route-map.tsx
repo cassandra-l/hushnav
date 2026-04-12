@@ -6,7 +6,7 @@ import Map, {
   Layer,
   type MapRef,
 } from "react-map-gl/mapbox";
-import { MapPin, Navigation, Trees, Building2 } from "lucide-react";
+import { MapPin, Navigation } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { PlanRouteResponse } from "../types/route";
 
@@ -48,12 +48,6 @@ export function RouteMap({ routeData }: RouteMapProps) {
       },
     };
 
-    console.log("Route GeoJSON feature:", feature);
-    console.log(
-      "Route coordinate count:",
-      routeData.route.geojson.coordinates.length
-    );
-
     return feature;
   }, [routeData]);
 
@@ -76,7 +70,6 @@ export function RouteMap({ routeData }: RouteMapProps) {
       if (lat > maxLat) maxLat = lat;
     }
 
-    // Extra left padding on desktop so the route is not hidden behind the sidebar
     const isDesktop = window.innerWidth >= 1024;
 
     mapRef.current.fitBounds(
@@ -91,16 +84,6 @@ export function RouteMap({ routeData }: RouteMapProps) {
         duration: 1200,
       }
     );
-  }, [routeData]);
-
-  // Helpful debug logs
-  useEffect(() => {
-    if (routeData) {
-      console.log("Start resolved name:", routeData.start.resolvedName);
-      console.log("End resolved name:", routeData.end.resolvedName);
-      console.log("Route length:", routeData.route.totalLength);
-      console.log("Route coordinates:", routeData.route.geojson.coordinates);
-    }
   }, [routeData]);
 
   // Fallback if Mapbox token is missing
@@ -120,7 +103,7 @@ export function RouteMap({ routeData }: RouteMapProps) {
         mapboxAccessToken={mapboxToken}
         mapStyle="mapbox://styles/mapbox/streets-v12"
       >
-        {/* Standard map controls */}
+        {/* Map controls */}
         <NavigationControl position="top-right" />
 
         {/* Start marker */}
@@ -141,7 +124,7 @@ export function RouteMap({ routeData }: RouteMapProps) {
           </Marker>
         )}
 
-        {/* Quiet route line */}
+        {/* Route line */}
         {routeGeoJson && (
           <Source
             id="planned-route"
@@ -149,7 +132,7 @@ export function RouteMap({ routeData }: RouteMapProps) {
             data={routeGeoJson}
             key={JSON.stringify(routeData?.route.geojson.coordinates)}
           >
-            {/* Soft glow under the route */}
+            {/* Glow */}
             <Layer
               id="planned-route-glow"
               type="line"
@@ -165,7 +148,7 @@ export function RouteMap({ routeData }: RouteMapProps) {
               }}
             />
 
-            {/* Main visible route line */}
+            {/* Main line */}
             <Layer
               id="planned-route-line"
               type="line"
@@ -181,19 +164,6 @@ export function RouteMap({ routeData }: RouteMapProps) {
             />
           </Source>
         )}
-
-        {/* Optional mock quiet-space markers for presentation/demo feel */}
-        <Marker longitude={144.9639} latitude={-37.8102}>
-          <div className="w-8 h-8 rounded-full bg-white border-2 border-[#E8EEEC] shadow-md flex items-center justify-center">
-            <Trees size={14} className="text-[#7DB0A6]" />
-          </div>
-        </Marker>
-
-        <Marker longitude={144.9647} latitude={-37.8105}>
-          <div className="w-8 h-8 rounded-full bg-white border-2 border-[#E8EEEC] shadow-md flex items-center justify-center">
-            <Building2 size={14} className="text-[#7DB0A6]" />
-          </div>
-        </Marker>
       </Map>
     </div>
   );

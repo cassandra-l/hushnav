@@ -14,7 +14,7 @@ app.get("/api/health", (_req, res) => {
   res.status(200).json({ ok: true });
 });
 
-app.post("/api/plan-route", async (req, res) => {
+const planRouteHandler = async (req: express.Request, res: express.Response) => {
   try {
     const result = await handlePlanRoute(req.body);
 
@@ -23,14 +23,14 @@ app.post("/api/plan-route", async (req, res) => {
       .type("application/json")
       .send(result.body);
   } catch (error) {
-    console.error("Local /api/plan-route error:", error);
+    console.error("Local plan-route error:", error);
     res.status(500).json({
       error: "Failed to plan route.",
     });
   }
-});
+};
 
-app.get("/api/noise-map", async (_req, res) => {
+const noiseMapHandler = async (_req: express.Request, res: express.Response) => {
   try {
     const result = await handleNoiseMap();
 
@@ -39,11 +39,24 @@ app.get("/api/noise-map", async (_req, res) => {
       .type("application/json")
       .send(result.body);
   } catch (error) {
-    console.error("Local /api/noise-map error:", error);
+    console.error("Local noise-map error:", error);
     res.status(500).json({
       error: "Failed to load noise map data.",
     });
   }
+};
+
+app.post("/api/plan-route", planRouteHandler);
+app.post("/plan-route", planRouteHandler);
+
+app.get("/api/noise-map", noiseMapHandler);
+app.get("/noise-map", noiseMapHandler);
+
+// Always return JSON for unknown API-style routes
+app.use((_req, res) => {
+  res.status(404).json({
+    error: "Route not found.",
+  });
 });
 
 app.listen(PORT, () => {

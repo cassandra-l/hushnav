@@ -14,7 +14,7 @@ export async function handlePlanRoute(body: unknown) {
     return {
       statusCode: 500,
       body: JSON.stringify({
-        error: "Failed to plan route.",
+        error: error instanceof Error ? error.message : "Failed to plan route.",
       }),
     };
   }
