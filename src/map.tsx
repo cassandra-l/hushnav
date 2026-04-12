@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -14,7 +14,6 @@ import { RouteMap } from "./components/route-map";
 import type { PlanRouteResponse } from "./types/route";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? "";
 
 const CBD_CENTER = {
   lng: 144.9631,
@@ -27,47 +26,34 @@ const MELBOURNE_INNER_BBOX = "144.88,-37.86,145.05,-37.77";
 
 type LocationSuggestion = {
   id: string;
-  mapboxId: string;
   place_name: string;
   center?: [number, number];
 };
 
-type SearchBoxSuggestFeature = {
-  type?: string;
-  name?: string;
-  name_preferred?: string;
-  mapbox_id?: string;
-  full_address?: string;
-  place_formatted?: string;
-  feature_type?: string;
-  coordinates?: {
-    longitude?: number;
-    latitude?: number;
-  };
-};
-
-type SearchBoxSuggestResponse = {
-  suggestions?: SearchBoxSuggestFeature[];
-};
-
-type SearchBoxRetrieveFeature = {
+type PhotonFeature = {
   geometry?: {
     type?: string;
     coordinates?: [number, number];
   };
   properties?: {
+    osm_id?: number | string;
+    osm_type?: string;
     name?: string;
-    name_preferred?: string;
-    full_address?: string;
-    place_formatted?: string;
-    mapbox_id?: string;
-    feature_type?: string;
-    address?: string;
+    street?: string;
+    housenumber?: string;
+    postcode?: string;
+    suburb?: string;
+    district?: string;
+    city?: string;
+    county?: string;
+    state?: string;
+    country?: string;
+    countrycode?: string;
   };
 };
 
-type SearchBoxRetrieveResponse = {
-  features?: SearchBoxRetrieveFeature[];
+type PhotonResponse = {
+  features?: PhotonFeature[];
 };
 
 type AutocompleteInputProps = {
@@ -165,36 +151,98 @@ function AutocompleteInput({
   );
 }
 
-function createSessionToken() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function buildSuggestionLabel(feature: SearchBoxSuggestFeature) {
-  const parts = [
-    feature.name_preferred || feature.name || "",
-    feature.place_formatted || "",
-    feature.full_address || "",
-  ].filter(Boolean);
-
-  const uniqueParts = Array.from(new Set(parts));
-  return uniqueParts.join(", ");
-}
-
-function buildRetrievedLabel(feature: SearchBoxRetrieveFeature) {
+function buildPhotonLabel(feature: PhotonFeature) {
   const props = feature.properties ?? {};
 
-  const parts = [
-    props.full_address || "",
-    props.name_preferred || props.name || "",
-    props.place_formatted || "",
+  const line1 = [
+    props.name,
+    [props.housenumber, props.street].filter(Boolean).join(" ").trim(),
   ].filter(Boolean);
 
-  const uniqueParts = Array.from(new Set(parts));
+  const line2 = [
+    props.suburb || props.city || props.district,
+    props.state,
+    props.postcode,
+  ].filter(Boolean);
+
+  const parts = [...line1, ...line2].filter(Boolean) as string[];
+  const uniqueParts = Array.from(new Set(parts.map((part) => part.trim()))).filter(
+    Boolean
+  );
+
   return uniqueParts.join(", ");
+}
+
+function normalisePhotonFeature(
+  feature: PhotonFeature,
+  index: number
+): LocationSuggestion | null {
+  const coordinates = feature.geometry?.coordinates;
+  const props = feature.properties ?? {};
+
+  if (!Array.isArray(coordinates) || coordinates.length < 2) {
+    return null;
+  }
+
+  const lng = coordinates[0];
+  const lat = coordinates[1];
+
+  if (typeof lng !== "number" || typeof lat !== "number") {
+    return null;
+  }
+
+  const label = buildPhotonLabel(feature);
+
+  if (!label) {
+    return null;
+  }
+
+  const idBase =
+    props.osm_id !== undefined
+      ? `${props.osm_type ?? "feature"}-${props.osm_id}`
+      : `${label}-${index}`;
+
+  return {
+    id: `${idBase}-${index}`,
+    place_name: label,
+    center: [lng, lat],
+  };
+}
+
+async function fetchPhotonSuggestions(
+  query: string
+): Promise<LocationSuggestion[]> {
+  const trimmed = query.trim();
+
+  if (trimmed.length < 2) {
+    return [];
+  }
+
+  const params = new URLSearchParams({
+    q: trimmed,
+    limit: "8",
+    lang: "en",
+    lat: String(CBD_CENTER.lat),
+    lon: String(CBD_CENTER.lng),
+    bbox: MELBOURNE_INNER_BBOX,
+  });
+
+  const response = await fetch(
+    `https://photon.komoot.io/api/?${params.toString()}`
+  );
+
+  if (!response.ok) {
+    const body = await response.text();
+    console.error("Photon search failed:", response.status, body);
+    throw new Error(`Photon request failed with status ${response.status}`);
+  }
+
+  const data: PhotonResponse = await response.json();
+  const features = Array.isArray(data.features) ? data.features : [];
+
+  return features
+    .map((feature, index) => normalisePhotonFeature(feature, index))
+    .filter((item): item is LocationSuggestion => item !== null);
 }
 
 export function Map() {
@@ -237,9 +285,6 @@ export function Map() {
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
   const mobileSearchPanelRef = useRef<HTMLDivElement | null>(null);
 
-  const startSessionTokenRef = useRef<string>(createSessionToken());
-  const destinationSessionTokenRef = useRef<string>(createSessionToken());
-
   const formatRouteLength = (meters: number) => {
     if (meters < 1000) return `${Math.round(meters)} m`;
     return `${(meters / 1000).toFixed(1)} km`;
@@ -248,112 +293,6 @@ export function Map() {
   const estimateWalkingMinutes = (meters: number) => {
     return Math.max(1, Math.round(meters / 84));
   };
-
-  const hasMapboxToken = useMemo(() => MAPBOX_TOKEN.trim().length > 0, []);
-
-  const fetchSearchBoxSuggestions = useMemo(() => {
-    return async (
-      query: string,
-      sessionToken: string
-    ): Promise<LocationSuggestion[]> => {
-      const trimmed = query.trim();
-
-      if (trimmed.length < 2 || !hasMapboxToken) {
-        return [];
-      }
-
-      const params = new URLSearchParams({
-        q: trimmed,
-        access_token: MAPBOX_TOKEN,
-        session_token: sessionToken,
-        limit: "8",
-        language: "en",
-        country: "au",
-        proximity: `${CBD_CENTER.lng},${CBD_CENTER.lat}`,
-        bbox: MELBOURNE_INNER_BBOX,
-        types: "street,address,poi,place,locality,neighborhood",
-      });
-
-      const url = `https://api.mapbox.com/search/searchbox/v1/suggest?${params.toString()}`;
-
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        const body = await response.text();
-        console.error("Search Box suggest failed:", response.status, body);
-        throw new Error(`Suggest request failed with status ${response.status}`);
-      }
-
-      const data: SearchBoxSuggestResponse = await response.json();
-      const suggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
-
-      return suggestions
-        .filter((item) => item.mapbox_id)
-        .map((item, index) => {
-          const lng = item.coordinates?.longitude;
-          const lat = item.coordinates?.latitude;
-
-          return {
-            id: `${item.mapbox_id}-${index}`,
-            mapboxId: item.mapbox_id as string,
-            place_name: buildSuggestionLabel(item),
-            center:
-              typeof lng === "number" && typeof lat === "number"
-                ? ([lng, lat] as [number, number])
-                : undefined,
-          };
-        });
-    };
-  }, [hasMapboxToken]);
-
-  const retrieveSearchBoxSuggestion = useMemo(() => {
-    return async (
-      mapboxId: string,
-      sessionToken: string
-    ): Promise<LocationSuggestion | null> => {
-      if (!hasMapboxToken) {
-        return null;
-      }
-
-      const params = new URLSearchParams({
-        access_token: MAPBOX_TOKEN,
-        session_token: sessionToken,
-        language: "en",
-      });
-
-      const url = `https://api.mapbox.com/search/searchbox/v1/retrieve/${encodeURIComponent(
-        mapboxId
-      )}?${params.toString()}`;
-
-      const response = await fetch(url);
-
-      if (!response.ok) {
-        const body = await response.text();
-        console.error("Search Box retrieve failed:", response.status, body);
-        throw new Error(`Retrieve request failed with status ${response.status}`);
-      }
-
-      const data: SearchBoxRetrieveResponse = await response.json();
-      const feature = Array.isArray(data.features) ? data.features[0] : undefined;
-
-      if (!feature) {
-        return null;
-      }
-
-      const coordinates = feature.geometry?.coordinates;
-      const label = buildRetrievedLabel(feature);
-
-      return {
-        id: feature.properties?.mapbox_id ?? mapboxId,
-        mapboxId: feature.properties?.mapbox_id ?? mapboxId,
-        place_name: label || feature.properties?.name || "",
-        center:
-          Array.isArray(coordinates) && coordinates.length >= 2
-            ? ([coordinates[0], coordinates[1]] as [number, number])
-            : undefined,
-      };
-    };
-  }, [hasMapboxToken]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -375,7 +314,7 @@ export function Map() {
   }, []);
 
   useEffect(() => {
-    if (startLocation.trim().length < 2 || !hasMapboxToken) {
+    if (startLocation.trim().length < 2) {
       setStartSuggestions([]);
       setIsStartSuggestionsLoading(false);
       return;
@@ -386,10 +325,7 @@ export function Map() {
     const run = async () => {
       try {
         setIsStartSuggestionsLoading(true);
-        const results = await fetchSearchBoxSuggestions(
-          startLocation,
-          startSessionTokenRef.current
-        );
+        const results = await fetchPhotonSuggestions(startLocation);
 
         if (!cancelled) {
           setStartSuggestions(results);
@@ -412,10 +348,10 @@ export function Map() {
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [startLocation, fetchSearchBoxSuggestions, hasMapboxToken]);
+  }, [startLocation]);
 
   useEffect(() => {
-    if (destination.trim().length < 2 || !hasMapboxToken) {
+    if (destination.trim().length < 2) {
       setDestinationSuggestions([]);
       setIsDestinationSuggestionsLoading(false);
       return;
@@ -426,10 +362,7 @@ export function Map() {
     const run = async () => {
       try {
         setIsDestinationSuggestionsLoading(true);
-        const results = await fetchSearchBoxSuggestions(
-          destination,
-          destinationSessionTokenRef.current
-        );
+        const results = await fetchPhotonSuggestions(destination);
 
         if (!cancelled) {
           setDestinationSuggestions(results);
@@ -452,57 +385,20 @@ export function Map() {
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [destination, fetchSearchBoxSuggestions, hasMapboxToken]);
+  }, [destination]);
 
-  const handleStartSelect = async (suggestion: LocationSuggestion) => {
-    try {
-      const retrieved = await retrieveSearchBoxSuggestion(
-        suggestion.mapboxId,
-        startSessionTokenRef.current
-      );
-
-      const finalValue = retrieved ?? suggestion;
-
-      setStartLocation(finalValue.place_name);
-      setSelectedStart(finalValue);
-      setIsStartSuggestionsOpen(false);
-      setStartSuggestions([]);
-
-      // Start a fresh session token for the next search interaction.
-      startSessionTokenRef.current = createSessionToken();
-    } catch (err) {
-      console.error("Failed to retrieve selected start suggestion:", err);
-      setStartLocation(suggestion.place_name);
-      setSelectedStart(suggestion);
-      setIsStartSuggestionsOpen(false);
-      setStartSuggestions([]);
-      startSessionTokenRef.current = createSessionToken();
-    }
+  const handleStartSelect = (suggestion: LocationSuggestion) => {
+    setStartLocation(suggestion.place_name);
+    setSelectedStart(suggestion);
+    setIsStartSuggestionsOpen(false);
+    setStartSuggestions([]);
   };
 
-  const handleDestinationSelect = async (suggestion: LocationSuggestion) => {
-    try {
-      const retrieved = await retrieveSearchBoxSuggestion(
-        suggestion.mapboxId,
-        destinationSessionTokenRef.current
-      );
-
-      const finalValue = retrieved ?? suggestion;
-
-      setDestination(finalValue.place_name);
-      setSelectedDestination(finalValue);
-      setIsDestinationSuggestionsOpen(false);
-      setDestinationSuggestions([]);
-
-      destinationSessionTokenRef.current = createSessionToken();
-    } catch (err) {
-      console.error("Failed to retrieve selected destination suggestion:", err);
-      setDestination(suggestion.place_name);
-      setSelectedDestination(suggestion);
-      setIsDestinationSuggestionsOpen(false);
-      setDestinationSuggestions([]);
-      destinationSessionTokenRef.current = createSessionToken();
-    }
+  const handleDestinationSelect = (suggestion: LocationSuggestion) => {
+    setDestination(suggestion.place_name);
+    setSelectedDestination(suggestion);
+    setIsDestinationSuggestionsOpen(false);
+    setDestinationSuggestions([]);
   };
 
   const handlePlanRoute = async () => {
@@ -654,7 +550,6 @@ export function Map() {
                 setStartLocation(value);
                 setSelectedStart(null);
                 setIsStartSuggestionsOpen(value.trim().length >= 2);
-                startSessionTokenRef.current = createSessionToken();
               }}
               onSelect={handleStartSelect}
               onFocus={() => {
@@ -678,7 +573,6 @@ export function Map() {
                 setDestination(value);
                 setSelectedDestination(null);
                 setIsDestinationSuggestionsOpen(value.trim().length >= 2);
-                destinationSessionTokenRef.current = createSessionToken();
               }}
               onSelect={handleDestinationSelect}
               onFocus={() => {
@@ -696,12 +590,6 @@ export function Map() {
             >
               {loading ? "Finding quiet route..." : "Find Quiet Route"}
             </button>
-
-            {!hasMapboxToken && (
-              <p className="text-sm text-red-600 font-medium mt-3">
-                Mapbox token missing. Add VITE_MAPBOX_TOKEN to your .env file.
-              </p>
-            )}
 
             {error && (
               <p className="text-sm text-red-600 font-medium mt-3">{error}</p>
@@ -851,7 +739,6 @@ export function Map() {
                     setStartLocation(value);
                     setSelectedStart(null);
                     setIsStartSuggestionsOpen(value.trim().length >= 2);
-                    startSessionTokenRef.current = createSessionToken();
                   }}
                   onSelect={handleStartSelect}
                   onFocus={() => {
@@ -875,7 +762,6 @@ export function Map() {
                     setDestination(value);
                     setSelectedDestination(null);
                     setIsDestinationSuggestionsOpen(value.trim().length >= 2);
-                    destinationSessionTokenRef.current = createSessionToken();
                   }}
                   onSelect={handleDestinationSelect}
                   onFocus={() => {
@@ -893,12 +779,6 @@ export function Map() {
                 >
                   {loading ? "Finding quiet route..." : "Find Quiet Route"}
                 </button>
-
-                {!hasMapboxToken && (
-                  <p className="text-sm text-red-600 font-medium mt-3">
-                    Mapbox token missing. Add VITE_MAPBOX_TOKEN to your .env file.
-                  </p>
-                )}
 
                 {error && (
                   <p className="text-sm text-red-600 font-medium mt-3">{error}</p>
@@ -966,12 +846,10 @@ export function Map() {
             </div>
           </section>
 
-          {/* Mobile mic button */}
           <div className="absolute bottom-28 left-4 z-10 lg:hidden">
             <MicButton onClick={() => setIsPopUpOpen(true)} />
           </div>
 
-          {/* Desktop mic button */}
           <div className="hidden lg:block absolute bottom-6 right-6 z-10">
             <MicButton onClick={() => setIsPopUpOpen(true)} />
           </div>
