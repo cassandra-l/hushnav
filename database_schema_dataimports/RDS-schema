@@ -38,6 +38,15 @@ CREATE TABLE Edge_Weight (
     is_high_noise boolean
 );
 
+--DROP TABLE pedestrian_sensor;
+
+CREATE TABLE pedestrian_sensor (
+    location_id BigInt PRIMARY KEY,
+    geom_sensor GEOMETRY(Point, 4326),  
+    current_count BigInt,
+    observation_time Timestamp
+);
+
 -- DROP TABLE Safe_Space;
 
 CREATE TABLE Safe_Space (
