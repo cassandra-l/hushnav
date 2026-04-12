@@ -1,5 +1,6 @@
 interface Props {
   onClose: () => void;
+  onAllow: () => Promise<void> | void;
 }
 
 export function PopUp(props: Props) {
@@ -62,7 +63,10 @@ export function PopUp(props: Props) {
           </div>
 
           <div className="flex justify-center">
-            <button className="bg-[#7DB0A6] text-white rounded-full w-[95%] py-3">
+            <button
+              onClick={props.onAllow}
+              className="bg-[#7DB0A6] text-white rounded-full w-[95%] py-3"
+            >
               Allow Microphone
             </button>
           </div>

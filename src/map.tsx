@@ -12,6 +12,8 @@ import { MicButton } from "./components/mic-button";
 import { PopUp } from "./components/pop-up";
 import { RouteMap } from "./components/route-map";
 import type { PlanRouteResponse } from "./types/route";
+import { useAudioMonitor } from "./hook/useAudioMonitor";
+import { VolumeBar } from "./components/noise-volume-bar";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -249,6 +251,9 @@ export function Map() {
   const navigate = useNavigate();
 
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
+  const { volume, isMonitoring, startMonitoring, stopMonitoring } =
+    useAudioMonitor();
+
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(true);
 
   const [startLocation, setStartLocation] = useState("");
@@ -261,9 +266,9 @@ export function Map() {
   const [selectedDestination, setSelectedDestination] =
     useState<LocationSuggestion | null>(null);
 
-  const [startSuggestions, setStartSuggestions] = useState<LocationSuggestion[]>(
-    []
-  );
+  const [startSuggestions, setStartSuggestions] = useState<
+    LocationSuggestion[]
+  >([]);
   const [destinationSuggestions, setDestinationSuggestions] = useState<
     LocationSuggestion[]
   >([]);
@@ -294,6 +299,123 @@ export function Map() {
     return Math.max(1, Math.round(meters / 84));
   };
 
+<<<<<<< HEAD
+=======
+  const hasMapboxToken = useMemo(() => MAPBOX_TOKEN.trim().length > 0, []);
+
+  const fetchSearchBoxSuggestions = useMemo(() => {
+    return async (
+      query: string,
+      sessionToken: string,
+    ): Promise<LocationSuggestion[]> => {
+      const trimmed = query.trim();
+
+      if (trimmed.length < 2 || !hasMapboxToken) {
+        return [];
+      }
+
+      const params = new URLSearchParams({
+        q: trimmed,
+        access_token: MAPBOX_TOKEN,
+        session_token: sessionToken,
+        limit: "8",
+        language: "en",
+        country: "au",
+        proximity: `${CBD_CENTER.lng},${CBD_CENTER.lat}`,
+        bbox: MELBOURNE_INNER_BBOX,
+        types: "street,address,poi,place,locality,neighborhood",
+      });
+
+      const url = `https://api.mapbox.com/search/searchbox/v1/suggest?${params.toString()}`;
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        const body = await response.text();
+        console.error("Search Box suggest failed:", response.status, body);
+        throw new Error(
+          `Suggest request failed with status ${response.status}`,
+        );
+      }
+
+      const data: SearchBoxSuggestResponse = await response.json();
+      const suggestions = Array.isArray(data.suggestions)
+        ? data.suggestions
+        : [];
+
+      return suggestions
+        .filter((item) => item.mapbox_id)
+        .map((item, index) => {
+          const lng = item.coordinates?.longitude;
+          const lat = item.coordinates?.latitude;
+
+          return {
+            id: `${item.mapbox_id}-${index}`,
+            mapboxId: item.mapbox_id as string,
+            place_name: buildSuggestionLabel(item),
+            center:
+              typeof lng === "number" && typeof lat === "number"
+                ? ([lng, lat] as [number, number])
+                : undefined,
+          };
+        });
+    };
+  }, [hasMapboxToken]);
+
+  const retrieveSearchBoxSuggestion = useMemo(() => {
+    return async (
+      mapboxId: string,
+      sessionToken: string,
+    ): Promise<LocationSuggestion | null> => {
+      if (!hasMapboxToken) {
+        return null;
+      }
+
+      const params = new URLSearchParams({
+        access_token: MAPBOX_TOKEN,
+        session_token: sessionToken,
+        language: "en",
+      });
+
+      const url = `https://api.mapbox.com/search/searchbox/v1/retrieve/${encodeURIComponent(
+        mapboxId,
+      )}?${params.toString()}`;
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        const body = await response.text();
+        console.error("Search Box retrieve failed:", response.status, body);
+        throw new Error(
+          `Retrieve request failed with status ${response.status}`,
+        );
+      }
+
+      const data: SearchBoxRetrieveResponse = await response.json();
+      const feature = Array.isArray(data.features)
+        ? data.features[0]
+        : undefined;
+
+      if (!feature) {
+        return null;
+      }
+
+      const coordinates = feature.geometry?.coordinates;
+      const label = buildRetrievedLabel(feature);
+
+      return {
+        id: feature.properties?.mapbox_id ?? mapboxId,
+        mapboxId: feature.properties?.mapbox_id ?? mapboxId,
+        place_name: label || feature.properties?.name || "",
+        center:
+          Array.isArray(coordinates) && coordinates.length >= 2
+            ? ([coordinates[0], coordinates[1]] as [number, number])
+            : undefined,
+      };
+    };
+  }, [hasMapboxToken]);
+
+>>>>>>> 60d75613446c7e43d4b6e1e2a901a25baa1f6327
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -325,7 +447,14 @@ export function Map() {
     const run = async () => {
       try {
         setIsStartSuggestionsLoading(true);
+<<<<<<< HEAD
         const results = await fetchPhotonSuggestions(startLocation);
+=======
+        const results = await fetchSearchBoxSuggestions(
+          startLocation,
+          startSessionTokenRef.current,
+        );
+>>>>>>> 60d75613446c7e43d4b6e1e2a901a25baa1f6327
 
         if (!cancelled) {
           setStartSuggestions(results);
@@ -362,7 +491,14 @@ export function Map() {
     const run = async () => {
       try {
         setIsDestinationSuggestionsLoading(true);
+<<<<<<< HEAD
         const results = await fetchPhotonSuggestions(destination);
+=======
+        const results = await fetchSearchBoxSuggestions(
+          destination,
+          destinationSessionTokenRef.current,
+        );
+>>>>>>> 60d75613446c7e43d4b6e1e2a901a25baa1f6327
 
         if (!cancelled) {
           setDestinationSuggestions(results);
@@ -387,6 +523,7 @@ export function Map() {
     };
   }, [destination]);
 
+<<<<<<< HEAD
   const handleStartSelect = (suggestion: LocationSuggestion) => {
     setStartLocation(suggestion.place_name);
     setSelectedStart(suggestion);
@@ -399,6 +536,57 @@ export function Map() {
     setSelectedDestination(suggestion);
     setIsDestinationSuggestionsOpen(false);
     setDestinationSuggestions([]);
+=======
+  const handleStartSelect = async (suggestion: LocationSuggestion) => {
+    try {
+      const retrieved = await retrieveSearchBoxSuggestion(
+        suggestion.mapboxId,
+        startSessionTokenRef.current,
+      );
+
+      const finalValue = retrieved ?? suggestion;
+
+      setStartLocation(finalValue.place_name);
+      setSelectedStart(finalValue);
+      setIsStartSuggestionsOpen(false);
+      setStartSuggestions([]);
+
+      // Start a fresh session token for the next search interaction.
+      startSessionTokenRef.current = createSessionToken();
+    } catch (err) {
+      console.error("Failed to retrieve selected start suggestion:", err);
+      setStartLocation(suggestion.place_name);
+      setSelectedStart(suggestion);
+      setIsStartSuggestionsOpen(false);
+      setStartSuggestions([]);
+      startSessionTokenRef.current = createSessionToken();
+    }
+  };
+
+  const handleDestinationSelect = async (suggestion: LocationSuggestion) => {
+    try {
+      const retrieved = await retrieveSearchBoxSuggestion(
+        suggestion.mapboxId,
+        destinationSessionTokenRef.current,
+      );
+
+      const finalValue = retrieved ?? suggestion;
+
+      setDestination(finalValue.place_name);
+      setSelectedDestination(finalValue);
+      setIsDestinationSuggestionsOpen(false);
+      setDestinationSuggestions([]);
+
+      destinationSessionTokenRef.current = createSessionToken();
+    } catch (err) {
+      console.error("Failed to retrieve selected destination suggestion:", err);
+      setDestination(suggestion.place_name);
+      setSelectedDestination(suggestion);
+      setIsDestinationSuggestionsOpen(false);
+      setDestinationSuggestions([]);
+      destinationSessionTokenRef.current = createSessionToken();
+    }
+>>>>>>> 60d75613446c7e43d4b6e1e2a901a25baa1f6327
   };
 
   const handlePlanRoute = async () => {
@@ -422,7 +610,9 @@ export function Map() {
 
     if (!API_BASE_URL) {
       setRouteData(null);
-      setError("API base URL not set. Add VITE_API_BASE_URL to your .env file.");
+      setError(
+        "API base URL not set. Add VITE_API_BASE_URL to your .env file.",
+      );
       return;
     }
 
@@ -470,7 +660,7 @@ export function Map() {
           data = JSON.parse(rawText);
         } catch {
           throw new Error(
-            "Backend returned a response, but it was not valid JSON."
+            "Backend returned a response, but it was not valid JSON.",
           );
         }
       }
@@ -498,7 +688,7 @@ export function Map() {
 
       if (err instanceof TypeError) {
         setError(
-          "Cannot connect to the backend server right now. Please make sure it is running."
+          "Cannot connect to the backend server right now. Please make sure it is running.",
         );
       } else if (err instanceof Error) {
         setError(err.message);
@@ -620,7 +810,8 @@ export function Map() {
                     <div className="flex justify-between gap-4">
                       <span className="text-[#6A7282]">Duration</span>
                       <span className="font-medium">
-                        {estimateWalkingMinutes(routeData.route.totalLength)} min
+                        {estimateWalkingMinutes(routeData.route.totalLength)}{" "}
+                        min
                       </span>
                     </div>
 
@@ -656,8 +847,8 @@ export function Map() {
                   Quiet Route Preview
                 </h2>
                 <p className="text-sm text-[#6A7282]">
-                  Search for a start point and destination to display the quietest
-                  route on the map.
+                  Search for a start point and destination to display the
+                  quietest route on the map.
                 </p>
               </div>
             )}
@@ -780,8 +971,20 @@ export function Map() {
                   {loading ? "Finding quiet route..." : "Find Quiet Route"}
                 </button>
 
+<<<<<<< HEAD
+=======
+                {!hasMapboxToken && (
+                  <p className="text-sm text-red-600 font-medium mt-3">
+                    Mapbox token missing. Add VITE_MAPBOX_TOKEN to your .env
+                    file.
+                  </p>
+                )}
+
+>>>>>>> 60d75613446c7e43d4b6e1e2a901a25baa1f6327
                 {error && (
-                  <p className="text-sm text-red-600 font-medium mt-3">{error}</p>
+                  <p className="text-sm text-red-600 font-medium mt-3">
+                    {error}
+                  </p>
                 )}
               </div>
             </section>
@@ -847,16 +1050,41 @@ export function Map() {
           </section>
 
           <div className="absolute bottom-28 left-4 z-10 lg:hidden">
-            <MicButton onClick={() => setIsPopUpOpen(true)} />
+            {isMonitoring && <VolumeBar volume={volume} />}
+            <MicButton
+              onClick={
+                isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)
+              }
+              isActive={isMonitoring}
+            />
           </div>
 
           <div className="hidden lg:block absolute bottom-6 right-6 z-10">
-            <MicButton onClick={() => setIsPopUpOpen(true)} />
+            {/* Volume Bar */}
+            {isMonitoring && <VolumeBar volume={volume} />}
+            {/* Mic Button */}
+            <MicButton
+              onClick={
+                isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)
+              }
+              isActive={isMonitoring}
+            />
           </div>
         </div>
       </div>
-
-      {isPopUpOpen && <PopUp onClose={() => setIsPopUpOpen(false)} />}
+      {/* Pop-up */}
+      {isPopUpOpen && (
+        <PopUp
+          onClose={() => setIsPopUpOpen(false)}
+          // When user click Allow button
+          onAllow={async () => {
+            // First close pop-up
+            setIsPopUpOpen(false);
+            // And then trigger browser permission
+            await startMonitoring();
+          }}
+        />
+      )}
     </main>
   );
 }

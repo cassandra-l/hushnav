@@ -4,8 +4,6 @@ import { Home } from "./home.tsx";
 import { Map } from "./map.tsx";
 import { SupportPage } from "./support-page.tsx";
 import "./index.css";
-import { Amplify } from "aws-amplify";
-import outputs from "../amplify_outputs.json";
 // import { createBrowserRouter } from "react-router";
 // import { RouterProvider } from "react-router/dom";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
@@ -22,7 +20,6 @@ const router = createBrowserRouter([
   },
 ]);
 
-Amplify.configure(outputs);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
