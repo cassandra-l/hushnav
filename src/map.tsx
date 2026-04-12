@@ -907,7 +907,6 @@ export function Map() {
             </section>
           )}
 
-
           <section className="absolute bottom-4 left-4 right-4 z-10 lg:hidden">
             <div className="bg-white/95 backdrop-blur-sm rounded-[28px] shadow-xl border border-white/80 overflow-hidden">
               {routeData ? (
@@ -967,11 +966,12 @@ export function Map() {
             </div>
           </section>
 
-          {/* ✅ CLEAN MIC BUTTON (NO CONFLICTS, NO CALM TOOL BUTTON) */}
+          {/* Mobile mic button */}
           <div className="absolute bottom-28 left-4 z-10 lg:hidden">
             <MicButton onClick={() => setIsPopUpOpen(true)} />
           </div>
 
+          {/* Desktop mic button */}
           <div className="hidden lg:block absolute bottom-6 right-6 z-10">
             <MicButton onClick={() => setIsPopUpOpen(true)} />
           </div>
