@@ -18,7 +18,6 @@ const router = createBrowserRouter([
       { index: true, element: <Home /> },
       { path: "map", element: <Map /> },
       { path: "support", element: <SupportPage /> },
-      { path: "todolist", element: <ToDoList /> },
     ],
   },
 ]);
