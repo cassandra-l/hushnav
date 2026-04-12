@@ -25,10 +25,11 @@
     "geojson": "^0.5.0",
     "lucide-react": "^1.7.0",
     "mapbox-gl": "^3.21.0",
+    "maplibre-gl": "^5.22.0",
     "pg": "^8.20.0",
     "react": "~18.3.1",
     "react-dom": "~18.3.1",
-    "react-map-gl": "^8.1.0",
+    "react-map-gl": "^8.1.1",
     "react-router": "^7.14.0",
     "react-router-dom": "^7.14.0"
   },
@@ -43,14 +44,11 @@
     "@eslint/compat": "~2.0.1",
     "@eslint/eslintrc": "~3.3.3",
     "@eslint/js": "~9.39.2",
-
+    "@parcel/watcher": "^2.4.1",
     "@types/geojson": "^7946.0.16",
     "@types/pg": "^8.20.0",
-
-
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
-
     "@types/react": "~18.3.27",
     "@types/react-dom": "~18.3.7",
     "@typescript-eslint/eslint-plugin": "~8.53.0",
@@ -66,8 +64,7 @@
     "tailwindcss": "^4.2.2",
     "tsx": "^4.21.0",
     "typescript": "~5.9.3",
-    "vite": "~7.3.1",
-    "@parcel/watcher": "^2.4.1"
+    "vite": "~7.3.1"
   },
   "optionalDependencies": {
     "@parcel/watcher-linux-x64-glibc": "2.2.0"
