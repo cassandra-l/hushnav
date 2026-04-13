@@ -14,7 +14,7 @@ import { RouteMap } from "./components/route-map";
 import type { PlanRouteResponse } from "./types/route";
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
-
+import type { NoiseMapFeatureCollection } from "./types/noise-map";
 
 
 // Backend base URL from .env
@@ -323,8 +323,8 @@ export function Map() {
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
 
 
-  const [noiseMapData, setNoiseMapData] = useState<any | null>(null);
-  
+  const [noiseMapData, setNoiseMapData] = useState<NoiseMapFeatureCollection | null>(null);
+
   // Refs for click-outside handling
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
   const mobileSearchPanelRef = useRef<HTMLDivElement | null>(null);

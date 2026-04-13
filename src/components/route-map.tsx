@@ -9,13 +9,9 @@ import Map, {
 import { MapPin, Navigation } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { PlanRouteResponse } from "../types/route";
+import type { NoiseMapFeatureCollection } from "../types/noise-map";
 
 
-
-type NoiseMapFeatureCollection = {
-  type: "FeatureCollection";
-  features: any[];
-};
 
 
 // Props for map component
