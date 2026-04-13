@@ -9,13 +9,18 @@ import Map, {
 import { MapPin, Navigation } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { PlanRouteResponse } from "../types/route";
+import type { NoiseMapFeatureCollection } from "../types/noise-map";
+
+
+
 
 // Props for map component
 type RouteMapProps = {
   routeData: PlanRouteResponse | null;
+  noiseMapData: NoiseMapFeatureCollection | null;
 };
 
-export function RouteMap({ routeData }: RouteMapProps) {
+export function RouteMap({ routeData, noiseMapData }: RouteMapProps) {
   const mapRef = useRef<MapRef | null>(null);
 
   // Read Mapbox token from .env
@@ -105,6 +110,34 @@ export function RouteMap({ routeData }: RouteMapProps) {
       >
         {/* Map controls */}
         <NavigationControl position="top-right" />
+
+        {noiseMapData && (
+          <Source id="noise-map" type="geojson" data={noiseMapData}>
+            <Layer
+              id="noise-map-layer"
+              type="line"
+              paint={{
+                "line-color": [
+                  "case",
+                  ["==", ["get", "noiseCategory"], "high"],
+                  "#E7C0C0",
+                  "#D3D3D3",
+                ],
+                "line-width": [
+                  "case",
+                  ["==", ["get", "noiseCategory"], "high"],
+                  2.5,
+                  1.5,
+                ],
+                "line-opacity": 0.9,
+              }}
+              layout={{
+                "line-join": "round",
+                "line-cap": "round",
+              }}
+            />
+          </Source>
+        )}
 
         {/* Start marker */}
         {routeData && (

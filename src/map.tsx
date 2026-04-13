@@ -14,6 +14,8 @@ import { RouteMap } from "./components/route-map";
 import type { PlanRouteResponse } from "./types/route";
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
+import type { NoiseMapFeatureCollection } from "./types/noise-map";
+
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -320,6 +322,9 @@ export function Map() {
   // Final route response shown on the map
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
 
+
+  const [noiseMapData, setNoiseMapData] = useState<NoiseMapFeatureCollection | null>(null);
+
   // Refs for click-outside handling
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
   const mobileSearchPanelRef = useRef<HTMLDivElement | null>(null);
@@ -435,6 +440,34 @@ export function Map() {
       clearTimeout(timeout);
     };
   }, [destination]);
+
+
+
+
+  useEffect(() => {
+  const fetchNoiseMap = async () => {
+    try {
+      if (!API_BASE_URL) return;
+
+      const response = await fetch(`${API_BASE_URL}/noise-map`);
+
+      if (!response.ok) {
+        throw new Error(`Noise map request failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      setNoiseMapData(data);
+    } catch (err) {
+      console.error("Failed to load noise map data:", err);
+    }
+  };
+
+  fetchNoiseMap();
+}, []);
+
+
+
+
 
   // When a start suggestion is chosen, store both the label and coordinates
   const handleStartSelect = (suggestion: LocationSuggestion) => {
@@ -721,7 +754,7 @@ export function Map() {
 
         {/* Main map area */}
         <div className="relative h-full w-full">
-          <RouteMap routeData={routeData} />
+          <RouteMap routeData={routeData} noiseMapData={noiseMapData} />
 
           {/* Mobile collapsed top card */}
           {!isMobileSearchOpen && (

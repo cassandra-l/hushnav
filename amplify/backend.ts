@@ -5,11 +5,13 @@ import { Cors, LambdaIntegration, RestApi } from "aws-cdk-lib/aws-apigateway";
 import { auth } from "./auth/resource";
 import { data } from "./data/resource";
 import { planRouteFunction } from "./functions/plan-route/resource";
+import { noiseMapFunction } from "./functions/noise-map/resource";
 
 const backend = defineBackend({
   auth,
   data,
   planRouteFunction,
+  noiseMapFunction,
 });
 
 const apiStack = backend.createStack("api-stack");
@@ -27,12 +29,19 @@ const myRestApi = new RestApi(apiStack, "NavigationRestApi", {
   },
 });
 
-const lambdaIntegration = new LambdaIntegration(
+const planRouteIntegration = new LambdaIntegration(
   backend.planRouteFunction.resources.lambda
 );
 
+const noiseMapIntegration = new LambdaIntegration(
+  backend.noiseMapFunction.resources.lambda
+);
+
 const planRoutePath = myRestApi.root.addResource("plan-route");
-planRoutePath.addMethod("POST", lambdaIntegration);
+planRoutePath.addMethod("POST", planRouteIntegration);
+
+const noiseMapPath = myRestApi.root.addResource("noise-map");
+noiseMapPath.addMethod("GET", noiseMapIntegration);
 
 backend.addOutput({
   custom: {
