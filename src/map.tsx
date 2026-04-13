@@ -15,27 +15,21 @@ import type { PlanRouteResponse } from "./types/route";
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
 
-// Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
-// Used to bias Photon results toward Melbourne CBD
 const CBD_CENTER = {
   lng: 144.9631,
   lat: -37.8136,
 };
 
-// A wider Melbourne inner bounding box so nearby areas like Docklands,
-// Southbank, and East Melbourne can still appear in suggestions
 const MELBOURNE_INNER_BBOX = "144.88,-37.86,145.05,-37.77";
 
-// Standardised suggestion shape used by the UI
 type LocationSuggestion = {
   id: string;
   place_name: string;
   center?: [number, number];
 };
 
-// Photon API feature shape
 type PhotonFeature = {
   geometry?: {
     type?: string;
@@ -58,12 +52,15 @@ type PhotonFeature = {
   };
 };
 
-// Photon API response shape
 type PhotonResponse = {
   features?: PhotonFeature[];
 };
 
-// Reusable props for the start/destination input with suggestions
+type UserLocation = {
+  lng: number;
+  lat: number;
+};
+
 type AutocompleteInputProps = {
   id: string;
   label: string;
@@ -78,7 +75,6 @@ type AutocompleteInputProps = {
   onFocus: () => void;
 };
 
-// Reusable autocomplete field used for both Start and Destination
 function AutocompleteInput({
   id,
   label,
@@ -105,7 +101,6 @@ function AutocompleteInput({
 
       <div className="relative">
         <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white px-4 py-3">
-          {/* Circle icon changes depending on whether this is start or destination */}
           <div
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
               isStart ? "bg-[#D4B896]" : "bg-[#7DB0A6]"
@@ -120,7 +115,6 @@ function AutocompleteInput({
 
           <Search size={16} className="shrink-0 text-[#5A9A8E]" />
 
-          {/* User text input */}
           <input
             id={id}
             type="text"
@@ -133,9 +127,8 @@ function AutocompleteInput({
           />
         </div>
 
-        {/* Suggestion dropdown */}
         {isOpen && (
-          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 max-h-80 overflow-y-auto overflow-hidden rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">
+          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 max-h-80 overflow-hidden overflow-y-auto rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">
             {loading ? (
               <div className="px-4 py-3 text-sm text-[#6A7282]">
                 Searching...
@@ -163,8 +156,6 @@ function AutocompleteInput({
   );
 }
 
-// Builds a readable label from Photon feature properties
-// Example output: "RMIT University, Swanston Street, Melbourne, VIC 3000"
 function buildPhotonLabel(feature: PhotonFeature): string {
   const props = feature.properties ?? {};
 
@@ -184,8 +175,6 @@ function buildPhotonLabel(feature: PhotonFeature): string {
   ].filter((part): part is string => Boolean(part && part.trim()));
 
   const parts = [...firstLine, ...secondLine];
-
-  // Remove duplicate pieces and empty strings
   const uniqueParts = Array.from(new Set(parts.map((part) => part.trim()))).filter(
     (part) => part.length > 0,
   );
@@ -193,7 +182,6 @@ function buildPhotonLabel(feature: PhotonFeature): string {
   return uniqueParts.join(", ");
 }
 
-// Converts a Photon feature into our app's LocationSuggestion format
 function normalisePhotonFeature(
   feature: PhotonFeature,
   index: number,
@@ -201,7 +189,6 @@ function normalisePhotonFeature(
   const coordinates = feature.geometry?.coordinates;
   const props = feature.properties ?? {};
 
-  // Skip invalid results
   if (!Array.isArray(coordinates) || coordinates.length < 2) {
     return null;
   }
@@ -218,7 +205,6 @@ function normalisePhotonFeature(
     return null;
   }
 
-  // Build a stable-ish unique id for React keys
   const idBase =
     props.osm_id !== undefined
       ? `${props.osm_type ?? "feature"}-${String(props.osm_id)}`
@@ -231,14 +217,12 @@ function normalisePhotonFeature(
   };
 }
 
-// Calls Photon API to fetch live search suggestions
 async function fetchPhotonSuggestions(
   query: string,
   signal?: AbortSignal,
 ): Promise<LocationSuggestion[]> {
   const trimmed = query.trim();
 
-  // Don't search for very short inputs
   if (trimmed.length < 2) {
     return [];
   }
@@ -270,31 +254,24 @@ async function fetchPhotonSuggestions(
     .filter((item): item is LocationSuggestion => item !== null);
 }
 
-// Main page component
 export function Map() {
   const navigate = useNavigate();
 
-  // Noise monitoring popup + audio state
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
   const { volume, isMonitoring, startMonitoring, stopMonitoring } =
     useAudioMonitor();
 
-  // Mobile panel open/close state
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(true);
 
-  // Raw text currently typed into each field
   const [startLocation, setStartLocation] = useState("");
   const [destination, setDestination] = useState("");
 
-  // Selected suggestion objects
-  // These are important because they give exact coordinates for backend routing
   const [selectedStart, setSelectedStart] = useState<LocationSuggestion | null>(
     null,
   );
   const [selectedDestination, setSelectedDestination] =
     useState<LocationSuggestion | null>(null);
 
-  // Suggestion lists for each field
   const [startSuggestions, setStartSuggestions] = useState<LocationSuggestion[]>(
     [],
   );
@@ -302,44 +279,63 @@ export function Map() {
     LocationSuggestion[]
   >([]);
 
-  // Controls whether suggestion dropdowns are visible
   const [isStartSuggestionsOpen, setIsStartSuggestionsOpen] = useState(false);
   const [isDestinationSuggestionsOpen, setIsDestinationSuggestionsOpen] =
     useState(false);
 
-  // Loading states for live search
   const [isStartSuggestionsLoading, setIsStartSuggestionsLoading] =
     useState(false);
   const [isDestinationSuggestionsLoading, setIsDestinationSuggestionsLoading] =
     useState(false);
 
-  // Route API loading + error state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Final route response shown on the map
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
 
-  // Refs for click-outside handling
+  // Store the user's live location after permission is accepted
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
   const mobileSearchPanelRef = useRef<HTMLDivElement | null>(null);
 
-  // Abort controllers prevent old Photon requests from overwriting newer ones
   const startAbortRef = useRef<AbortController | null>(null);
   const destinationAbortRef = useRef<AbortController | null>(null);
 
-  // Helper to display route length nicely
   const formatRouteLength = (meters: number) => {
     if (meters < 1000) return `${Math.round(meters)} m`;
     return `${(meters / 1000).toFixed(1)} km`;
   };
 
-  // Rough walking duration estimate
   const estimateWalkingMinutes = (meters: number) => {
     return Math.max(1, Math.round(meters / 84));
   };
 
-  // Close suggestion dropdowns when user clicks outside both panels
+  // Ask for browser location permission when the page loads
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      console.warn("Geolocation is not supported by this browser.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          lng: position.coords.longitude,
+          lat: position.coords.latitude,
+        });
+      },
+      (geoError) => {
+        console.warn("Location permission denied or unavailable:", geoError);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000,
+      },
+    );
+  }, []);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -359,7 +355,6 @@ export function Map() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Watch start field and fetch live Photon suggestions
   useEffect(() => {
     if (startLocation.trim().length < 2) {
       setStartSuggestions([]);
@@ -367,7 +362,6 @@ export function Map() {
       return;
     }
 
-    // Cancel previous request if user keeps typing
     startAbortRef.current?.abort();
     const controller = new AbortController();
     startAbortRef.current = controller;
@@ -390,7 +384,7 @@ export function Map() {
           setIsStartSuggestionsLoading(false);
         }
       }
-    }, 250); // small debounce so we do not spam requests while typing
+    }, 250);
 
     return () => {
       controller.abort();
@@ -398,7 +392,6 @@ export function Map() {
     };
   }, [startLocation]);
 
-  // Watch destination field and fetch live Photon suggestions
   useEffect(() => {
     if (destination.trim().length < 2) {
       setDestinationSuggestions([]);
@@ -436,7 +429,6 @@ export function Map() {
     };
   }, [destination]);
 
-  // When a start suggestion is chosen, store both the label and coordinates
   const handleStartSelect = (suggestion: LocationSuggestion) => {
     setStartLocation(suggestion.place_name);
     setSelectedStart(suggestion);
@@ -444,7 +436,6 @@ export function Map() {
     setStartSuggestions([]);
   };
 
-  // When a destination suggestion is chosen, store both the label and coordinates
   const handleDestinationSelect = (suggestion: LocationSuggestion) => {
     setDestination(suggestion.place_name);
     setSelectedDestination(suggestion);
@@ -452,13 +443,11 @@ export function Map() {
     setDestinationSuggestions([]);
   };
 
-  // Sends route request to backend
   const handlePlanRoute = async () => {
     setError("");
     setIsStartSuggestionsOpen(false);
     setIsDestinationSuggestionsOpen(false);
 
-    // Basic validation
     if (!startLocation.trim() || !destination.trim()) {
       setRouteData(null);
       setError("Please enter both a start location and destination.");
@@ -480,8 +469,6 @@ export function Map() {
     setLoading(true);
 
     try {
-      // If the user selected a suggestion, send exact coordinates.
-      // If they only typed text, still send the text so backend can resolve it.
       const requestBody = {
         start:
           selectedStart?.center && selectedStart.center.length >= 2
@@ -511,12 +498,8 @@ export function Map() {
 
       const rawText = await response.text();
 
-      console.log("Route response status:", response.status);
-      console.log("Route response text:", rawText);
-
       let data: PlanRouteResponse | { error?: string } | null = null;
 
-      // Parse backend JSON safely
       if (rawText.trim()) {
         try {
           data = JSON.parse(rawText) as PlanRouteResponse | { error?: string };
@@ -525,7 +508,6 @@ export function Map() {
         }
       }
 
-      // Handle non-200 backend responses
       if (!response.ok) {
         const errorMessage =
           data && "error" in data && typeof data.error === "string"
@@ -539,10 +521,8 @@ export function Map() {
         throw new Error("Backend returned an empty response.");
       }
 
-      // Save returned route for map + summary cards
       setRouteData(data as PlanRouteResponse);
 
-      // On mobile, collapse the top panel once route is ready
       if (window.innerWidth < 1024) {
         setIsMobileSearchOpen(false);
       }
@@ -566,7 +546,6 @@ export function Map() {
   return (
     <main className="relative h-screen w-full overflow-hidden bg-[#D5E8E5]">
       <div className="h-full w-full lg:grid lg:grid-cols-[380px_1fr]">
-        {/* Desktop left sidebar */}
         <aside className="z-20 hidden h-full flex-col border-r border-[#E8EEEC] bg-white lg:flex">
           <div
             ref={desktopSearchPanelRef}
@@ -583,7 +562,7 @@ export function Map() {
 
               <div>
                 <h1 className="text-xl font-semibold text-[#1E2939]">
-                  Quiet Route
+                  HushNav
                 </h1>
                 <p className="text-sm text-[#6A7282]">
                   Find the calmest path through the city
@@ -602,7 +581,7 @@ export function Map() {
               loading={isStartSuggestionsLoading}
               onChange={(value) => {
                 setStartLocation(value);
-                setSelectedStart(null); // clear old exact coords if text changes
+                setSelectedStart(null);
                 setIsStartSuggestionsOpen(value.trim().length >= 2);
               }}
               onSelect={handleStartSelect}
@@ -625,7 +604,7 @@ export function Map() {
               loading={isDestinationSuggestionsLoading}
               onChange={(value) => {
                 setDestination(value);
-                setSelectedDestination(null); // clear old exact coords if text changes
+                setSelectedDestination(null);
                 setIsDestinationSuggestionsOpen(value.trim().length >= 2);
               }}
               onSelect={handleDestinationSelect}
@@ -650,13 +629,12 @@ export function Map() {
             )}
           </div>
 
-          {/* Desktop route summary */}
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {routeData ? (
               <div className="space-y-4">
                 <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
                   <h2 className="mb-3 text-base font-semibold text-[#1E2939]">
-                    Route Summary
+                    HushNav Summary
                   </h2>
 
                   <div className="space-y-3 text-sm text-[#1E2939]">
@@ -708,7 +686,7 @@ export function Map() {
             ) : (
               <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
                 <h2 className="mb-2 text-base font-semibold text-[#1E2939]">
-                  Quiet Route Preview
+                  HushNav Preview
                 </h2>
                 <p className="text-sm text-[#6A7282]">
                   Search for a start point and destination to display the quietest
@@ -719,11 +697,9 @@ export function Map() {
           </div>
         </aside>
 
-        {/* Main map area */}
         <div className="relative h-full w-full">
-          <RouteMap routeData={routeData} />
+          <RouteMap routeData={routeData} userLocation={userLocation} />
 
-          {/* Mobile collapsed top card */}
           {!isMobileSearchOpen && (
             <div className="absolute left-4 right-4 top-4 z-10 lg:hidden">
               <button
@@ -733,7 +709,7 @@ export function Map() {
               >
                 <div className="text-left">
                   <p className="text-sm font-semibold text-[#1E2939]">
-                    Quiet Route
+                    HushNav
                   </p>
                   <p className="text-xs text-[#6A7282]">
                     {startLocation && destination
@@ -747,7 +723,6 @@ export function Map() {
             </div>
           )}
 
-          {/* Mobile expanded search panel */}
           {isMobileSearchOpen && (
             <section className="absolute left-4 right-4 top-4 z-20 lg:hidden">
               <div
@@ -766,7 +741,7 @@ export function Map() {
 
                     <div>
                       <h1 className="text-[24px] font-semibold leading-tight text-[#1E2939]">
-                        Quiet Route
+                        HushNav
                       </h1>
                       <p className="text-sm text-[#6A7282]">
                         Find the calmest path through the city
@@ -845,7 +820,6 @@ export function Map() {
             </section>
           )}
 
-          {/* Mobile bottom route summary */}
           <section className="absolute bottom-4 left-4 right-4 z-10 lg:hidden">
             <div className="overflow-hidden rounded-[28px] border border-white/80 bg-white/95 shadow-xl backdrop-blur-sm">
               {routeData ? (
@@ -887,7 +861,7 @@ export function Map() {
                 <div className="flex items-center justify-between gap-4 px-5 py-4">
                   <div>
                     <p className="text-sm font-medium text-[#1E2939]">
-                      Quiet Route Preview
+                      HushNav Preview
                     </p>
                     <p className="mt-1 text-xs text-[#6A7282]">
                       Search for a route to begin.
@@ -905,7 +879,6 @@ export function Map() {
             </div>
           </section>
 
-          {/* Mobile mic button + live noise bar */}
           <div className="absolute bottom-28 left-4 z-10 lg:hidden">
             {isMonitoring && <VolumeBar volume={volume} />}
             <MicButton
@@ -914,7 +887,6 @@ export function Map() {
             />
           </div>
 
-          {/* Desktop mic button + live noise bar */}
           <div className="absolute bottom-6 right-6 z-10 hidden lg:block">
             {isMonitoring && <VolumeBar volume={volume} />}
             <MicButton
@@ -925,7 +897,6 @@ export function Map() {
         </div>
       </div>
 
-      {/* Microphone permission popup */}
       {isPopUpOpen && (
         <PopUp
           onClose={() => setIsPopUpOpen(false)}
