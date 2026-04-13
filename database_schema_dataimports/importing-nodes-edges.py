@@ -20,7 +20,6 @@ nodes_df = nodes_df.set_geometry('geom_node')
 # create unique IDs and match edge schema in the RDS
 edges_df = edges.reset_index()[['u', 'v', 'length', 'geometry']]
 edges_df['edge_id'] = range(1, len(edges_df) + 1)
-edges_df['is_indoor'] = False
 edges_df = edges_df.rename(columns={'geometry': 'geom_edge'})
 edges_df = edges_df.set_geometry('geom_edge')
 
