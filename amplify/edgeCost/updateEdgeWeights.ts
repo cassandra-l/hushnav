@@ -202,7 +202,7 @@ function calculateFinalCost(
 }
 
 function isHighNoise(currentDb: number): boolean {
-  return currentDb > 70;
+  return currentDb >= 85;
 }
 
 export async function updateEdgeWeights() {
