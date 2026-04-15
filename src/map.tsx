@@ -14,7 +14,8 @@ import { RouteMap } from "./components/route-map";
 import type { PlanRouteResponse } from "./types/route";
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
-import type { NoiseMapFeatureCollection } from "./types/noise-map";
+
+import type { CrowdMapFeatureCollection } from "./types/noise-map";
 
 
 // Backend base URL from .env
@@ -109,9 +110,8 @@ function AutocompleteInput({
         <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white px-4 py-3">
           {/* Circle icon changes depending on whether this is start or destination */}
           <div
-            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-              isStart ? "bg-[#D4B896]" : "bg-[#7DB0A6]"
-            }`}
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isStart ? "bg-[#D4B896]" : "bg-[#7DB0A6]"
+              }`}
           >
             {isStart ? (
               <Navigation size={16} className="text-white" />
@@ -323,7 +323,7 @@ export function Map() {
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
 
 
-  const [noiseMapData, setNoiseMapData] = useState<NoiseMapFeatureCollection | null>(null);
+  const [crowdMapData, setCrowdMapData] = useState<CrowdMapFeatureCollection | null>(null);
 
   // Refs for click-outside handling
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
@@ -445,25 +445,25 @@ export function Map() {
 
 
   useEffect(() => {
-  const fetchNoiseMap = async () => {
-    try {
-      if (!API_BASE_URL) return;
+    const fetchCrowdMap = async () => {
+      try {
+        if (!API_BASE_URL) return;
 
-      const response = await fetch(`${API_BASE_URL}/noise-map`);
+        const response = await fetch(`${API_BASE_URL}/noise-map`);
 
-      if (!response.ok) {
-        throw new Error(`Noise map request failed with status ${response.status}`);
+        if (!response.ok) {
+          throw new Error(`Crowd map request failed with status ${response.status}`);
+        }
+
+        const data = await response.json();
+        setCrowdMapData(data);
+      } catch (err) {
+        console.error("Failed to load crowd map data:", err);
       }
+    };
 
-      const data = await response.json();
-      setNoiseMapData(data);
-    } catch (err) {
-      console.error("Failed to load noise map data:", err);
-    }
-  };
-
-  fetchNoiseMap();
-}, []);
+    fetchCrowdMap();
+  }, []);
 
 
 
@@ -519,16 +519,16 @@ export function Map() {
         start:
           selectedStart?.center && selectedStart.center.length >= 2
             ? {
-                lng: selectedStart.center[0],
-                lat: selectedStart.center[1],
-              }
+              lng: selectedStart.center[0],
+              lat: selectedStart.center[1],
+            }
             : undefined,
         end:
           selectedDestination?.center && selectedDestination.center.length >= 2
             ? {
-                lng: selectedDestination.center[0],
-                lat: selectedDestination.center[1],
-              }
+              lng: selectedDestination.center[0],
+              lat: selectedDestination.center[1],
+            }
             : undefined,
         startQuery: startLocation,
         endQuery: destination,
@@ -754,7 +754,7 @@ export function Map() {
 
         {/* Main map area */}
         <div className="relative h-full w-full">
-          <RouteMap routeData={routeData} noiseMapData={noiseMapData} />
+          <RouteMap routeData={routeData} crowdMapData={crowdMapData} />
 
           {/* Mobile collapsed top card */}
           {!isMobileSearchOpen && (

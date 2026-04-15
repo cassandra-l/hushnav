@@ -9,18 +9,18 @@ import Map, {
 import { MapPin, Navigation } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { PlanRouteResponse } from "../types/route";
-import type { NoiseMapFeatureCollection } from "../types/noise-map";
-
+import type { CrowdMapFeatureCollection } from "../types/noise-map";
 
 
 
 // Props for map component
 type RouteMapProps = {
   routeData: PlanRouteResponse | null;
-  noiseMapData: NoiseMapFeatureCollection | null;
+  crowdMapData: CrowdMapFeatureCollection | null;
 };
 
-export function RouteMap({ routeData, noiseMapData }: RouteMapProps) {
+export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
+
   const mapRef = useRef<MapRef | null>(null);
 
   // Read Mapbox token from .env
@@ -111,21 +111,21 @@ export function RouteMap({ routeData, noiseMapData }: RouteMapProps) {
         {/* Map controls */}
         <NavigationControl position="top-right" />
 
-        {noiseMapData && (
-          <Source id="noise-map" type="geojson" data={noiseMapData}>
+        {crowdMapData && (
+          <Source id="crowd-map" type="geojson" data={crowdMapData}>
             <Layer
-              id="noise-map-layer"
+              id="crowd-map-layer"
               type="line"
               paint={{
                 "line-color": [
                   "case",
-                  ["==", ["get", "noiseCategory"], "high"],
+                  ["==", ["get", "crowdCategory"], "high"],
                   "#E7C0C0",
                   "#D3D3D3",
                 ],
                 "line-width": [
                   "case",
-                  ["==", ["get", "noiseCategory"], "high"],
+                  ["==", ["get", "crowdCategory"], "high"],
                   2.5,
                   1.5,
                 ],

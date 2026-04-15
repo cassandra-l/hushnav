@@ -2,12 +2,14 @@ import { pool } from "./db";
 import type { SensorRow } from "./fetchNoise";
 import type { PedestrianSensorRow } from "./fetchCrowd";
 
+// A row from the node table
 export type NodeRow = {
   node_id: number;
   lat: number;
   lon: number;
 };
 
+// A row from the edge table
 type EdgeRow = {
   edge_id: number;
   u: number;
@@ -15,6 +17,7 @@ type EdgeRow = {
   length: number;
 };
 
+// Calculate the distance between two latitude/longitude points
 function haversineDistanceMeters(
   aLat: number,
   aLon: number,
@@ -36,6 +39,7 @@ function haversineDistanceMeters(
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+// Load all nodes from the db and stores them in a Map
 async function loadNodes(): Promise<Map<number, NodeRow>> {
   const client = await pool.connect();
 
@@ -58,6 +62,7 @@ async function loadNodes(): Promise<Map<number, NodeRow>> {
   }
 }
 
+// Load all road edges from the db
 async function loadEdges(): Promise<EdgeRow[]> {
   const client = await pool.connect();
 
@@ -75,6 +80,7 @@ async function loadEdges(): Promise<EdgeRow[]> {
   }
 }
 
+// Load all usable noise sensor records that currently have a noise value
 async function loadNoiseSensors(): Promise<SensorRow[]> {
   const client = await pool.connect();
 
@@ -98,6 +104,7 @@ async function loadNoiseSensors(): Promise<SensorRow[]> {
   }
 }
 
+// Load all usable pedestrian sensor records that currently have a crowd count
 async function loadPedestrianSensors(): Promise<PedestrianSensorRow[]> {
   const client = await pool.connect();
 
@@ -121,6 +128,7 @@ async function loadPedestrianSensors(): Promise<PedestrianSensorRow[]> {
   }
 }
 
+// Find the nearest noise sensor to the midpoint of an edge
 function findNearestNoiseSensor(
   edgeMidLat: number,
   edgeMidLon: number,
@@ -153,6 +161,7 @@ function findNearestNoiseSensor(
   return bestSensor;
 }
 
+// Find the nearest pedestrian sensor to the midpoint of an edge
 function findNearestPedestrianSensor(
   edgeMidLat: number,
   edgeMidLon: number,
@@ -185,6 +194,7 @@ function findNearestPedestrianSensor(
   return bestSensor;
 }
 
+// Convert pedestrian count into a crowd penalty for calculating the cost
 function crowdCountToPenalty(count: number): number {
   if (count < 20) return 0;
   if (count < 50) return 0.05;
@@ -193,6 +203,7 @@ function crowdCountToPenalty(count: number): number {
   return 0.35;
 }
 
+// Noise affects cost directly, and crowd affects cost through crowd penalty multiplier
 function calculateFinalCost(
   length: number,
   noiseDb: number,
@@ -201,10 +212,25 @@ function calculateFinalCost(
   return length * (1 + noiseDb / 100 + crowdPenalty);
 }
 
-function isHighNoise(currentDb: number): boolean {
-  return currentDb >= 85;
+// Determine whether an edge should be classified as high crowd
+function isHighCrowd(currentCount: number): boolean {
+  return currentCount >= 30;
 }
 
+// Represent one processed edge row that will be upserted into edge_weight
+type EdgeWeightUpsertRow = {
+  edge_id: number;
+  final_cost: number;
+  observation_time: string | null;
+  noise_db: number;
+  crowd_count: number;
+  is_high_crowd: boolean;
+};
+
+// 1. Load nodes, edges, noise sensors, and pedestrian sensors
+// 2. Compute the nearest sensor values for each edge
+// 3. Calculate final cost and high-crowd classification
+// 4. Upsert all computed rows into edge_weight
 export async function updateEdgeWeights() {
   const nodes = await loadNodes();
   const edges = await loadEdges();
@@ -218,6 +244,9 @@ export async function updateEdgeWeights() {
   const client = await pool.connect();
 
   try {
+    const rowsToUpsert: EdgeWeightUpsertRow[] = [];
+    let processed = 0;
+
     for (const edge of edges) {
       const uNode = nodes.get(edge.u);
       const vNode = nodes.get(edge.v);
@@ -253,13 +282,59 @@ export async function updateEdgeWeights() {
 
       const noiseDb = nearestNoiseSensor.current_db;
       const crowdCount =
-        nearestPedestrianSensor && nearestPedestrianSensor.current_count !== null
+        nearestPedestrianSensor?.current_count !== null &&
+        nearestPedestrianSensor?.current_count !== undefined
           ? nearestPedestrianSensor.current_count
           : 0;
 
       const crowdPenalty = crowdCountToPenalty(crowdCount);
       const finalCost = calculateFinalCost(edge.length, noiseDb, crowdPenalty);
-      const highNoise = isHighNoise(noiseDb);
+      const highCrowd = isHighCrowd(crowdCount);
+
+      const observationTime =
+        nearestPedestrianSensor?.observation_time ??
+        nearestNoiseSensor.last_updated;
+
+      rowsToUpsert.push({
+        edge_id: edge.edge_id,
+        final_cost: finalCost,
+        observation_time: observationTime,
+        noise_db: noiseDb,
+        crowd_count: crowdCount,
+        is_high_crowd: highCrowd,
+      });
+
+      processed++;
+      if (processed % 5000 === 0) {
+        console.log(`Prepared ${processed}/${edges.length} edge weights...`);
+      }
+    }
+
+    console.log(`Prepared ${rowsToUpsert.length} rows. Starting batch upsert...`);
+
+    const batchSize = 500;
+
+    for (let i = 0; i < rowsToUpsert.length; i += batchSize) {
+      const batch = rowsToUpsert.slice(i, i + batchSize);
+
+      const valuesSql: string[] = [];
+      const params: Array<number | string | boolean | null> = [];
+
+      batch.forEach((row, index) => {
+        const base = index * 6;
+        valuesSql.push(
+          `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6})`
+        );
+
+        params.push(
+          row.edge_id,
+          row.final_cost,
+          row.observation_time,
+          row.noise_db,
+          row.crowd_count,
+          row.is_high_crowd
+        );
+      });
 
       await client.query(
         `
@@ -268,27 +343,27 @@ export async function updateEdgeWeights() {
           final_cost,
           observation_time,
           noise_db,
-          is_high_noise
+          crowd_count,
+          is_high_crowd
         )
-        VALUES ($1, $2, $3, $4, $5)
+        VALUES ${valuesSql.join(",")}
         ON CONFLICT (edge_id)
         DO UPDATE SET
           final_cost = EXCLUDED.final_cost,
           observation_time = EXCLUDED.observation_time,
           noise_db = EXCLUDED.noise_db,
-          is_high_noise = EXCLUDED.is_high_noise
+          crowd_count = EXCLUDED.crowd_count,
+          is_high_crowd = EXCLUDED.is_high_crowd
         `,
-        [
-          edge.edge_id,
-          finalCost,
-          nearestNoiseSensor.last_updated,
-          noiseDb,
-          highNoise,
-        ]
+        params
+      );
+
+      console.log(
+        `Upserted ${Math.min(i + batch.length, rowsToUpsert.length)}/${rowsToUpsert.length} edge weights...`
       );
     }
 
-    console.log(`Upserted edge weights for ${edges.length} edges.`);
+    console.log(`Upserted edge weights for ${rowsToUpsert.length} edges.`);
   } finally {
     client.release();
   }
