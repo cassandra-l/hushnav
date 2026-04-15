@@ -1,46 +1,58 @@
 import { pool } from "./db";
 import type { LineString, MultiLineString } from "geojson";
 
-type NoiseMapRow = {
+// A row returned from the crowd map query
+type CrowdMapRow = {
+  crowd_count: number | null;
   geojson: string | null;
 };
 
-export type NoiseMapFeature = {
+// A GeoJSON returned to the frontend
+export type CrowdMapFeature = {
   type: "Feature";
   properties: {
-    noiseCategory: "high";
+    crowdCount: number | null;
+    isHighCrowd: boolean;
+    crowdCategory: "high";
   };
   geometry: LineString | MultiLineString;
 };
 
-export type NoiseMapFeatureCollection = {
+// Standard GeoJSON FeatureCollection for all highlighted crowd edges
+export type CrowdMapFeatureCollection = {
   type: "FeatureCollection";
-  features: NoiseMapFeature[];
+  features: CrowdMapFeature[];
 };
 
-export async function getNoiseMapData(): Promise<NoiseMapFeatureCollection> {
+// Get all edges which are classified as high crowd and convert them into GeoJSON FeatureCollection
+export async function getCrowdMapData(): Promise<CrowdMapFeatureCollection> {
   const client = await pool.connect();
 
   try {
-    const result = await client.query<NoiseMapRow>(
+    const result = await client.query<CrowdMapRow>(
       `
       SELECT
+        ew.crowd_count,
         ST_AsGeoJSON(e.geom_edge) AS geojson
       FROM edge e
       JOIN edge_weight ew
         ON e.edge_id = ew.edge_id
-      WHERE ew.is_high_noise = true
+      WHERE ew.is_high_crowd = true
       `
     );
 
-    const features: NoiseMapFeature[] = result.rows
+    const features: CrowdMapFeature[] = result.rows
       .filter((row) => row.geojson)
       .map((row) => ({
         type: "Feature",
         properties: {
-          noiseCategory: "high",
+          crowdCount: row.crowd_count,
+          isHighCrowd: true,
+          crowdCategory: "high",
         },
-        geometry: JSON.parse(row.geojson as string) as LineString | MultiLineString,
+        geometry: JSON.parse(row.geojson as string) as
+          | LineString
+          | MultiLineString,
       }));
 
     return {

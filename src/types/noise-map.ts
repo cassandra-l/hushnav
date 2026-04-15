@@ -1,15 +1,14 @@
-export type NoiseMapFeature = {
+export type CrowdMapFeature = {
   type: "Feature";
   properties: {
-    edgeId: number;
-    noiseDb: number | null;
-    isHighNoise: boolean;
-    noiseCategory: "high" | "non-high";
+    crowdCount: number | null;
+    isHighCrowd: boolean;
+    crowdCategory: "high" | "non-high";
   };
   geometry: GeoJSON.LineString | GeoJSON.MultiLineString;
 };
 
-export type NoiseMapFeatureCollection = {
+export type CrowdMapFeatureCollection = {
   type: "FeatureCollection";
-  features: NoiseMapFeature[];
+  features: CrowdMapFeature[];
 };

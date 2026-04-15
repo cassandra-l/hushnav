@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { handlePlanRoute } from "./amplify/navigation/handler";
-import { handleNoiseMap } from "./amplify/spatialData/handler";
+import { handleCrowdMap } from "./amplify/spatialData/handler";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -32,7 +32,7 @@ const planRouteHandler = async (req: express.Request, res: express.Response) => 
 
 const noiseMapHandler = async (_req: express.Request, res: express.Response) => {
   try {
-    const result = await handleNoiseMap();
+    const result = await handleCrowdMap();
 
     res
       .status(result.statusCode)
@@ -62,3 +62,4 @@ app.use((_req, res) => {
 app.listen(PORT, () => {
   console.log(`Local backend server running at http://localhost:${PORT}`);
 });
+

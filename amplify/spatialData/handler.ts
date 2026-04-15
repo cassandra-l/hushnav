@@ -1,20 +1,20 @@
-import { getNoiseMapData } from "./noiseMap";
+import { getCrowdMapData } from "./noiseMap";
 
-export async function handleNoiseMap() {
+export async function handleCrowdMap() {
   try {
-    const result = await getNoiseMapData();
+    const result = await getCrowdMapData();
 
     return {
       statusCode: 200,
       body: JSON.stringify(result),
     };
   } catch (error) {
-    console.error("Noise map handler error:", error);
+    console.error("Crowd map handler error:", error);
 
     return {
       statusCode: 500,
       body: JSON.stringify({
-        error: "Failed to load noise map data.",
+        error: "Failed to load crowd map data.",
       }),
     };
   }

@@ -7,13 +7,14 @@ export type Coordinate = {
   lng: number;
 };
 
+// Request body for route planning
 export type PlanRouteRequest = {
   start?: Coordinate;
   end?: Coordinate;
   startQuery?: string;
   endQuery?: string;
 };
-
+// Include start, end information and the final route details
 export type PlanRouteResponse = {
   start: {
     input: string;
@@ -37,14 +38,14 @@ export type PlanRouteResponse = {
     geojson: LineString;
   };
 };
-
+// Check whether a value is a valid coordinate object
 function isValidCoordinate(value: unknown): value is Coordinate {
   if (!value || typeof value !== "object") return false;
 
   const coord = value as Record<string, unknown>;
-
   return typeof coord.lat === "number" && typeof coord.lng === "number";
 }
+
 
 export async function planRoute(
   body: PlanRouteRequest
@@ -53,10 +54,10 @@ export async function planRoute(
 
   let startCoordinate: Coordinate;
   let endCoordinate: Coordinate;
-
   let resolvedStartName: string | null = null;
   let resolvedEndName: string | null = null;
 
+  // Use the provided start coordinates directly if they are valid or geocode the start query string
   if (isValidCoordinate(start)) {
     startCoordinate = start;
   } else if (typeof startQuery === "string" && startQuery.trim()) {
@@ -72,6 +73,7 @@ export async function planRoute(
     );
   }
 
+  // Use the provided end coordinates directly if they are valid or geocode the end query string
   if (isValidCoordinate(end)) {
     endCoordinate = end;
   } else if (typeof endQuery === "string" && endQuery.trim()) {
@@ -86,7 +88,6 @@ export async function planRoute(
       "Invalid request body. Expected either end coordinates or endQuery."
     );
   }
-
   const result = await getQuietestRouteFromCoordinates(
     startCoordinate,
     endCoordinate
