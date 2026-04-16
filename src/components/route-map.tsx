@@ -252,33 +252,33 @@ export function RouteMap({
             closeOnClick={false}
             closeButton={false}
             onClose={() => setSelectedSafeSpace(null)}
-            offset={18}
-            maxWidth="280px"
+            offset={14}
+            maxWidth="220px"
           >
-            <div className="relative min-w-[220px] rounded-2xl bg-white p-1 text-[#1E2939]">
+            <div className="relative min-w-[170px] max-w-[190px] rounded-2xl bg-white p-1 text-[#1E2939]">
               <button
                 type="button"
                 onClick={() => setSelectedSafeSpace(null)}
-                className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full text-[#6A7282] hover:bg-[#F4F7F6]"
+                className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full text-[#6A7282] hover:bg-[#F4F7F6]"
                 aria-label="Close safe space popup"
               >
-                <X size={16} />
+                <X size={14} />
               </button>
 
-              <div className="pr-8">
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm">
+              <div className="pr-7">
+                <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm">
                   {renderSafeSpaceIcon(selectedSafeSpace.type)}
                 </div>
 
-                <h3 className="text-base font-semibold text-[#1E2939]">
+                <h3 className="text-[15px] font-semibold leading-5 text-[#1E2939]">
                   {selectedSafeSpace.name}
                 </h3>
 
-                <p className="mt-1 text-xs font-medium text-[#5A9A8E]">
+                <p className="mt-1 text-[11px] font-medium text-[#5A9A8E]">
                   {selectedSafeSpace.subTheme}
                 </p>
 
-                <p className="mt-3 text-sm leading-5 text-[#4A5565]">
+                <p className="mt-2 text-[13px] leading-5 text-[#4A5565]">
                   {selectedSafeSpace.description}
                 </p>
               </div>
