@@ -17,10 +17,29 @@ export type PlanRouteRequest = {
 // Resolved location returned by backend
 export type ResolvedLocation = {
   input: string;
-  resolvedName: string;
+  resolvedName: string | null;
   lat: number;
   lng: number;
   snappedNodeId: number;
+};
+
+// Safe space returned by backend and shown on the map
+export type SafeSpaceType =
+  | "park"
+  | "library"
+  | "museum"
+  | "church"
+  | "synagogue"
+  | "quiet-space";
+
+export type SafeSpace = {
+  id: number;
+  name: string;
+  subTheme: string;
+  type: SafeSpaceType;
+  description: string;
+  lat: number;
+  lng: number;
 };
 
 // Route payload returned by backend
@@ -31,7 +50,7 @@ export type PlannedRoute = {
   nodeIds: number[];
   geojson: {
     type: "LineString";
-    coordinates: number[][];
+    coordinates: [number, number][];
   };
 };
 
@@ -40,4 +59,5 @@ export type PlanRouteResponse = {
   start: ResolvedLocation;
   end: ResolvedLocation;
   route: PlannedRoute;
+  safeSpaces: SafeSpace[];
 };
