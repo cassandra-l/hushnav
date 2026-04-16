@@ -7,16 +7,19 @@ import {
   Navigation,
   ChevronUp,
   ChevronDown,
+  TreePine,
+  Book,
+  Landmark,
+  Church,
+  Building2,
 } from "lucide-react";
 import { MicButton } from "./components/mic-button";
 import { PopUp } from "./components/pop-up";
 import { RouteMap } from "./components/route-map";
-import type { PlanRouteResponse } from "./types/route";
+import type { PlanRouteResponse, SafeSpace } from "./types/route";
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
-
 import type { CrowdMapFeatureCollection } from "./types/noise-map";
-
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -110,8 +113,9 @@ function AutocompleteInput({
         <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white px-4 py-3">
           {/* Circle icon changes depending on whether this is start or destination */}
           <div
-            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${isStart ? "bg-[#D4B896]" : "bg-[#7DB0A6]"
-              }`}
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+              isStart ? "bg-[#D4B896]" : "bg-[#7DB0A6]"
+            }`}
           >
             {isStart ? (
               <Navigation size={16} className="text-white" />
@@ -137,7 +141,7 @@ function AutocompleteInput({
 
         {/* Suggestion dropdown */}
         {isOpen && (
-          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 max-h-80 overflow-y-auto overflow-hidden rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">
+          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 max-h-80 overflow-hidden overflow-y-auto rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">
             {loading ? (
               <div className="px-4 py-3 text-sm text-[#6A7282]">
                 Searching...
@@ -272,6 +276,49 @@ async function fetchPhotonSuggestions(
     .filter((item): item is LocationSuggestion => item !== null);
 }
 
+// Returns the correct icon for each safe space type
+function renderSafeSpaceIcon(type: SafeSpace["type"]) {
+  switch (type) {
+    case "park":
+      return <TreePine size={16} className="text-[#5A9A8E]" />;
+    case "library":
+      return <Book size={16} className="text-[#5A9A8E]" />;
+    case "museum":
+      return <Landmark size={16} className="text-[#5A9A8E]" />;
+    case "church":
+      return <Church size={16} className="text-[#5A9A8E]" />;
+    case "synagogue":
+      return <Building2 size={16} className="text-[#5A9A8E]" />;
+    default:
+      return <MapPin size={16} className="text-[#5A9A8E]" />;
+  }
+}
+
+// Reusable list item for the desktop and mobile safe space sections
+type SafeSpaceListItemProps = {
+  safeSpace: SafeSpace;
+};
+
+function SafeSpaceListItem({ safeSpace }: SafeSpaceListItemProps) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm">
+        {renderSafeSpaceIcon(safeSpace.type)}
+      </div>
+
+      <div>
+        <p className="text-sm font-medium text-[#1E2939]">{safeSpace.name}</p>
+        <p className="mt-1 text-xs font-medium text-[#5A9A8E]">
+          {safeSpace.subTheme}
+        </p>
+        <p className="mt-1 text-xs leading-5 text-[#6A7282]">
+          {safeSpace.description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // Main page component
 export function Map() {
   const navigate = useNavigate();
@@ -322,8 +369,9 @@ export function Map() {
   // Final route response shown on the map
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
 
-
-  const [crowdMapData, setCrowdMapData] = useState<CrowdMapFeatureCollection | null>(null);
+  // Crowd / noise line layer shown behind the route
+  const [crowdMapData, setCrowdMapData] =
+    useState<CrowdMapFeatureCollection | null>(null);
 
   // Refs for click-outside handling
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
@@ -332,6 +380,9 @@ export function Map() {
   // Abort controllers prevent old Photon requests from overwriting newer ones
   const startAbortRef = useRef<AbortController | null>(null);
   const destinationAbortRef = useRef<AbortController | null>(null);
+
+  // Safe spaces returned by the backend for the active route
+  const safeSpaces = routeData?.safeSpaces ?? [];
 
   // Helper to display route length nicely
   const formatRouteLength = (meters: number) => {
@@ -342,6 +393,24 @@ export function Map() {
   // Rough walking duration estimate
   const estimateWalkingMinutes = (meters: number) => {
     return Math.max(1, Math.round(meters / 84));
+  };
+
+  // Returns the best available display name for the start location
+  const getStartDisplayName = () => {
+    if (!routeData) return "";
+    return routeData.start.resolvedName ?? routeData.start.input;
+  };
+
+  // Returns the best available display name for the destination
+  const getEndDisplayName = () => {
+    if (!routeData) return "";
+    return routeData.end.resolvedName ?? routeData.end.input;
+  };
+
+  // Clears the active route and resets any route-specific UI state
+  const handleExitRoute = () => {
+    setRouteData(null);
+    setError("");
   };
 
   // Close suggestion dropdowns when user clicks outside both panels
@@ -395,7 +464,7 @@ export function Map() {
           setIsStartSuggestionsLoading(false);
         }
       }
-    }, 250); // small debounce so we do not spam requests while typing
+    }, 250);
 
     return () => {
       controller.abort();
@@ -441,9 +510,7 @@ export function Map() {
     };
   }, [destination]);
 
-
-
-
+  // Fetch crowd / noise map data once when the page loads
   useEffect(() => {
     const fetchCrowdMap = async () => {
       try {
@@ -464,10 +531,6 @@ export function Map() {
 
     fetchCrowdMap();
   }, []);
-
-
-
-
 
   // When a start suggestion is chosen, store both the label and coordinates
   const handleStartSelect = (suggestion: LocationSuggestion) => {
@@ -519,16 +582,16 @@ export function Map() {
         start:
           selectedStart?.center && selectedStart.center.length >= 2
             ? {
-              lng: selectedStart.center[0],
-              lat: selectedStart.center[1],
-            }
+                lng: selectedStart.center[0],
+                lat: selectedStart.center[1],
+              }
             : undefined,
         end:
           selectedDestination?.center && selectedDestination.center.length >= 2
             ? {
-              lng: selectedDestination.center[0],
-              lat: selectedDestination.center[1],
-            }
+                lng: selectedDestination.center[0],
+                lat: selectedDestination.center[1],
+              }
             : undefined,
         startQuery: startLocation,
         endQuery: destination,
@@ -635,7 +698,7 @@ export function Map() {
               loading={isStartSuggestionsLoading}
               onChange={(value) => {
                 setStartLocation(value);
-                setSelectedStart(null); // clear old exact coords if text changes
+                setSelectedStart(null);
                 setIsStartSuggestionsOpen(value.trim().length >= 2);
               }}
               onSelect={handleStartSelect}
@@ -658,7 +721,7 @@ export function Map() {
               loading={isDestinationSuggestionsLoading}
               onChange={(value) => {
                 setDestination(value);
-                setSelectedDestination(null); // clear old exact coords if text changes
+                setSelectedDestination(null);
                 setIsDestinationSuggestionsOpen(value.trim().length >= 2);
               }}
               onSelect={handleDestinationSelect}
@@ -715,24 +778,38 @@ export function Map() {
                     <div className="flex justify-between gap-4">
                       <span className="text-[#6A7282]">From</span>
                       <span className="text-right font-medium">
-                        {routeData.start.resolvedName}
+                        {getStartDisplayName()}
                       </span>
                     </div>
 
                     <div className="flex justify-between gap-4">
                       <span className="text-[#6A7282]">To</span>
                       <span className="text-right font-medium">
-                        {routeData.end.resolvedName}
+                        {getEndDisplayName()}
                       </span>
                     </div>
                   </div>
+
+                  {safeSpaces.length > 0 && (
+                    <div className="mt-5 border-t border-[#E8EEEC] pt-4">
+                      <h3 className="mb-3 text-sm font-semibold text-[#1E2939]">
+                        Safe Spaces Along Route
+                      </h3>
+
+                      <div className="space-y-4">
+                        {safeSpaces.map((safeSpace) => (
+                          <SafeSpaceListItem
+                            key={safeSpace.id}
+                            safeSpace={safeSpace}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <button
-                  onClick={() => {
-                    setRouteData(null);
-                    setError("");
-                  }}
+                  onClick={handleExitRoute}
                   className="w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white"
                 >
                   Exit
@@ -882,39 +959,55 @@ export function Map() {
           <section className="absolute bottom-4 left-4 right-4 z-10 lg:hidden">
             <div className="overflow-hidden rounded-[28px] border border-white/80 bg-white/95 shadow-xl backdrop-blur-sm">
               {routeData ? (
-                <div className="grid grid-cols-4 items-center text-center">
-                  <div className="border-r border-[#E8EEEC] px-3 py-4">
-                    <p className="text-xs text-[#6A7282]">Noise Level</p>
-                    <p className="text-[15px] font-medium text-[#5A9A8E]">
-                      Quiet
-                    </p>
+                <div className="max-h-[42vh] overflow-y-auto">
+                  <div className="grid grid-cols-4 items-center text-center">
+                    <div className="border-r border-[#E8EEEC] px-3 py-4">
+                      <p className="text-xs text-[#6A7282]">Noise Level</p>
+                      <p className="text-[15px] font-medium text-[#5A9A8E]">
+                        Quiet
+                      </p>
+                    </div>
+
+                    <div className="border-r border-[#E8EEEC] px-3 py-4">
+                      <p className="text-xs text-[#6A7282]">Distance</p>
+                      <p className="text-[15px] font-medium text-[#1E2939]">
+                        {formatRouteLength(routeData.route.totalLength)}
+                      </p>
+                    </div>
+
+                    <div className="border-r border-[#E8EEEC] px-3 py-4">
+                      <p className="text-xs text-[#6A7282]">Duration</p>
+                      <p className="text-[15px] font-medium text-[#1E2939]">
+                        {estimateWalkingMinutes(routeData.route.totalLength)} min
+                      </p>
+                    </div>
+
+                    <div className="px-3 py-4">
+                      <button
+                        onClick={handleExitRoute}
+                        className="rounded-2xl bg-[#5A9A8E] px-5 py-2.5 font-medium text-white shadow-sm"
+                      >
+                        Exit
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="border-r border-[#E8EEEC] px-3 py-4">
-                    <p className="text-xs text-[#6A7282]">Distance</p>
-                    <p className="text-[15px] font-medium text-[#1E2939]">
-                      {formatRouteLength(routeData.route.totalLength)}
-                    </p>
-                  </div>
+                  {safeSpaces.length > 0 && (
+                    <div className="border-t border-[#E8EEEC] px-5 py-4">
+                      <h3 className="mb-3 text-sm font-semibold text-[#1E2939]">
+                        Safe Spaces Along Route
+                      </h3>
 
-                  <div className="border-r border-[#E8EEEC] px-3 py-4">
-                    <p className="text-xs text-[#6A7282]">Duration</p>
-                    <p className="text-[15px] font-medium text-[#1E2939]">
-                      {estimateWalkingMinutes(routeData.route.totalLength)} min
-                    </p>
-                  </div>
-
-                  <div className="px-3 py-4">
-                    <button
-                      onClick={() => {
-                        setRouteData(null);
-                        setError("");
-                      }}
-                      className="rounded-2xl bg-[#5A9A8E] px-5 py-2.5 font-medium text-white shadow-sm"
-                    >
-                      Exit
-                    </button>
-                  </div>
+                      <div className="space-y-4">
+                        {safeSpaces.map((safeSpace) => (
+                          <SafeSpaceListItem
+                            key={safeSpace.id}
+                            safeSpace={safeSpace}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center justify-between gap-4 px-5 py-4">
