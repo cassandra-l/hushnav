@@ -6,12 +6,14 @@ import { auth } from "./auth/resource";
 import { data } from "./data/resource";
 import { planRouteFunction } from "./functions/plan-route/resource";
 import { noiseMapFunction } from "./functions/noise-map/resource";
+import { safeSpacesFunction } from "./functions/safe-spaces/resource";
 
 const backend = defineBackend({
   auth,
   data,
   planRouteFunction,
   noiseMapFunction,
+  safeSpacesFunction,
 });
 
 const apiStack = backend.createStack("api-stack");
@@ -37,11 +39,18 @@ const noiseMapIntegration = new LambdaIntegration(
   backend.noiseMapFunction.resources.lambda
 );
 
+const safeSpacesIntegration = new LambdaIntegration(
+  backend.safeSpacesFunction.resources.lambda
+);
+
 const planRoutePath = myRestApi.root.addResource("plan-route");
 planRoutePath.addMethod("POST", planRouteIntegration);
 
 const noiseMapPath = myRestApi.root.addResource("noise-map");
 noiseMapPath.addMethod("GET", noiseMapIntegration);
+
+const safeSpacesPath = myRestApi.root.addResource("safe-spaces");
+safeSpacesPath.addMethod("GET", safeSpacesIntegration);
 
 backend.addOutput({
   custom: {
