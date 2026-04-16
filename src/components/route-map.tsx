@@ -15,6 +15,7 @@ import {
   Landmark,
   Church,
   Building2,
+  X,
 } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { PlanRouteResponse, SafeSpace } from "../types/route";
@@ -57,7 +58,7 @@ function SafeSpaceMarker({ safeSpace, onClick }: SafeSpaceMarkerProps) {
       type="button"
       onClick={onClick}
       aria-label={safeSpace.name}
-      className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-md"
+      className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-md transition-transform hover:scale-105"
     >
       {renderSafeSpaceIcon(safeSpace.type)}
     </button>
@@ -106,8 +107,6 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
   // Safe spaces returned from the backend for the current route
   const safeSpaces = routeData?.safeSpaces ?? [];
 
-  console.log("RouteMap safe spaces:", safeSpaces);
-
   // Close any open popup when the route changes or is cleared
   useEffect(() => {
     setSelectedSafeSpace(null);
@@ -142,7 +141,7 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
       {
         padding: isDesktop
           ? { top: 80, right: 80, bottom: 80, left: 420 }
-          : { top: 80, right: 40, bottom: 220, left: 40 },
+          : { top: 80, right: 40, bottom: 170, left: 40 },
         duration: 1200,
       },
     );
@@ -223,7 +222,7 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
           </Marker>
         )}
 
-        {/* Safe space markers */}
+        {/* Safe space markers stay visible on the map at all times while a route exists */}
         {safeSpaces.map((safeSpace) => (
           <Marker
             key={safeSpace.id}
@@ -245,17 +244,38 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
             latitude={selectedSafeSpace.lat}
             anchor="top"
             closeOnClick={false}
+            closeButton={false}
             onClose={() => setSelectedSafeSpace(null)}
-            offset={16}
+            offset={18}
+            maxWidth="280px"
           >
-            <div className="min-w-[220px] bg-white text-[#1E2939]">
-              <p className="text-sm font-semibold">{selectedSafeSpace.name}</p>
-              <p className="mt-1 text-xs font-medium text-[#5A9A8E]">
-                {selectedSafeSpace.subTheme}
-              </p>
-              <p className="mt-2 text-sm leading-5 text-[#1E2939]">
-                {selectedSafeSpace.description}
-              </p>
+            <div className="relative min-w-[220px] rounded-2xl bg-white p-1 text-[#1E2939]">
+              <button
+                type="button"
+                onClick={() => setSelectedSafeSpace(null)}
+                className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full text-[#6A7282] hover:bg-[#F4F7F6]"
+                aria-label="Close safe space popup"
+              >
+                <X size={16} />
+              </button>
+
+              <div className="pr-8">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm">
+                  {renderSafeSpaceIcon(selectedSafeSpace.type)}
+                </div>
+
+                <h3 className="text-base font-semibold text-[#1E2939]">
+                  {selectedSafeSpace.name}
+                </h3>
+
+                <p className="mt-1 text-xs font-medium text-[#5A9A8E]">
+                  {selectedSafeSpace.subTheme}
+                </p>
+
+                <p className="mt-3 text-sm leading-5 text-[#4A5565]">
+                  {selectedSafeSpace.description}
+                </p>
+              </div>
             </div>
           </Popup>
         )}

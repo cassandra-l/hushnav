@@ -170,7 +170,6 @@ function AutocompleteInput({
 }
 
 // Builds a readable label from Photon feature properties
-// Example output: "RMIT University, Swanston Street, Melbourne, VIC 3000"
 function buildPhotonLabel(feature: PhotonFeature): string {
   const props = feature.properties ?? {};
 
@@ -191,7 +190,6 @@ function buildPhotonLabel(feature: PhotonFeature): string {
 
   const parts = [...firstLine, ...secondLine];
 
-  // Remove duplicate pieces and empty strings
   const uniqueParts = Array.from(new Set(parts.map((part) => part.trim()))).filter(
     (part) => part.length > 0,
   );
@@ -207,7 +205,6 @@ function normalisePhotonFeature(
   const coordinates = feature.geometry?.coordinates;
   const props = feature.properties ?? {};
 
-  // Skip invalid results
   if (!Array.isArray(coordinates) || coordinates.length < 2) {
     return null;
   }
@@ -224,7 +221,6 @@ function normalisePhotonFeature(
     return null;
   }
 
-  // Build a stable-ish unique id for React keys
   const idBase =
     props.osm_id !== undefined
       ? `${props.osm_type ?? "feature"}-${String(props.osm_id)}`
@@ -244,7 +240,6 @@ async function fetchPhotonSuggestions(
 ): Promise<LocationSuggestion[]> {
   const trimmed = query.trim();
 
-  // Don't search for very short inputs
   if (trimmed.length < 2) {
     return [];
   }
@@ -331,12 +326,14 @@ export function Map() {
   // Mobile panel open/close state
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(true);
 
+  // Controls whether safe spaces section is expanded
+  const [isSafeSpacesOpen, setIsSafeSpacesOpen] = useState(false);
+
   // Raw text currently typed into each field
   const [startLocation, setStartLocation] = useState("");
   const [destination, setDestination] = useState("");
 
   // Selected suggestion objects
-  // These are important because they give exact coordinates for backend routing
   const [selectedStart, setSelectedStart] = useState<LocationSuggestion | null>(
     null,
   );
@@ -395,22 +392,34 @@ export function Map() {
     return Math.max(1, Math.round(meters / 84));
   };
 
-  // Returns the best available display name for the start location
+  // Returns the best display name for the route start.
+  // This fixes the issue where selected coordinates showed internal placeholder text.
   const getStartDisplayName = () => {
     if (!routeData) return "";
-    return routeData.start.resolvedName ?? routeData.start.input;
+    return (
+      routeData.start.resolvedName ??
+      (routeData.start.input === "selected_start_coordinates"
+        ? startLocation
+        : routeData.start.input)
+    );
   };
 
-  // Returns the best available display name for the destination
+  // Returns the best display name for the route destination.
   const getEndDisplayName = () => {
     if (!routeData) return "";
-    return routeData.end.resolvedName ?? routeData.end.input;
+    return (
+      routeData.end.resolvedName ??
+      (routeData.end.input === "selected_end_coordinates"
+        ? destination
+        : routeData.end.input)
+    );
   };
 
-  // Clears the active route and resets any route-specific UI state
+  // Clears the active route and resets route-specific UI state
   const handleExitRoute = () => {
     setRouteData(null);
     setError("");
+    setIsSafeSpacesOpen(false);
   };
 
   // Close suggestion dropdowns when user clicks outside both panels
@@ -441,7 +450,6 @@ export function Map() {
       return;
     }
 
-    // Cancel previous request if user keeps typing
     startAbortRef.current?.abort();
     const controller = new AbortController();
     startAbortRef.current = controller;
@@ -554,7 +562,6 @@ export function Map() {
     setIsStartSuggestionsOpen(false);
     setIsDestinationSuggestionsOpen(false);
 
-    // Basic validation
     if (!startLocation.trim() || !destination.trim()) {
       setRouteData(null);
       setError("Please enter both a start location and destination.");
@@ -576,8 +583,6 @@ export function Map() {
     setLoading(true);
 
     try {
-      // If the user selected a suggestion, send exact coordinates.
-      // If they only typed text, still send the text so backend can resolve it.
       const requestBody = {
         start:
           selectedStart?.center && selectedStart.center.length >= 2
@@ -612,7 +617,6 @@ export function Map() {
 
       let data: PlanRouteResponse | { error?: string } | null = null;
 
-      // Parse backend JSON safely
       if (rawText.trim()) {
         try {
           data = JSON.parse(rawText) as PlanRouteResponse | { error?: string };
@@ -621,7 +625,6 @@ export function Map() {
         }
       }
 
-      // Handle non-200 backend responses
       if (!response.ok) {
         const errorMessage =
           data && "error" in data && typeof data.error === "string"
@@ -635,10 +638,9 @@ export function Map() {
         throw new Error("Backend returned an empty response.");
       }
 
-      // Save returned route for map + summary cards
       setRouteData(data as PlanRouteResponse);
+      setIsSafeSpacesOpen(false);
 
-      // On mobile, collapse the top panel once route is ready
       if (window.innerWidth < 1024) {
         setIsMobileSearchOpen(false);
       }
@@ -792,18 +794,31 @@ export function Map() {
 
                   {safeSpaces.length > 0 && (
                     <div className="mt-5 border-t border-[#E8EEEC] pt-4">
-                      <h3 className="mb-3 text-sm font-semibold text-[#1E2939]">
-                        Safe Spaces Along Route
-                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => setIsSafeSpacesOpen((prev) => !prev)}
+                        className="flex w-full items-center justify-between text-left"
+                      >
+                        <h3 className="text-sm font-semibold text-[#1E2939]">
+                          Safe Spaces Along Route
+                        </h3>
+                        {isSafeSpacesOpen ? (
+                          <ChevronUp size={18} className="text-[#1E2939]" />
+                        ) : (
+                          <ChevronDown size={18} className="text-[#1E2939]" />
+                        )}
+                      </button>
 
-                      <div className="space-y-4">
-                        {safeSpaces.map((safeSpace) => (
-                          <SafeSpaceListItem
-                            key={safeSpace.id}
-                            safeSpace={safeSpace}
-                          />
-                        ))}
-                      </div>
+                      {isSafeSpacesOpen && (
+                        <div className="mt-4 space-y-4">
+                          {safeSpaces.map((safeSpace) => (
+                            <SafeSpaceListItem
+                              key={safeSpace.id}
+                              safeSpace={safeSpace}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -959,7 +974,7 @@ export function Map() {
           <section className="absolute bottom-4 left-4 right-4 z-10 lg:hidden">
             <div className="overflow-hidden rounded-[28px] border border-white/80 bg-white/95 shadow-xl backdrop-blur-sm">
               {routeData ? (
-                <div className="max-h-[42vh] overflow-y-auto">
+                <div className="max-h-[38vh] overflow-y-auto">
                   <div className="grid grid-cols-4 items-center text-center">
                     <div className="border-r border-[#E8EEEC] px-3 py-4">
                       <p className="text-xs text-[#6A7282]">Noise Level</p>
@@ -994,18 +1009,31 @@ export function Map() {
 
                   {safeSpaces.length > 0 && (
                     <div className="border-t border-[#E8EEEC] px-5 py-4">
-                      <h3 className="mb-3 text-sm font-semibold text-[#1E2939]">
-                        Safe Spaces Along Route
-                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => setIsSafeSpacesOpen((prev) => !prev)}
+                        className="flex w-full items-center justify-between text-left"
+                      >
+                        <h3 className="text-sm font-semibold text-[#1E2939]">
+                          Safe Spaces Along Route
+                        </h3>
+                        {isSafeSpacesOpen ? (
+                          <ChevronUp size={18} className="text-[#1E2939]" />
+                        ) : (
+                          <ChevronDown size={18} className="text-[#1E2939]" />
+                        )}
+                      </button>
 
-                      <div className="space-y-4">
-                        {safeSpaces.map((safeSpace) => (
-                          <SafeSpaceListItem
-                            key={safeSpace.id}
-                            safeSpace={safeSpace}
-                          />
-                        ))}
-                      </div>
+                      {isSafeSpacesOpen && (
+                        <div className="mt-4 space-y-4">
+                          {safeSpaces.map((safeSpace) => (
+                            <SafeSpaceListItem
+                              key={safeSpace.id}
+                              safeSpace={safeSpace}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
