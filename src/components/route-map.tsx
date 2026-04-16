@@ -7,23 +7,18 @@ import Map, {
   Layer,
   type MapRef,
 } from "react-map-gl/mapbox";
-import { MapPin, Navigation, TreePine, Book } from "lucide-react";
+import {
+  MapPin,
+  Navigation,
+  TreePine,
+  Book,
+  Landmark,
+  Church,
+  Building2,
+} from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
-import type { PlanRouteResponse } from "../types/route";
+import type { PlanRouteResponse, SafeSpace } from "../types/route";
 import type { CrowdMapFeatureCollection } from "../types/noise-map";
-
-// Safe space type used by the frontend.
-// This assumes the backend now returns a safeSpaces array inside routeData.
-// If your backend names these fields slightly differently, only this type
-// and the property access below will need a small adjustment.
-type SafeSpace = {
-  id: string;
-  name: string;
-  description: string;
-  type: "park" | "library";
-  lat: number;
-  lng: number;
-};
 
 // Props for map component
 type RouteMapProps = {
@@ -31,16 +26,32 @@ type RouteMapProps = {
   crowdMapData: CrowdMapFeatureCollection | null;
 };
 
-// Small reusable marker button for safe spaces.
-// This keeps the map JSX cleaner and makes the AC styling easier to manage.
+// Reusable safe space marker button shown on the map
 type SafeSpaceMarkerProps = {
   safeSpace: SafeSpace;
   onClick: () => void;
 };
 
-function SafeSpaceMarker({ safeSpace, onClick }: SafeSpaceMarkerProps) {
-  const isPark = safeSpace.type === "park";
+// Returns the correct Lucide icon for each safe space type
+function renderSafeSpaceIcon(type: SafeSpace["type"]) {
+  switch (type) {
+    case "park":
+      return <TreePine size={18} className="text-[#5A9A8E]" />;
+    case "library":
+      return <Book size={18} className="text-[#5A9A8E]" />;
+    case "museum":
+      return <Landmark size={18} className="text-[#5A9A8E]" />;
+    case "church":
+      return <Church size={18} className="text-[#5A9A8E]" />;
+    case "synagogue":
+      return <Building2 size={18} className="text-[#5A9A8E]" />;
+    default:
+      return <MapPin size={18} className="text-[#5A9A8E]" />;
+  }
+}
 
+// Small reusable marker UI so all safe space markers stay visually consistent
+function SafeSpaceMarker({ safeSpace, onClick }: SafeSpaceMarkerProps) {
   return (
     <button
       type="button"
@@ -48,11 +59,7 @@ function SafeSpaceMarker({ safeSpace, onClick }: SafeSpaceMarkerProps) {
       aria-label={safeSpace.name}
       className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-md"
     >
-      {isPark ? (
-        <TreePine size={18} className="text-[#5A9A8E]" />
-      ) : (
-        <Book size={18} className="text-[#5A9A8E]" />
-      )}
+      {renderSafeSpaceIcon(safeSpace.type)}
     </button>
   );
 }
@@ -60,7 +67,7 @@ function SafeSpaceMarker({ safeSpace, onClick }: SafeSpaceMarkerProps) {
 export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
   const mapRef = useRef<MapRef | null>(null);
 
-  // Tracks which safe space is currently selected so we can show its popup.
+  // Tracks which safe space is currently selected so a popup can be shown
   const [selectedSafeSpace, setSelectedSafeSpace] = useState<SafeSpace | null>(
     null,
   );
@@ -86,7 +93,7 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
       return null;
     }
 
-    const feature = {
+    return {
       type: "Feature" as const,
       properties: {},
       geometry: {
@@ -94,59 +101,12 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
         coordinates: routeData.route.geojson.coordinates,
       },
     };
-
-    return feature;
   }, [routeData]);
 
-  // Normalise safe spaces coming from the backend.
-  // This gives us a consistent shape to use in markers and popups.
-  const safeSpaces = useMemo<SafeSpace[]>(() => {
-    if (!routeData || !("safeSpaces" in routeData)) {
-      return [];
-    }
+  // Safe spaces returned from the backend for the current route
+  const safeSpaces = routeData?.safeSpaces ?? [];
 
-    const rawSafeSpaces = (routeData as PlanRouteResponse & {
-      safeSpaces?: Array<{
-        id?: string;
-        name?: string;
-        description?: string;
-        type?: string;
-        lat?: number;
-        lng?: number;
-      }>;
-    }).safeSpaces;
-
-    if (!Array.isArray(rawSafeSpaces)) {
-      return [];
-    }
-
-    return rawSafeSpaces
-      .map((safeSpace, index) => {
-        const type =
-          safeSpace.type === "library" ? "library" : "park";
-
-        if (
-          typeof safeSpace.name !== "string" ||
-          typeof safeSpace.description !== "string" ||
-          typeof safeSpace.lat !== "number" ||
-          typeof safeSpace.lng !== "number"
-        ) {
-          return null;
-        }
-
-        return {
-          id: safeSpace.id ?? `safe-space-${index}`,
-          name: safeSpace.name,
-          description: safeSpace.description,
-          type,
-          lat: safeSpace.lat,
-          lng: safeSpace.lng,
-        };
-      })
-      .filter((safeSpace): safeSpace is SafeSpace => safeSpace !== null);
-  }, [routeData]);
-
-  // Clear any open safe space popup when the route changes or is removed.
+  // Close any open popup when the route changes or is cleared
   useEffect(() => {
     setSelectedSafeSpace(null);
   }, [routeData]);
@@ -180,7 +140,7 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
       {
         padding: isDesktop
           ? { top: 80, right: 80, bottom: 80, left: 420 }
-          : { top: 80, right: 40, bottom: 140, left: 40 },
+          : { top: 80, right: 40, bottom: 220, left: 40 },
         duration: 1200,
       },
     );
@@ -206,7 +166,7 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
         {/* Map controls */}
         <NavigationControl position="top-right" />
 
-        {/* Crowd / noise layer shown underneath the route */}
+        {/* Crowd / noise line layer */}
         {crowdMapData && (
           <Source id="crowd-map" type="geojson" data={crowdMapData}>
             <Layer
@@ -237,7 +197,11 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
 
         {/* Start marker */}
         {routeData && (
-          <Marker longitude={routeData.start.lng} latitude={routeData.start.lat}>
+          <Marker
+            longitude={routeData.start.lng}
+            latitude={routeData.start.lat}
+            anchor="bottom"
+          >
             <div className="flex h-12 w-12 items-center justify-center rounded-full border-4 border-white bg-[#D4B896] shadow-lg">
               <Navigation size={18} className="text-white" />
             </div>
@@ -246,7 +210,11 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
 
         {/* Destination marker */}
         {routeData && (
-          <Marker longitude={routeData.end.lng} latitude={routeData.end.lat}>
+          <Marker
+            longitude={routeData.end.lng}
+            latitude={routeData.end.lat}
+            anchor="bottom"
+          >
             <div className="flex h-12 w-12 items-center justify-center rounded-full border-4 border-white bg-[#7DB0A6] shadow-lg">
               <MapPin size={18} className="text-white" />
             </div>
@@ -268,7 +236,7 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
           </Marker>
         ))}
 
-        {/* Safe space popup shown when a safe space marker is clicked */}
+        {/* Safe space popup shown when a marker is clicked */}
         {selectedSafeSpace && (
           <Popup
             longitude={selectedSafeSpace.lng}
@@ -276,11 +244,14 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
             anchor="top"
             closeOnClick={false}
             onClose={() => setSelectedSafeSpace(null)}
-            className="safe-space-popup"
+            offset={16}
           >
-            <div className="min-w-[200px] bg-white text-[#1E2939]">
+            <div className="min-w-[220px] bg-white text-[#1E2939]">
               <p className="text-sm font-semibold">{selectedSafeSpace.name}</p>
-              <p className="mt-1 text-sm leading-5 text-[#1E2939]">
+              <p className="mt-1 text-xs font-medium text-[#5A9A8E]">
+                {selectedSafeSpace.subTheme}
+              </p>
+              <p className="mt-2 text-sm leading-5 text-[#1E2939]">
                 {selectedSafeSpace.description}
               </p>
             </div>
@@ -295,7 +266,7 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
             data={routeGeoJson}
             key={JSON.stringify(routeData?.route.geojson.coordinates)}
           >
-            {/* Glow */}
+            {/* Glow line behind the main route */}
             <Layer
               id="planned-route-glow"
               type="line"
@@ -311,7 +282,7 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
               }}
             />
 
-            {/* Main line */}
+            {/* Main route line */}
             <Layer
               id="planned-route-line"
               type="line"
