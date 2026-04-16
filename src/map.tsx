@@ -885,6 +885,11 @@ export function Map() {
         {/* Main map area */}
         <div className="relative h-full w-full">
           <RouteMap
+            key={
+              routeData
+                ? JSON.stringify(routeData.route.geojson.coordinates)
+                : "no-route"
+            }
             routeData={routeData}
             crowdMapData={crowdMapData}
             allSafeSpaces={allSafeSpaces}

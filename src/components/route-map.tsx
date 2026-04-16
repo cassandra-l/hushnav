@@ -113,11 +113,6 @@ export function RouteMap({
   // After a route is selected, only show safe spaces that belong to that route.
   const safeSpaces = routeData ? routeData.safeSpaces : allSafeSpaces;
 
-  // Close any open popup when the route changes or is cleared
-  useEffect(() => {
-    setSelectedSafeSpace(null);
-  }, [routeData]);
-
   // Fit the map to the route bounds after data arrives
   useEffect(() => {
     if (!mapRef.current || !routeData) return;
