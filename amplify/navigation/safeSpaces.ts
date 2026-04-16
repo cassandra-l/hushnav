@@ -41,9 +41,7 @@ function mapSubThemeToType(
   }
 }
 
-// Builds a short description for each safe space.
-// The source dataset does not provide a user-friendly description field,
-// so we generate one from the place category.
+// Builds a short description for each safe space
 function buildDescription(subTheme: string): string {
   switch (subTheme) {
     case "Library":
@@ -61,11 +59,10 @@ function buildDescription(subTheme: string): string {
   }
 }
 
-// Finds safe spaces close to the planned route line.
-// bufferMeters controls how far from the route a place can be and still appear.
+// Finds safe spaces close to the planned route line
 export async function getSafeSpacesNearRoute(
   routeGeoJson: LineString,
-  bufferMeters = 80,
+  bufferMeters = 100,
 ): Promise<SafeSpace[]> {
   const client = await pool.connect();
 
@@ -78,17 +75,26 @@ export async function getSafeSpacesNearRoute(
         SELECT ST_SetSRID(ST_GeomFromGeoJSON($1), 4326) AS geom
       )
       SELECT
-        ss.id,
+        ROW_NUMBER() OVER (
+          ORDER BY
+            ST_Distance(
+              ss.geom_safe_space::geography,
+              rg.geom::geography
+            ) ASC,
+            ss.feature_name ASC
+        ) AS id,
         ss.feature_name,
         ss.sub_theme,
         ST_Y(ss.geom_safe_space) AS lat,
         ST_X(ss.geom_safe_space) AS lng
-      FROM safe_space ss, route_geom rg
-      WHERE ST_DWithin(
-        ss.geom_safe_space::geography,
-        rg.geom::geography,
-        $2
-      )
+      FROM safe_space ss
+      CROSS JOIN route_geom rg
+      WHERE ss.geom_safe_space IS NOT NULL
+        AND ST_DWithin(
+          ss.geom_safe_space::geography,
+          rg.geom::geography,
+          $2
+        )
       ORDER BY
         ST_Distance(
           ss.geom_safe_space::geography,
@@ -98,6 +104,10 @@ export async function getSafeSpacesNearRoute(
       LIMIT 20
       `,
       [routeGeoJsonString, bufferMeters],
+    );
+
+    console.log(
+      `Found ${result.rows.length} safe spaces within ${bufferMeters}m of route.`,
     );
 
     return result.rows.map((row) => ({

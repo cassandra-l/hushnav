@@ -106,6 +106,8 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
   // Safe spaces returned from the backend for the current route
   const safeSpaces = routeData?.safeSpaces ?? [];
 
+  console.log("RouteMap safe spaces:", safeSpaces);
+
   // Close any open popup when the route changes or is cleared
   useEffect(() => {
     setSelectedSafeSpace(null);
