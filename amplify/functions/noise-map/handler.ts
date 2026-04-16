@@ -1,9 +1,9 @@
 import type { APIGatewayProxyHandler } from "aws-lambda";
-import { handleNoiseMap } from "../../spatialData/handler";
+import { handleCrowdMap } from "../../spatialData/handler";
 
 export const handler: APIGatewayProxyHandler = async () => {
   try {
-    const result = await handleNoiseMap();
+    const result = await handleCrowdMap();
 
     return {
       statusCode: result.statusCode,
