@@ -1,8 +1,11 @@
-import { planRoute } from "./planRoute";
 import { getAllSafeSpaces } from "./safeSpaces";
 
 export async function handlePlanRoute(body: unknown) {
   try {
+    // Import planRoute only when this function is actually called.
+    // This prevents the safe-spaces Lambda from loading geocode.ts on startup.
+    const { planRoute } = await import("./planRoute");
+
     const result = await planRoute(body as Parameters<typeof planRoute>[0]);
 
     return {
