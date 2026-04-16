@@ -109,9 +109,9 @@ export function RouteMap({
     };
   }, [routeData]);
 
-  // Safe space markers should always be visible on the map,
-  // even when the user has not selected a route yet
-  const safeSpaces = allSafeSpaces;
+  // Before a route is selected, show all safe spaces.
+  // After a route is selected, only show safe spaces that belong to that route.
+  const safeSpaces = routeData ? routeData.safeSpaces : allSafeSpaces;
 
   // Close any open popup when the route changes or is cleared
   useEffect(() => {
@@ -228,7 +228,7 @@ export function RouteMap({
           </Marker>
         )}
 
-        {/* Safe space markers stay visible on the map at all times */}
+        {/* Safe space markers */}
         {safeSpaces.map((safeSpace) => (
           <Marker
             key={safeSpace.id}

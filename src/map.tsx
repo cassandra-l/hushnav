@@ -12,6 +12,7 @@ import {
   Landmark,
   Church,
   Building2,
+  Wind,
 } from "lucide-react";
 import { MicButton } from "./components/mic-button";
 import { PopUp } from "./components/pop-up";
@@ -373,7 +374,7 @@ export function Map() {
   const [crowdMapData, setCrowdMapData] =
     useState<CrowdMapFeatureCollection | null>(null);
 
-  // All safe spaces shown on the map at all times
+  // All safe spaces shown before a route is selected
   const [allSafeSpaces, setAllSafeSpaces] = useState<SafeSpace[]>([]);
 
   // Refs for click-outside handling
@@ -547,13 +548,11 @@ export function Map() {
     fetchCrowdMap();
   }, []);
 
-  // Fetch all safe spaces once so their markers are always visible on the map
+  // Fetch all safe spaces once so they can be shown before a route is selected
   useEffect(() => {
     const fetchAllSafeSpaces = async () => {
       try {
         if (!API_BASE_URL) return;
-
-        console.log("Fetching all safe spaces from:", `${API_BASE_URL}/safe-spaces`);
 
         const response = await fetch(`${API_BASE_URL}/safe-spaces`);
 
@@ -564,7 +563,6 @@ export function Map() {
         }
 
         const data = (await response.json()) as SafeSpace[];
-        console.log("All safe spaces loaded:", data);
         setAllSafeSpaces(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error("Failed to load safe spaces:", err);
@@ -1122,6 +1120,24 @@ export function Map() {
             />
           </div>
 
+          {/* Mobile find calm button */}
+          <div
+            className={`absolute right-4 z-10 lg:hidden transition-all ${
+              isSafeSpacesOpen
+                ? "bottom-[19.5rem] opacity-0 pointer-events-none"
+                : "bottom-36"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => navigate("/find-calm")}
+              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/80 bg-[#7DB0A6] text-white shadow-lg"
+              aria-label="Go to Find Calm page"
+            >
+              <Wind size={22} />
+            </button>
+          </div>
+
           {/* Desktop mic button + live noise bar */}
           <div className="absolute bottom-6 right-6 z-10 hidden lg:block">
             {isMonitoring && <VolumeBar volume={volume} />}
@@ -1131,6 +1147,18 @@ export function Map() {
               }
               isActive={isMonitoring}
             />
+          </div>
+
+          {/* Desktop find calm button */}
+          <div className="absolute bottom-6 right-24 z-10 hidden lg:block">
+            <button
+              type="button"
+              onClick={() => navigate("/find-calm")}
+              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/80 bg-[#7DB0A6] text-white shadow-lg"
+              aria-label="Go to Find Calm page"
+            >
+              <Wind size={22} />
+            </button>
           </div>
         </div>
       </div>
