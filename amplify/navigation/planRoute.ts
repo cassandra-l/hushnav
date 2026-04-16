@@ -1,5 +1,6 @@
 import { geocodePlace } from "./geocode";
 import { getQuietestRouteFromCoordinates } from "./route";
+import { getSafeSpacesNearRoute, type SafeSpace } from "./safeSpaces";
 import type { LineString } from "geojson";
 
 export type Coordinate = {
@@ -14,7 +15,8 @@ export type PlanRouteRequest = {
   startQuery?: string;
   endQuery?: string;
 };
-// Include start, end information and the final route details
+
+// Full response returned to the frontend
 export type PlanRouteResponse = {
   start: {
     input: string;
@@ -37,15 +39,16 @@ export type PlanRouteResponse = {
     nodeIds: number[];
     geojson: LineString;
   };
+  safeSpaces: SafeSpace[];
 };
-// Check whether a value is a valid coordinate object
+
+// Checks whether a value is a valid coordinate object
 function isValidCoordinate(value: unknown): value is Coordinate {
   if (!value || typeof value !== "object") return false;
 
   const coord = value as Record<string, unknown>;
   return typeof coord.lat === "number" && typeof coord.lng === "number";
 }
-
 
 export async function planRoute(
   body: PlanRouteRequest
@@ -57,15 +60,17 @@ export async function planRoute(
   let resolvedStartName: string | null = null;
   let resolvedEndName: string | null = null;
 
-  // Use the provided start coordinates directly if they are valid or geocode the start query string
+  // Use provided start coordinates if available, otherwise geocode the start query
   if (isValidCoordinate(start)) {
     startCoordinate = start;
   } else if (typeof startQuery === "string" && startQuery.trim()) {
     const geocodedStart = await geocodePlace(startQuery);
+
     startCoordinate = {
       lat: geocodedStart.lat,
       lng: geocodedStart.lng,
     };
+
     resolvedStartName = geocodedStart.displayName;
   } else {
     throw new Error(
@@ -73,25 +78,32 @@ export async function planRoute(
     );
   }
 
-  // Use the provided end coordinates directly if they are valid or geocode the end query string
+  // Use provided end coordinates if available, otherwise geocode the end query
   if (isValidCoordinate(end)) {
     endCoordinate = end;
   } else if (typeof endQuery === "string" && endQuery.trim()) {
     const geocodedEnd = await geocodePlace(endQuery);
+
     endCoordinate = {
       lat: geocodedEnd.lat,
       lng: geocodedEnd.lng,
     };
+
     resolvedEndName = geocodedEnd.displayName;
   } else {
     throw new Error(
       "Invalid request body. Expected either end coordinates or endQuery."
     );
   }
+
+  // Calculate the quietest route between the two locations
   const result = await getQuietestRouteFromCoordinates(
     startCoordinate,
     endCoordinate
   );
+
+  // Find nearby safe spaces based on the final route geometry
+  const safeSpaces = await getSafeSpacesNearRoute(result.route.geojson);
 
   return {
     start: {
@@ -119,5 +131,6 @@ export async function planRoute(
       nodeIds: result.route.nodeIds,
       geojson: result.route.geojson,
     },
+    safeSpaces,
   };
 }

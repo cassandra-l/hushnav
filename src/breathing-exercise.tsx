@@ -1,16 +1,28 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { XButton } from "./components/x-button";
 import { AnimatePresence, motion } from "framer-motion";
 
 // breathing exercise component that is 4 secs inhale and 6 secs exhale, with a circular progress indicator and text instructions
 interface BreathingExerciseProps {
-  onClose: () => void;
+  onClose?: () => void;
 }
 
 // defining the phrases of the breathing exercise
 type Phase = "In" | "Out";
 
 export function BreathingExercise({ onClose }: BreathingExerciseProps) {
+  const navigate = useNavigate();
+
+  const handleClose = () => {
+    if (onClose) {
+      onClose();
+      return;
+    }
+
+    navigate("/map");
+  };
+
   // tracking whether the user is currently inhaling or exhaling
   const [phase, setPhase] = useState<Phase>("In");
   // countdown for the current phase
@@ -50,10 +62,10 @@ export function BreathingExercise({ onClose }: BreathingExerciseProps) {
       `}</style>
 
       {/* Close button */}
-      <XButton onClose={onClose} />
+      <XButton onClose={handleClose} />
 
       {/* container for the breathing exercise */}
-      <div className="relative flex flex-col items-center justify-center min-h-screen">
+      <div className="relative flex min-h-screen flex-col items-center justify-center">
         {/* circular progress indicator */}
         <div className="relative flex items-center justify-center">
           {/* The breathing circle background */}
@@ -100,14 +112,14 @@ export function BreathingExercise({ onClose }: BreathingExerciseProps) {
           </svg>
           {/* centering the text that displays for the countdown */}
           <div className="absolute flex flex-col items-center">
-            <span className="text-[60px] tracking-tighter leading-none">
+            <span className="text-[60px] leading-none tracking-tighter">
               {timeLeft}
             </span>
             <span className="text-[12px]">seconds</span>
           </div>
         </div>
         {/* instructions for the breathing exercise */}
-        <div className=" text-center relative flex items-center justify-center h-25">
+        <div className="relative flex h-25 items-center justify-center text-center">
           <AnimatePresence mode="wait">
             <motion.div
               key={phase}
@@ -117,10 +129,10 @@ export function BreathingExercise({ onClose }: BreathingExerciseProps) {
               transition={{ duration: 0.6 }}
               className="absolute"
             >
-              <h1 className="text-4xl text-gray-800 tracking-tight font-medium whitespace-nowrap">
+              <h1 className="whitespace-nowrap text-4xl font-medium tracking-tight text-gray-800">
                 {phase === "In" ? "Breathe In" : "Breathe Out"}
               </h1>
-              <p className="mt-2 text-[14px] text-[#4b5563] whitespace-nowrap">
+              <p className="mt-2 whitespace-nowrap text-[14px] text-[#4b5563]">
                 {phase === "In"
                   ? "Inhale slowly through your nose"
                   : "Exhale slowly through your mouth"}
