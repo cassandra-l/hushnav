@@ -179,8 +179,8 @@ function buildPhotonLabel(feature: PhotonFeature): string {
     .join(" ")
     .trim();
 
-  const firstLine = [props.name, addressPart].filter(
-    (part): part is string => Boolean(part && part.trim()),
+  const firstLine = [props.name, addressPart].filter((part): part is string =>
+    Boolean(part && part.trim()),
   );
 
   const secondLine = [
@@ -191,9 +191,9 @@ function buildPhotonLabel(feature: PhotonFeature): string {
 
   const parts = [...firstLine, ...secondLine];
 
-  const uniqueParts = Array.from(new Set(parts.map((part) => part.trim()))).filter(
-    (part) => part.length > 0,
-  );
+  const uniqueParts = Array.from(
+    new Set(parts.map((part) => part.trim())),
+  ).filter((part) => part.length > 0);
 
   return uniqueParts.join(", ");
 }
@@ -345,9 +345,9 @@ export function Map() {
     useState<LocationSuggestion | null>(null);
 
   // Suggestion lists for each field
-  const [startSuggestions, setStartSuggestions] = useState<LocationSuggestion[]>(
-    [],
-  );
+  const [startSuggestions, setStartSuggestions] = useState<
+    LocationSuggestion[]
+  >([]);
   const [destinationSuggestions, setDestinationSuggestions] = useState<
     LocationSuggestion[]
   >([]);
@@ -602,8 +602,7 @@ export function Map() {
     }
 
     if (
-      startLocation.trim().toLowerCase() ===
-      destination.trim().toLowerCase()
+      startLocation.trim().toLowerCase() === destination.trim().toLowerCase()
     ) {
       setRouteData(null);
       setError("Start location and destination cannot be the same.");
@@ -612,7 +611,9 @@ export function Map() {
 
     if (!API_BASE_URL) {
       setRouteData(null);
-      setError("API base URL not set. Add VITE_API_BASE_URL to your .env file.");
+      setError(
+        "API base URL not set. Add VITE_API_BASE_URL to your .env file.",
+      );
       return;
     }
 
@@ -700,7 +701,7 @@ export function Map() {
   };
 
   return (
-    <main className="relative h-screen w-full overflow-hidden bg-[#D5E8E5]">
+    <main className="h-[100dvh] fixed inset-0 w-full overflow-hidden bg-[#D5E8E5]">
       <div className="h-full w-full lg:grid lg:grid-cols-[380px_1fr]">
         {/* Desktop left sidebar */}
         <aside className="z-20 hidden h-full flex-col border-r border-[#E8EEEC] bg-white lg:flex">
@@ -811,7 +812,8 @@ export function Map() {
                     <div className="flex justify-between gap-4">
                       <span className="text-[#6A7282]">Duration</span>
                       <span className="font-medium">
-                        {estimateWalkingMinutes(routeData.route.totalLength)} min
+                        {estimateWalkingMinutes(routeData.route.totalLength)}{" "}
+                        min
                       </span>
                     </div>
 
@@ -896,7 +898,7 @@ export function Map() {
           />
 
           {/* Mobile collapsed top card */}
-          {!isMobileSearchOpen && (
+          {!isMobileSearchOpen && !routeData && (
             <div className="absolute left-4 right-4 top-4 z-10 lg:hidden">
               <button
                 type="button"
@@ -920,7 +922,7 @@ export function Map() {
           )}
 
           {/* Mobile expanded search panel */}
-          {isMobileSearchOpen && (
+          {isMobileSearchOpen && !routeData && (
             <section className="absolute left-4 right-4 top-4 z-20 lg:hidden">
               <div
                 ref={mobileSearchPanelRef}
@@ -1019,11 +1021,11 @@ export function Map() {
             </section>
           )}
 
-          {/* Mobile bottom route summary */}
-          <section className="absolute bottom-4 left-4 right-4 z-10 lg:hidden">
-            <div className="overflow-hidden rounded-[28px] border border-white/80 bg-white/95 shadow-xl backdrop-blur-sm">
-              {routeData ? (
-                <div className="max-h-[38vh] overflow-y-auto">
+          {/* Mobile bottom route summary - Only visible when a route exists */}
+          {routeData && (
+            <section className="absolute bottom-4 left-4 right-4 z-10 lg:hidden">
+              <div className="overflow-hidden rounded-[28px] border border-white/80 bg-white/95 shadow-xl backdrop-blur-sm">
+                <div className="max-h-[38vh] overflow-y-auto overscroll-contain">
                   <div className="grid grid-cols-4 items-center text-center">
                     <div className="border-r border-[#E8EEEC] px-3 py-4">
                       <p className="text-xs text-[#6A7282]">Noise Level</p>
@@ -1042,7 +1044,8 @@ export function Map() {
                     <div className="border-r border-[#E8EEEC] px-3 py-4">
                       <p className="text-xs text-[#6A7282]">Duration</p>
                       <p className="text-[15px] font-medium text-[#1E2939]">
-                        {estimateWalkingMinutes(routeData.route.totalLength)} min
+                        {estimateWalkingMinutes(routeData.route.totalLength)}{" "}
+                        min
                       </p>
                     </div>
 
@@ -1086,34 +1089,18 @@ export function Map() {
                     </div>
                   )}
                 </div>
-              ) : (
-                <div className="flex items-center justify-between gap-4 px-5 py-4">
-                  <div>
-                    <p className="text-sm font-medium text-[#1E2939]">
-                      Quiet Route Preview
-                    </p>
-                    <p className="mt-1 text-xs text-[#6A7282]">
-                      Search for a route to begin.
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={() => navigate("/")}
-                    className="shrink-0 rounded-2xl bg-[#5A9A8E] px-5 py-2.5 font-medium text-white shadow-sm"
-                  >
-                    Exit
-                  </button>
-                </div>
-              )}
-            </div>
-          </section>
+              </div>
+            </section>
+          )}
 
           {/* Mobile mic button + live noise bar */}
           <div
-            className={`absolute left-4 z-10 lg:hidden transition-all ${
-              isSafeSpacesOpen
-                ? "bottom-[19.5rem] opacity-0 pointer-events-none"
-                : "bottom-36"
+            className={`absolute left-4 z-10 lg:hidden transition-all duration-300 ${
+              routeData
+                ? isSafeSpacesOpen
+                  ? "bottom-[19.5rem] opacity-0 pointer-events-none"
+                  : "bottom-[11rem]" // Moves up when the route bar appears
+                : "bottom-6" // Stays at the bottom when no route is entered
             }`}
           >
             {isMonitoring && <VolumeBar volume={volume} />}
@@ -1127,16 +1114,18 @@ export function Map() {
 
           {/* Mobile find calm button */}
           <div
-            className={`absolute right-4 z-10 lg:hidden transition-all ${
-              isSafeSpacesOpen
-                ? "bottom-[19.5rem] opacity-0 pointer-events-none"
-                : "bottom-36"
+            className={`absolute right-4 z-10 lg:hidden transition-all duration-300 ${
+              routeData
+                ? isSafeSpacesOpen
+                  ? "bottom-[19.5rem] opacity-0 pointer-events-none"
+                  : "bottom-[11rem]" // Moves up when the route bar appears
+                : "bottom-6" // Stays at the bottom when no route is entered
             }`}
           >
             <button
               type="button"
-              onClick={() => navigate("/breathing-exercise")}
-              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/80 bg-[#7DB0A6] text-white shadow-lg"
+              onClick={() => navigate("/support-page")}
+              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
               aria-label="Go to Find Calm page"
             >
               <Wind size={22} />
