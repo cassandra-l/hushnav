@@ -1,5 +1,6 @@
 import { geocodePlace } from "./geocode";
 import { getQuietestRouteFromCoordinates } from "./route";
+import { getSafeSpacesNearRoute, type SafeSpace } from "./safeSpaces";
 import type { LineString } from "geojson";
 
 export type Coordinate = {
@@ -14,7 +15,8 @@ export type PlanRouteRequest = {
   startQuery?: string;
   endQuery?: string;
 };
-// Include start, end information and the final route details
+
+// Include start, end information, route details, and safe spaces along the route
 export type PlanRouteResponse = {
   start: {
     input: string;
@@ -37,7 +39,9 @@ export type PlanRouteResponse = {
     nodeIds: number[];
     geojson: LineString;
   };
+  safeSpaces: SafeSpace[];
 };
+
 // Check whether a value is a valid coordinate object
 function isValidCoordinate(value: unknown): value is Coordinate {
   if (!value || typeof value !== "object") return false;
@@ -45,7 +49,6 @@ function isValidCoordinate(value: unknown): value is Coordinate {
   const coord = value as Record<string, unknown>;
   return typeof coord.lat === "number" && typeof coord.lng === "number";
 }
-
 
 export async function planRoute(
   body: PlanRouteRequest
@@ -57,7 +60,7 @@ export async function planRoute(
   let resolvedStartName: string | null = null;
   let resolvedEndName: string | null = null;
 
-  // Use the provided start coordinates directly if they are valid or geocode the start query string
+  // Use the provided start coordinates directly if valid, otherwise geocode the start query
   if (isValidCoordinate(start)) {
     startCoordinate = start;
   } else if (typeof startQuery === "string" && startQuery.trim()) {
@@ -73,7 +76,7 @@ export async function planRoute(
     );
   }
 
-  // Use the provided end coordinates directly if they are valid or geocode the end query string
+  // Use the provided end coordinates directly if valid, otherwise geocode the end query
   if (isValidCoordinate(end)) {
     endCoordinate = end;
   } else if (typeof endQuery === "string" && endQuery.trim()) {
@@ -88,10 +91,15 @@ export async function planRoute(
       "Invalid request body. Expected either end coordinates or endQuery."
     );
   }
+
+  // Build the quietest route between the two points
   const result = await getQuietestRouteFromCoordinates(
     startCoordinate,
     endCoordinate
   );
+
+  // Fetch nearby safe spaces using the route line geometry
+  const safeSpaces = await getSafeSpacesNearRoute(result.route.geojson);
 
   return {
     start: {
@@ -119,5 +127,6 @@ export async function planRoute(
       nodeIds: result.route.nodeIds,
       geojson: result.route.geojson,
     },
+    safeSpaces,
   };
 }
