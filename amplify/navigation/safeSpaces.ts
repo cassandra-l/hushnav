@@ -62,7 +62,7 @@ function buildDescription(subTheme: string): string {
 // Finds safe spaces close to the planned route line
 export async function getSafeSpacesNearRoute(
   routeGeoJson: LineString,
-  bufferMeters = 100,
+  bufferMeters = 200,
 ): Promise<SafeSpace[]> {
   const client = await pool.connect();
 
@@ -112,6 +112,45 @@ export async function getSafeSpacesNearRoute(
 
     return result.rows.map((row) => ({
       id: Number(row.id),
+      name: row.feature_name,
+      subTheme: row.sub_theme,
+      type: mapSubThemeToType(row.sub_theme),
+      description: buildDescription(row.sub_theme),
+      lat: Number(row.lat),
+      lng: Number(row.lng),
+    }));
+  } finally {
+    client.release();
+  }
+}
+
+// Returns all safe spaces so markers can always be shown on the map
+export async function getAllSafeSpaces(): Promise<SafeSpace[]> {
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query<{
+      feature_name: string;
+      sub_theme: string;
+      lat: number;
+      lng: number;
+    }>(
+      `
+      SELECT
+        ss.feature_name,
+        ss.sub_theme,
+        ST_Y(ss.geom_safe_space) AS lat,
+        ST_X(ss.geom_safe_space) AS lng
+      FROM safe_space ss
+      WHERE ss.geom_safe_space IS NOT NULL
+      ORDER BY ss.feature_name ASC
+      `
+    );
+
+    console.log(`Loaded ${result.rows.length} total safe spaces.`);
+
+    return result.rows.map((row, index) => ({
+      id: index + 1,
       name: row.feature_name,
       subTheme: row.sub_theme,
       type: mapSubThemeToType(row.sub_theme),

@@ -1,7 +1,10 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { handlePlanRoute } from "./amplify/navigation/handler";
+import {
+  handlePlanRoute,
+  handleGetSafeSpaces,
+} from "./amplify/navigation/handler";
 import { handleCrowdMap } from "./amplify/spatialData/handler";
 
 const app = express();
@@ -46,11 +49,33 @@ const noiseMapHandler = async (_req: express.Request, res: express.Response) => 
   }
 };
 
+const safeSpacesHandler = async (
+  _req: express.Request,
+  res: express.Response,
+) => {
+  try {
+    const result = await handleGetSafeSpaces();
+
+    res
+      .status(result.statusCode)
+      .type("application/json")
+      .send(result.body);
+  } catch (error) {
+    console.error("Local safe-spaces error:", error);
+    res.status(500).json({
+      error: "Failed to load safe spaces.",
+    });
+  }
+};
+
 app.post("/api/plan-route", planRouteHandler);
 app.post("/plan-route", planRouteHandler);
 
 app.get("/api/noise-map", noiseMapHandler);
 app.get("/noise-map", noiseMapHandler);
+
+app.get("/api/safe-spaces", safeSpacesHandler);
+app.get("/safe-spaces", safeSpacesHandler);
 
 // Always return JSON for unknown API-style routes
 app.use((_req, res) => {
@@ -62,4 +87,3 @@ app.use((_req, res) => {
 app.listen(PORT, () => {
   console.log(`Local backend server running at http://localhost:${PORT}`);
 });
-

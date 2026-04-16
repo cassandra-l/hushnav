@@ -111,7 +111,6 @@ function AutocompleteInput({
 
       <div className="relative">
         <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white px-4 py-3">
-          {/* Circle icon changes depending on whether this is start or destination */}
           <div
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
               isStart ? "bg-[#D4B896]" : "bg-[#7DB0A6]"
@@ -126,7 +125,6 @@ function AutocompleteInput({
 
           <Search size={16} className="shrink-0 text-[#5A9A8E]" />
 
-          {/* User text input */}
           <input
             id={id}
             type="text"
@@ -139,7 +137,6 @@ function AutocompleteInput({
           />
         </div>
 
-        {/* Suggestion dropdown */}
         {isOpen && (
           <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 max-h-80 overflow-hidden overflow-y-auto rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">
             {loading ? (
@@ -169,7 +166,6 @@ function AutocompleteInput({
   );
 }
 
-// Builds a readable label from Photon feature properties
 function buildPhotonLabel(feature: PhotonFeature): string {
   const props = feature.properties ?? {};
 
@@ -197,7 +193,6 @@ function buildPhotonLabel(feature: PhotonFeature): string {
   return uniqueParts.join(", ");
 }
 
-// Converts a Photon feature into our app's LocationSuggestion format
 function normalisePhotonFeature(
   feature: PhotonFeature,
   index: number,
@@ -233,7 +228,6 @@ function normalisePhotonFeature(
   };
 }
 
-// Calls Photon API to fetch live search suggestions
 async function fetchPhotonSuggestions(
   query: string,
   signal?: AbortSignal,
@@ -253,9 +247,12 @@ async function fetchPhotonSuggestions(
     bbox: MELBOURNE_INNER_BBOX,
   });
 
-  const response = await fetch(`https://photon.komoot.io/api/?${params.toString()}`, {
-    signal,
-  });
+  const response = await fetch(
+    `https://photon.komoot.io/api/?${params.toString()}`,
+    {
+      signal,
+    },
+  );
 
   if (!response.ok) {
     const body = await response.text();
@@ -271,7 +268,6 @@ async function fetchPhotonSuggestions(
     .filter((item): item is LocationSuggestion => item !== null);
 }
 
-// Returns the correct icon for each safe space type
 function renderSafeSpaceIcon(type: SafeSpace["type"]) {
   switch (type) {
     case "park":
@@ -289,7 +285,6 @@ function renderSafeSpaceIcon(type: SafeSpace["type"]) {
   }
 }
 
-// Reusable list item for the desktop and mobile safe space sections
 type SafeSpaceListItemProps = {
   safeSpace: SafeSpace;
 };
@@ -314,33 +309,25 @@ function SafeSpaceListItem({ safeSpace }: SafeSpaceListItemProps) {
   );
 }
 
-// Main page component
 export function Map() {
   const navigate = useNavigate();
 
-  // Noise monitoring popup + audio state
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
   const { volume, isMonitoring, startMonitoring, stopMonitoring } =
     useAudioMonitor();
 
-  // Mobile panel open/close state
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(true);
-
-  // Controls whether safe spaces section is expanded
   const [isSafeSpacesOpen, setIsSafeSpacesOpen] = useState(false);
 
-  // Raw text currently typed into each field
   const [startLocation, setStartLocation] = useState("");
   const [destination, setDestination] = useState("");
 
-  // Selected suggestion objects
   const [selectedStart, setSelectedStart] = useState<LocationSuggestion | null>(
     null,
   );
   const [selectedDestination, setSelectedDestination] =
     useState<LocationSuggestion | null>(null);
 
-  // Suggestion lists for each field
   const [startSuggestions, setStartSuggestions] = useState<LocationSuggestion[]>(
     [],
   );
@@ -348,52 +335,41 @@ export function Map() {
     LocationSuggestion[]
   >([]);
 
-  // Controls whether suggestion dropdowns are visible
   const [isStartSuggestionsOpen, setIsStartSuggestionsOpen] = useState(false);
   const [isDestinationSuggestionsOpen, setIsDestinationSuggestionsOpen] =
     useState(false);
 
-  // Loading states for live search
   const [isStartSuggestionsLoading, setIsStartSuggestionsLoading] =
     useState(false);
   const [isDestinationSuggestionsLoading, setIsDestinationSuggestionsLoading] =
     useState(false);
 
-  // Route API loading + error state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Final route response shown on the map
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
-
-  // Crowd / noise line layer shown behind the route
   const [crowdMapData, setCrowdMapData] =
     useState<CrowdMapFeatureCollection | null>(null);
 
-  // Refs for click-outside handling
+  const [allSafeSpaces, setAllSafeSpaces] = useState<SafeSpace[]>([]);
+
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
   const mobileSearchPanelRef = useRef<HTMLDivElement | null>(null);
 
-  // Abort controllers prevent old Photon requests from overwriting newer ones
   const startAbortRef = useRef<AbortController | null>(null);
   const destinationAbortRef = useRef<AbortController | null>(null);
 
-  // Safe spaces returned by the backend for the active route
-  const safeSpaces = routeData?.safeSpaces ?? [];
+  const routeSafeSpaces = routeData?.safeSpaces ?? [];
 
-  // Helper to display route length nicely
   const formatRouteLength = (meters: number) => {
     if (meters < 1000) return `${Math.round(meters)} m`;
     return `${(meters / 1000).toFixed(1)} km`;
   };
 
-  // Rough walking duration estimate
   const estimateWalkingMinutes = (meters: number) => {
     return Math.max(1, Math.round(meters / 84));
   };
 
-  // Returns the best display name for the route start.
-  // This fixes the issue where selected coordinates showed internal placeholder text.
   const getStartDisplayName = () => {
     if (!routeData) return "";
     return (
@@ -404,7 +380,6 @@ export function Map() {
     );
   };
 
-  // Returns the best display name for the route destination.
   const getEndDisplayName = () => {
     if (!routeData) return "";
     return (
@@ -415,14 +390,12 @@ export function Map() {
     );
   };
 
-  // Clears the active route and resets route-specific UI state
   const handleExitRoute = () => {
     setRouteData(null);
     setError("");
     setIsSafeSpacesOpen(false);
   };
 
-  // Close suggestion dropdowns when user clicks outside both panels
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -442,7 +415,6 @@ export function Map() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Watch start field and fetch live Photon suggestions
   useEffect(() => {
     if (startLocation.trim().length < 2) {
       setStartSuggestions([]);
@@ -480,7 +452,6 @@ export function Map() {
     };
   }, [startLocation]);
 
-  // Watch destination field and fetch live Photon suggestions
   useEffect(() => {
     if (destination.trim().length < 2) {
       setDestinationSuggestions([]);
@@ -518,7 +489,6 @@ export function Map() {
     };
   }, [destination]);
 
-  // Fetch crowd / noise map data once when the page loads
   useEffect(() => {
     const fetchCrowdMap = async () => {
       try {
@@ -527,7 +497,9 @@ export function Map() {
         const response = await fetch(`${API_BASE_URL}/noise-map`);
 
         if (!response.ok) {
-          throw new Error(`Crowd map request failed with status ${response.status}`);
+          throw new Error(
+            `Crowd map request failed with status ${response.status}`,
+          );
         }
 
         const data = await response.json();
@@ -540,7 +512,33 @@ export function Map() {
     fetchCrowdMap();
   }, []);
 
-  // When a start suggestion is chosen, store both the label and coordinates
+  useEffect(() => {
+    const fetchAllSafeSpaces = async () => {
+      try {
+        if (!API_BASE_URL) return;
+
+        console.log("Fetching all safe spaces from:", `${API_BASE_URL}/safe-spaces`);
+
+        const response = await fetch(`${API_BASE_URL}/safe-spaces`);
+
+        if (!response.ok) {
+          throw new Error(
+            `Safe spaces request failed with status ${response.status}`,
+          );
+        }
+
+        const data = (await response.json()) as SafeSpace[];
+        console.log("All safe spaces loaded:", data);
+        setAllSafeSpaces(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to load safe spaces:", err);
+        setAllSafeSpaces([]);
+      }
+    };
+
+    fetchAllSafeSpaces();
+  }, []);
+
   const handleStartSelect = (suggestion: LocationSuggestion) => {
     setStartLocation(suggestion.place_name);
     setSelectedStart(suggestion);
@@ -548,7 +546,6 @@ export function Map() {
     setStartSuggestions([]);
   };
 
-  // When a destination suggestion is chosen, store both the label and coordinates
   const handleDestinationSelect = (suggestion: LocationSuggestion) => {
     setDestination(suggestion.place_name);
     setSelectedDestination(suggestion);
@@ -556,7 +553,6 @@ export function Map() {
     setDestinationSuggestions([]);
   };
 
-  // Sends route request to backend
   const handlePlanRoute = async () => {
     setError("");
     setIsStartSuggestionsOpen(false);
@@ -568,7 +564,10 @@ export function Map() {
       return;
     }
 
-    if (startLocation.trim().toLowerCase() === destination.trim().toLowerCase()) {
+    if (
+      startLocation.trim().toLowerCase() ===
+      destination.trim().toLowerCase()
+    ) {
       setRouteData(null);
       setError("Start location and destination cannot be the same.");
       return;
@@ -621,7 +620,9 @@ export function Map() {
         try {
           data = JSON.parse(rawText) as PlanRouteResponse | { error?: string };
         } catch {
-          throw new Error("Backend returned a response, but it was not valid JSON.");
+          throw new Error(
+            "Backend returned a response, but it was not valid JSON.",
+          );
         }
       }
 
@@ -664,7 +665,6 @@ export function Map() {
   return (
     <main className="relative h-screen w-full overflow-hidden bg-[#D5E8E5]">
       <div className="h-full w-full lg:grid lg:grid-cols-[380px_1fr]">
-        {/* Desktop left sidebar */}
         <aside className="z-20 hidden h-full flex-col border-r border-[#E8EEEC] bg-white lg:flex">
           <div
             ref={desktopSearchPanelRef}
@@ -748,7 +748,6 @@ export function Map() {
             )}
           </div>
 
-          {/* Desktop route summary */}
           <div className="flex-1 overflow-y-auto px-5 py-4">
             {routeData ? (
               <div className="space-y-4">
@@ -792,7 +791,7 @@ export function Map() {
                     </div>
                   </div>
 
-                  {safeSpaces.length > 0 && (
+                  {routeSafeSpaces.length > 0 && (
                     <div className="mt-5 border-t border-[#E8EEEC] pt-4">
                       <button
                         type="button"
@@ -811,7 +810,7 @@ export function Map() {
 
                       {isSafeSpacesOpen && (
                         <div className="mt-4 space-y-4">
-                          {safeSpaces.map((safeSpace) => (
+                          {routeSafeSpaces.map((safeSpace) => (
                             <SafeSpaceListItem
                               key={safeSpace.id}
                               safeSpace={safeSpace}
@@ -836,19 +835,21 @@ export function Map() {
                   Quiet Route Preview
                 </h2>
                 <p className="text-sm text-[#6A7282]">
-                  Search for a start point and destination to display the quietest
-                  route on the map.
+                  Search for a start point and destination to display the
+                  quietest route on the map.
                 </p>
               </div>
             )}
           </div>
         </aside>
 
-        {/* Main map area */}
         <div className="relative h-full w-full">
-          <RouteMap routeData={routeData} crowdMapData={crowdMapData} />
+          <RouteMap
+            routeData={routeData}
+            crowdMapData={crowdMapData}
+            allSafeSpaces={allSafeSpaces}
+          />
 
-          {/* Mobile collapsed top card */}
           {!isMobileSearchOpen && (
             <div className="absolute left-4 right-4 top-4 z-10 lg:hidden">
               <button
@@ -872,7 +873,6 @@ export function Map() {
             </div>
           )}
 
-          {/* Mobile expanded search panel */}
           {isMobileSearchOpen && (
             <section className="absolute left-4 right-4 top-4 z-20 lg:hidden">
               <div
@@ -964,13 +964,14 @@ export function Map() {
                 </button>
 
                 {error && (
-                  <p className="mt-3 text-sm font-medium text-red-600">{error}</p>
+                  <p className="mt-3 text-sm font-medium text-red-600">
+                    {error}
+                  </p>
                 )}
               </div>
             </section>
           )}
 
-          {/* Mobile bottom route summary */}
           <section className="absolute bottom-4 left-4 right-4 z-10 lg:hidden">
             <div className="overflow-hidden rounded-[28px] border border-white/80 bg-white/95 shadow-xl backdrop-blur-sm">
               {routeData ? (
@@ -1007,7 +1008,7 @@ export function Map() {
                     </div>
                   </div>
 
-                  {safeSpaces.length > 0 && (
+                  {routeSafeSpaces.length > 0 && (
                     <div className="border-t border-[#E8EEEC] px-5 py-4">
                       <button
                         type="button"
@@ -1026,7 +1027,7 @@ export function Map() {
 
                       {isSafeSpacesOpen && (
                         <div className="mt-4 space-y-4">
-                          {safeSpaces.map((safeSpace) => (
+                          {routeSafeSpaces.map((safeSpace) => (
                             <SafeSpaceListItem
                               key={safeSpace.id}
                               safeSpace={safeSpace}
@@ -1059,27 +1060,28 @@ export function Map() {
             </div>
           </section>
 
-          {/* Mobile mic button + live noise bar */}
           <div className="absolute bottom-28 left-4 z-10 lg:hidden">
             {isMonitoring && <VolumeBar volume={volume} />}
             <MicButton
-              onClick={isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)}
+              onClick={
+                isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)
+              }
               isActive={isMonitoring}
             />
           </div>
 
-          {/* Desktop mic button + live noise bar */}
           <div className="absolute bottom-6 right-6 z-10 hidden lg:block">
             {isMonitoring && <VolumeBar volume={volume} />}
             <MicButton
-              onClick={isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)}
+              onClick={
+                isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)
+              }
               isActive={isMonitoring}
             />
           </div>
         </div>
       </div>
 
-      {/* Microphone permission popup */}
       {isPopUpOpen && (
         <PopUp
           onClose={() => setIsPopUpOpen(false)}

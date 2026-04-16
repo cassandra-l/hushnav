@@ -25,6 +25,7 @@ import type { CrowdMapFeatureCollection } from "../types/noise-map";
 type RouteMapProps = {
   routeData: PlanRouteResponse | null;
   crowdMapData: CrowdMapFeatureCollection | null;
+  allSafeSpaces: SafeSpace[];
 };
 
 // Reusable safe space marker button shown on the map
@@ -65,7 +66,11 @@ function SafeSpaceMarker({ safeSpace, onClick }: SafeSpaceMarkerProps) {
   );
 }
 
-export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
+export function RouteMap({
+  routeData,
+  crowdMapData,
+  allSafeSpaces,
+}: RouteMapProps) {
   const mapRef = useRef<MapRef | null>(null);
 
   // Tracks which safe space is currently selected so a popup can be shown
@@ -104,8 +109,9 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
     };
   }, [routeData]);
 
-  // Safe spaces returned from the backend for the current route
-  const safeSpaces = routeData?.safeSpaces ?? [];
+  // Safe space markers should always be visible on the map,
+  // even when the user has not selected a route yet
+  const safeSpaces = allSafeSpaces;
 
   // Close any open popup when the route changes or is cleared
   useEffect(() => {
@@ -222,7 +228,7 @@ export function RouteMap({ routeData, crowdMapData }: RouteMapProps) {
           </Marker>
         )}
 
-        {/* Safe space markers stay visible on the map at all times while a route exists */}
+        {/* Safe space markers stay visible on the map at all times */}
         {safeSpaces.map((safeSpace) => (
           <Marker
             key={safeSpace.id}
