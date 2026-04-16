@@ -1130,7 +1130,7 @@ export function Map() {
           >
             <button
               type="button"
-              onClick={() => navigate("/find-calm")}
+              onClick={() => navigate("/breathing-exercise")}
               className="flex h-14 w-14 items-center justify-center rounded-full border border-white/80 bg-[#7DB0A6] text-white shadow-lg"
               aria-label="Go to Find Calm page"
             >
@@ -1153,7 +1153,7 @@ export function Map() {
           <div className="absolute bottom-6 right-24 z-10 hidden lg:block">
             <button
               type="button"
-              onClick={() => navigate("/find-calm")}
+              onClick={() => navigate("/breathing-exercise")}
               className="flex h-14 w-14 items-center justify-center rounded-full border border-white/80 bg-[#7DB0A6] text-white shadow-lg"
               aria-label="Go to Find Calm page"
             >
