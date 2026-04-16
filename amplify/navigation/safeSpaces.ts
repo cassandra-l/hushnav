@@ -12,6 +12,7 @@ export type SafeSpace = {
   lng: number;
 };
 
+// Raw database row shape returned by Postgres
 type SafeSpaceRow = {
   id: number;
   feature_name: string;
@@ -20,48 +21,51 @@ type SafeSpaceRow = {
   lng: number;
 };
 
-// Converts backend dataset themes into frontend-friendly safe space types
+// Maps dataset sub themes into frontend-friendly safe space types
 function mapSubThemeToType(
-  subTheme: string
+  subTheme: string,
 ): "park" | "library" | "museum" | "church" | "synagogue" | "quiet-space" {
-  if (subTheme === "Library") return "library";
-  if (subTheme === "Informal Outdoor Facility (Park/Garden/Reserve)") return "park";
-  if (subTheme === "Art Gallery/Museum") return "museum";
-  if (subTheme === "Church") return "church";
-  if (subTheme === "Synagogue") return "synagogue";
-  return "quiet-space";
+  switch (subTheme) {
+    case "Library":
+      return "library";
+    case "Informal Outdoor Facility (Park/Garden/Reserve)":
+      return "park";
+    case "Art Gallery/Museum":
+      return "museum";
+    case "Church":
+      return "church";
+    case "Synagogue":
+      return "synagogue";
+    default:
+      return "quiet-space";
+  }
 }
 
-// Creates a short description for the popup/list if the dataset does not provide one
+// Builds a short description for each safe space.
+// The source dataset does not provide a user-friendly description field,
+// so we generate one from the place category.
 function buildDescription(subTheme: string): string {
-  if (subTheme === "Library") {
-    return "A quiet indoor space along your route.";
+  switch (subTheme) {
+    case "Library":
+      return "A quiet indoor space along your route.";
+    case "Informal Outdoor Facility (Park/Garden/Reserve)":
+      return "A calm outdoor space along your route.";
+    case "Art Gallery/Museum":
+      return "A quieter cultural space along your route.";
+    case "Church":
+      return "A peaceful indoor space along your route.";
+    case "Synagogue":
+      return "A peaceful indoor space along your route.";
+    default:
+      return "A quiet space along your route.";
   }
-
-  if (subTheme === "Informal Outdoor Facility (Park/Garden/Reserve)") {
-    return "A calm outdoor space along your route.";
-  }
-
-  if (subTheme === "Art Gallery/Museum") {
-    return "A quieter cultural space along your route.";
-  }
-
-  if (subTheme === "Church") {
-    return "A peaceful indoor space along your route.";
-  }
-
-  if (subTheme === "Synagogue") {
-    return "A peaceful indoor space along your route.";
-  }
-
-  return "A quiet space along your route.";
 }
 
-// Finds safe spaces close to the route line.
-// bufferMeters controls how close a place must be to the route to be included.
+// Finds safe spaces close to the planned route line.
+// bufferMeters controls how far from the route a place can be and still appear.
 export async function getSafeSpacesNearRoute(
   routeGeoJson: LineString,
-  bufferMeters = 80
+  bufferMeters = 80,
 ): Promise<SafeSpace[]> {
   const client = await pool.connect();
 
@@ -93,11 +97,11 @@ export async function getSafeSpacesNearRoute(
         ss.feature_name ASC
       LIMIT 20
       `,
-      [routeGeoJsonString, bufferMeters]
+      [routeGeoJsonString, bufferMeters],
     );
 
     return result.rows.map((row) => ({
-      id: row.id,
+      id: Number(row.id),
       name: row.feature_name,
       subTheme: row.sub_theme,
       type: mapSubThemeToType(row.sub_theme),

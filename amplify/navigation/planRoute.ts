@@ -16,7 +16,7 @@ export type PlanRouteRequest = {
   endQuery?: string;
 };
 
-// Include start, end information, route details, and safe spaces along the route
+// Full response returned to the frontend
 export type PlanRouteResponse = {
   start: {
     input: string;
@@ -42,7 +42,7 @@ export type PlanRouteResponse = {
   safeSpaces: SafeSpace[];
 };
 
-// Check whether a value is a valid coordinate object
+// Checks whether a value is a valid coordinate object
 function isValidCoordinate(value: unknown): value is Coordinate {
   if (!value || typeof value !== "object") return false;
 
@@ -60,15 +60,17 @@ export async function planRoute(
   let resolvedStartName: string | null = null;
   let resolvedEndName: string | null = null;
 
-  // Use the provided start coordinates directly if valid, otherwise geocode the start query
+  // Use provided start coordinates if available, otherwise geocode the start query
   if (isValidCoordinate(start)) {
     startCoordinate = start;
   } else if (typeof startQuery === "string" && startQuery.trim()) {
     const geocodedStart = await geocodePlace(startQuery);
+
     startCoordinate = {
       lat: geocodedStart.lat,
       lng: geocodedStart.lng,
     };
+
     resolvedStartName = geocodedStart.displayName;
   } else {
     throw new Error(
@@ -76,15 +78,17 @@ export async function planRoute(
     );
   }
 
-  // Use the provided end coordinates directly if valid, otherwise geocode the end query
+  // Use provided end coordinates if available, otherwise geocode the end query
   if (isValidCoordinate(end)) {
     endCoordinate = end;
   } else if (typeof endQuery === "string" && endQuery.trim()) {
     const geocodedEnd = await geocodePlace(endQuery);
+
     endCoordinate = {
       lat: geocodedEnd.lat,
       lng: geocodedEnd.lng,
     };
+
     resolvedEndName = geocodedEnd.displayName;
   } else {
     throw new Error(
@@ -92,13 +96,13 @@ export async function planRoute(
     );
   }
 
-  // Build the quietest route between the two points
+  // Calculate the quietest route between the two locations
   const result = await getQuietestRouteFromCoordinates(
     startCoordinate,
     endCoordinate
   );
 
-  // Fetch nearby safe spaces using the route line geometry
+  // Find nearby safe spaces based on the final route geometry
   const safeSpaces = await getSafeSpacesNearRoute(result.route.geojson);
 
   return {
