@@ -53,3 +53,7 @@ amplifyconfiguration*
 coverage
 .tmp
 .cache
+
+#sonarqube
+.scannerwork
+sonar-project.properties
