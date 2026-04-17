@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
-  Search,
   MapPin,
   Navigation,
   ChevronUp,
@@ -21,6 +20,7 @@ import type { PlanRouteResponse, SafeSpace } from "./types/route";
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
 import type { CrowdMapFeatureCollection } from "./types/noise-map";
+import { AnimatePresence, motion } from "framer-motion";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -111,7 +111,7 @@ function AutocompleteInput({
       </label>
 
       <div className="relative">
-        <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white px-4 py-3">
+        <div className="flex items-center gap-3 rounded-2xl px-4 py-2">
           {/* Circle icon changes depending on whether this is start or destination */}
           <div
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
@@ -124,8 +124,6 @@ function AutocompleteInput({
               <MapPin size={16} className="text-white" />
             )}
           </div>
-
-          <Search size={16} className="shrink-0 text-[#5A9A8E]" />
 
           {/* User text input */}
           <input
@@ -423,9 +421,19 @@ export function Map() {
 
   // Clears the active route and resets route-specific UI state
   const handleExitRoute = () => {
+    // Remove the line from the map
     setRouteData(null);
-    setError("");
-    setIsSafeSpacesOpen(false);
+
+    // Clear the input strings so the search bar is empty
+    setStartLocation("");
+    setDestination("");
+
+    // Clear the actual coordinate objects
+    setSelectedStart(null);
+    setSelectedDestination(null);
+
+    // Ensure the search panel stays open for a new search
+    setIsMobileSearchOpen(true);
   };
 
   // Close suggestion dropdowns when user clicks outside both panels
@@ -591,6 +599,8 @@ export function Map() {
 
   // Sends route request to backend
   const handlePlanRoute = async () => {
+    console.log("DEBUG - Start Selection:", selectedStart);
+    console.log("DEBUG - Destination Selection:", selectedDestination);
     setError("");
     setIsStartSuggestionsOpen(false);
     setIsDestinationSuggestionsOpen(false);
@@ -921,102 +931,124 @@ export function Map() {
             </div>
           )}
 
-          {/* Mobile expanded search panel */}
+          {/* Mobile search panel */}
           {isMobileSearchOpen && !routeData && (
-            <section className="absolute left-4 right-4 top-4 z-20 lg:hidden">
+            <section className=" absolute left-4 right-4 top-5 z-20 lg:hidden">
               <div
                 ref={mobileSearchPanelRef}
-                className="rounded-[28px] border border-white/70 bg-white/92 p-4 shadow-xl backdrop-blur-sm"
+                className="flex items-start gap-3"
               >
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => navigate("/")}
-                      className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E8EEEC] bg-[#F7FAF9] text-[#1E2939] shadow-sm"
-                      aria-label="Go back"
-                    >
-                      <ArrowLeft size={18} />
-                    </button>
+                {/* Back Button */}
+                <div className="pt-13">
+                  {/* className=" mb-4 flex items-start justify-between gap-3" */}
+                  {/* <div className="flex items-center gap-3"> */}
+                  <button
+                    onClick={() => navigate("/")}
+                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white bg-white/80 text-[#1E2939] shadow-sm"
+                    aria-label="Go back"
+                  >
+                    <ArrowLeft size={18} />
+                  </button>
 
-                    <div>
+                  {/* <div>
                       <h1 className="text-[24px] font-semibold leading-tight text-[#1E2939]">
                         Quiet Route
                       </h1>
                       <p className="text-sm text-[#6A7282]">
                         Find the calmest path through the city
                       </p>
-                    </div>
-                  </div>
+                    </div> */}
+                  {/* </div> */}
 
-                  <button
+                  {/* <button
                     type="button"
                     onClick={() => setIsMobileSearchOpen(false)}
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E8EEEC] bg-[#F7FAF9] text-[#1E2939]"
                     aria-label="Collapse panel"
                   >
                     <ChevronUp size={18} />
-                  </button>
+                  </button> */}
                 </div>
 
-                <AutocompleteInput
-                  id="mobileStartLocation"
-                  label="Start"
-                  value={startLocation}
-                  placeholder="Enter start location"
-                  iconType="start"
-                  suggestions={startSuggestions}
-                  isOpen={isStartSuggestionsOpen}
-                  loading={isStartSuggestionsLoading}
-                  onChange={(value) => {
-                    setStartLocation(value);
-                    setSelectedStart(null);
-                    setIsStartSuggestionsOpen(value.trim().length >= 2);
-                  }}
-                  onSelect={handleStartSelect}
-                  onFocus={() => {
-                    if (startLocation.trim().length >= 2) {
-                      setIsStartSuggestionsOpen(true);
-                    }
-                    setIsDestinationSuggestionsOpen(false);
-                  }}
-                />
+                <div className="flex flex-1 flex-col">
+                  <div className="flex-1 bg-white/80 border border-white rounded-3xl">
+                    <AutocompleteInput
+                      id="mobileStartLocation"
+                      label=""
+                      value={startLocation}
+                      placeholder="Enter start location"
+                      iconType="start"
+                      suggestions={startSuggestions}
+                      isOpen={isStartSuggestionsOpen}
+                      loading={isStartSuggestionsLoading}
+                      onChange={(value) => {
+                        setStartLocation(value);
+                        setSelectedStart(null);
+                        setIsStartSuggestionsOpen(value.trim().length >= 2);
+                      }}
+                      onSelect={handleStartSelect}
+                      onFocus={() => {
+                        if (startLocation.trim().length >= 2) {
+                          setIsStartSuggestionsOpen(true);
+                        }
+                        setIsDestinationSuggestionsOpen(false);
+                      }}
+                    />
+                    {/* Divider Line */}
+                    <div className="mx-4 h-px bg-[#E8EEEC]" />
 
-                <AutocompleteInput
-                  id="mobileDestination"
-                  label="Destination"
-                  value={destination}
-                  placeholder="Enter destination"
-                  iconType="destination"
-                  suggestions={destinationSuggestions}
-                  isOpen={isDestinationSuggestionsOpen}
-                  loading={isDestinationSuggestionsLoading}
-                  onChange={(value) => {
-                    setDestination(value);
-                    setSelectedDestination(null);
-                    setIsDestinationSuggestionsOpen(value.trim().length >= 2);
-                  }}
-                  onSelect={handleDestinationSelect}
-                  onFocus={() => {
-                    if (destination.trim().length >= 2) {
-                      setIsDestinationSuggestionsOpen(true);
-                    }
-                    setIsStartSuggestionsOpen(false);
-                  }}
-                />
+                    <AutocompleteInput
+                      id="mobileDestination"
+                      label=""
+                      value={destination}
+                      placeholder="Enter destination"
+                      iconType="destination"
+                      suggestions={destinationSuggestions}
+                      isOpen={isDestinationSuggestionsOpen}
+                      loading={isDestinationSuggestionsLoading}
+                      onChange={(value) => {
+                        setDestination(value);
+                        setSelectedDestination(null);
+                        setIsDestinationSuggestionsOpen(
+                          value.trim().length >= 2,
+                        );
+                      }}
+                      onSelect={handleDestinationSelect}
+                      onFocus={() => {
+                        if (destination.trim().length >= 2) {
+                          setIsDestinationSuggestionsOpen(true);
+                        }
+                        setIsStartSuggestionsOpen(false);
+                      }}
+                    />
+                  </div>
+                  <AnimatePresence>
+                    {startLocation && destination && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                      >
+                        <button
+                          onClick={handlePlanRoute}
+                          disabled={loading}
+                          className="w-full mt-2 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-md disabled:opacity-70 active:scale-[0.98] transition-transform"
+                        >
+                          {loading
+                            ? "Finding quiet route..."
+                            : "Find Quiet Route"}
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
-                <button
-                  onClick={handlePlanRoute}
-                  disabled={loading}
-                  className="w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-md disabled:opacity-70"
-                >
-                  {loading ? "Finding quiet route..." : "Find Quiet Route"}
-                </button>
-
-                {error && (
-                  <p className="mt-3 text-sm font-medium text-red-600">
-                    {error}
-                  </p>
-                )}
+                  {error && (
+                    <p className="mt-3 text-sm font-medium text-red-600">
+                      {error}
+                    </p>
+                  )}
+                </div>
               </div>
             </section>
           )}
@@ -1098,8 +1130,8 @@ export function Map() {
             className={`absolute left-4 z-10 lg:hidden transition-all duration-300 ${
               routeData
                 ? isSafeSpacesOpen
-                  ? "bottom-[19.5rem] opacity-0 pointer-events-none"
-                  : "bottom-[11rem]" // Moves up when the route bar appears
+                  ? "bottom-78 opacity-0 pointer-events-none"
+                  : "bottom-44" // Moves up when the route bar appears
                 : "bottom-6" // Stays at the bottom when no route is entered
             }`}
           >
@@ -1117,14 +1149,14 @@ export function Map() {
             className={`absolute right-4 z-10 lg:hidden transition-all duration-300 ${
               routeData
                 ? isSafeSpacesOpen
-                  ? "bottom-[19.5rem] opacity-0 pointer-events-none"
-                  : "bottom-[11rem]" // Moves up when the route bar appears
+                  ? "bottom-78 opacity-0 pointer-events-none"
+                  : "bottom-44" // Moves up when the route bar appears
                 : "bottom-6" // Stays at the bottom when no route is entered
             }`}
           >
             <button
               type="button"
-              onClick={() => navigate("/support-page")}
+              onClick={() => navigate("support")}
               className="flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
               aria-label="Go to Find Calm page"
             >
