@@ -386,6 +386,11 @@ export function Map() {
   // Safe spaces returned by the backend for the active route
   const routeSafeSpaces = routeData?.safeSpaces ?? [];
 
+  // Reference to the 'Safe Spaces' section container
+  const safeSpacesRef = useRef<HTMLDivElement>(null);
+
+  const sidebarScrollRef = useRef<HTMLDivElement>(null);
+
   // Helper to display route length nicely
   const formatRouteLength = (meters: number) => {
     if (meters < 1000) return `${Math.round(meters)} m`;
@@ -581,6 +586,29 @@ export function Map() {
     fetchAllSafeSpaces();
   }, []);
 
+  // Handle automatic scrolling when the Safe Spaces section is toggled
+  useEffect(() => {
+    if (isSafeSpacesOpen && safeSpacesRef.current && sidebarScrollRef.current) {
+      const timer = setTimeout(() => {
+        const containerTop =
+          sidebarScrollRef.current?.getBoundingClientRect().top || 0;
+        const elementTop =
+          safeSpacesRef.current?.getBoundingClientRect().top || 0;
+        const scrollOffset =
+          elementTop - containerTop + sidebarScrollRef.current!.scrollTop;
+
+        sidebarScrollRef.current?.scrollTo({
+          // Scrolling so the box starts about 100px from the top
+          // This keeps the context of the route summary visible
+          top: scrollOffset - 100,
+          behavior: "smooth",
+        });
+      }, 150);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isSafeSpacesOpen]);
+
   // When a start suggestion is chosen, store both the label and coordinates
   const handleStartSelect = (suggestion: LocationSuggestion) => {
     setStartLocation(suggestion.place_name);
@@ -714,7 +742,7 @@ export function Map() {
     <main className="h-[100dvh] fixed inset-0 w-full overflow-hidden bg-[#D5E8E5]">
       <div className="h-full w-full lg:grid lg:grid-cols-[380px_1fr]">
         {/* Desktop left sidebar */}
-        <aside className="z-20 hidden h-full flex-col border-r border-[#E8EEEC] bg-white lg:flex">
+        <aside className="z-20 hidden max-h-screen h-full flex-col border-r border-[#E8EEEC] bg-white lg:flex">
           <div
             ref={desktopSearchPanelRef}
             className="border-b border-[#E8EEEC] px-5 pb-4 pt-5"
@@ -798,7 +826,10 @@ export function Map() {
           </div>
 
           {/* Desktop route summary */}
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div
+            ref={sidebarScrollRef}
+            className="flex-1 overflow-y-auto px-5 py-4 custom-scrollbar min-h-0"
+          >
             {routeData ? (
               <div className="space-y-4">
                 <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
@@ -843,7 +874,10 @@ export function Map() {
                   </div>
 
                   {routeSafeSpaces.length > 0 && (
-                    <div className="mt-5 border-t border-[#E8EEEC] pt-4">
+                    <div
+                      ref={safeSpacesRef}
+                      className="mt-5 border-t border-[#E8EEEC] pt-4"
+                    >
                       <button
                         type="button"
                         onClick={() => setIsSafeSpacesOpen((prev) => !prev)}
@@ -860,13 +894,22 @@ export function Map() {
                       </button>
 
                       {isSafeSpacesOpen && (
-                        <div className="mt-4 space-y-4">
-                          {routeSafeSpaces.map((safeSpace) => (
-                            <SafeSpaceListItem
-                              key={safeSpace.id}
-                              safeSpace={safeSpace}
-                            />
-                          ))}
+                        <div className="mt-4 pr-2">
+                          {" "}
+                          {/* Added padding-right for the scrollbar space */}
+                          <div
+                            className="max-h-75 overflow-y-auto pr-2 custom-scrollbar"
+                            onWheel={(e) => e.stopPropagation()} // Prevents the sidebar from scrolling until the list hits the end
+                          >
+                            <div className="space-y-4">
+                              {routeSafeSpaces.map((safeSpace) => (
+                                <SafeSpaceListItem
+                                  key={safeSpace.id}
+                                  safeSpace={safeSpace}
+                                />
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1156,7 +1199,7 @@ export function Map() {
           >
             <button
               type="button"
-              onClick={() => navigate("support")}
+              onClick={() => navigate("/support")}
               className="flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
               aria-label="Go to Find Calm page"
             >
@@ -1165,7 +1208,7 @@ export function Map() {
           </div>
 
           {/* Desktop mic button + live noise bar */}
-          <div className="absolute bottom-6 right-6 z-10 hidden lg:block">
+          <div className="absolute bottom-6 left-6 z-10 hidden lg:block">
             {isMonitoring && <VolumeBar volume={volume} />}
             <MicButton
               onClick={
@@ -1176,11 +1219,11 @@ export function Map() {
           </div>
 
           {/* Desktop find calm button */}
-          <div className="absolute bottom-6 right-24 z-10 hidden lg:block">
+          <div className="absolute bottom-6 right-6 z-10 hidden lg:block">
             <button
               type="button"
-              onClick={() => navigate("/breathing-exercise")}
-              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/80 bg-[#7DB0A6] text-white shadow-lg"
+              onClick={() => navigate("/support")}
+              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
               aria-label="Go to Find Calm page"
             >
               <Wind size={22} />

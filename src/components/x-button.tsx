@@ -1,17 +1,26 @@
-import { useNavigate } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { useNavigate } from "react-router-dom";
+import { X } from "lucide-react";
 
 interface XButtonProps {
   className?: string;
   onClose?: () => void;
 }
 
-export function XButton({ className = "", onClose = undefined}: XButtonProps) {
+export function XButton({ className = "", onClose }: XButtonProps) {
   const navigate = useNavigate();
+
+  const handleClick = () => {
+    if (onClose) {
+      onClose();
+    } else {
+      // navigate to the previous page
+      navigate(-1);
+    }
+  };
 
   return (
     <button
-      onClick={onClose ? onClose : () => navigate("/")}
+      onClick={handleClick}
       type="button"
       className={`
         fixed top-6 right-6 z-50 
@@ -22,7 +31,7 @@ export function XButton({ className = "", onClose = undefined}: XButtonProps) {
         hover:bg-white/80 active:scale-95 
         ${className}
       `}
-      aria-label="Back to home"
+      aria-label="Close"
     >
       <X size={24} strokeWidth={2.5} />
     </button>

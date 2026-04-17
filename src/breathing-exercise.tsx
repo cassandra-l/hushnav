@@ -20,7 +20,7 @@ export function BreathingExercise({ onClose }: BreathingExerciseProps) {
       return;
     }
 
-    navigate("/map");
+    navigate("-1");
   };
 
   // tracking whether the user is currently inhaling or exhaling
