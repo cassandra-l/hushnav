@@ -7,42 +7,38 @@ import {
   Navigation,
   ChevronUp,
   ChevronDown,
-  TreePine,
-  Book,
-  Landmark,
-  Church,
-  Building2,
   Wind,
+  SlidersVertical,
 } from "lucide-react";
 import { MicButton } from "./components/mic-button";
 import { PopUp } from "./components/pop-up";
 import { RouteMap } from "./components/route-map";
+import { SafeSpaceStopoverPanel } from "./components/safe-space-stopover-panel";
 import type { PlanRouteResponse, SafeSpace } from "./types/route";
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
 import type { CrowdMapFeatureCollection } from "./types/noise-map";
 
-// Backend base URL from .env
+// Backend base URL from .env.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
-// Used to bias Photon results toward Melbourne CBD
+// Melbourne CBD centre point used to bias Photon search results.
 const CBD_CENTER = {
   lng: 144.9631,
   lat: -37.8136,
 };
 
-// A wider Melbourne inner bounding box so nearby areas like Docklands,
-// Southbank, and East Melbourne can still appear in suggestions
+// Inner Melbourne bounding box used to keep suggestions close to the app area.
 const MELBOURNE_INNER_BBOX = "144.88,-37.86,145.05,-37.77";
 
-// Standardised suggestion shape used by the UI
+// Standard frontend shape for location suggestions.
 type LocationSuggestion = {
   id: string;
   place_name: string;
   center?: [number, number];
 };
 
-// Photon API feature shape
+// Photon API feature shape.
 type PhotonFeature = {
   geometry?: {
     type?: string;
@@ -65,12 +61,12 @@ type PhotonFeature = {
   };
 };
 
-// Photon API response shape
+// Photon API response shape.
 type PhotonResponse = {
   features?: PhotonFeature[];
 };
 
-// Reusable props for the start/destination input with suggestions
+// Props for the reusable autocomplete input.
 type AutocompleteInputProps = {
   id: string;
   label: string;
@@ -85,7 +81,7 @@ type AutocompleteInputProps = {
   onFocus: () => void;
 };
 
-// Reusable autocomplete field used for both Start and Destination
+// Reusable autocomplete input for both start and destination fields.
 function AutocompleteInput({
   id,
   label,
@@ -99,6 +95,7 @@ function AutocompleteInput({
   onSelect,
   onFocus,
 }: AutocompleteInputProps) {
+  // Determines which icon/background should be shown.
   const isStart = iconType === "start";
 
   return (
@@ -112,7 +109,6 @@ function AutocompleteInput({
 
       <div className="relative">
         <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white px-4 py-3">
-          {/* Circle icon changes depending on whether this is start or destination */}
           <div
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
               isStart ? "bg-[#D4B896]" : "bg-[#7DB0A6]"
@@ -127,7 +123,6 @@ function AutocompleteInput({
 
           <Search size={16} className="shrink-0 text-[#5A9A8E]" />
 
-          {/* User text input */}
           <input
             id={id}
             type="text"
@@ -140,7 +135,7 @@ function AutocompleteInput({
           />
         </div>
 
-        {/* Suggestion dropdown */}
+        {/* Search suggestion dropdown. */}
         {isOpen && (
           <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 max-h-80 overflow-hidden overflow-y-auto rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">
             {loading ? (
@@ -170,7 +165,7 @@ function AutocompleteInput({
   );
 }
 
-// Builds a readable label from Photon feature properties
+// Builds a readable label from Photon result properties.
 function buildPhotonLabel(feature: PhotonFeature): string {
   const props = feature.properties ?? {};
 
@@ -198,7 +193,7 @@ function buildPhotonLabel(feature: PhotonFeature): string {
   return uniqueParts.join(", ");
 }
 
-// Converts a Photon feature into our app's LocationSuggestion format
+// Converts Photon results into the app's LocationSuggestion format.
 function normalisePhotonFeature(
   feature: PhotonFeature,
   index: number,
@@ -234,7 +229,7 @@ function normalisePhotonFeature(
   };
 }
 
-// Calls Photon API to fetch live search suggestions
+// Fetches Photon location suggestions using the user's typed query.
 async function fetchPhotonSuggestions(
   query: string,
   signal?: AbortSignal,
@@ -256,9 +251,7 @@ async function fetchPhotonSuggestions(
 
   const response = await fetch(
     `https://photon.komoot.io/api/?${params.toString()}`,
-    {
-      signal,
-    },
+    { signal },
   );
 
   if (!response.ok) {
@@ -275,133 +268,107 @@ async function fetchPhotonSuggestions(
     .filter((item): item is LocationSuggestion => item !== null);
 }
 
-// Returns the correct icon for each safe space type
-function renderSafeSpaceIcon(type: SafeSpace["type"]) {
-  switch (type) {
-    case "park":
-      return <TreePine size={16} className="text-[#5A9A8E]" />;
-    case "library":
-      return <Book size={16} className="text-[#5A9A8E]" />;
-    case "museum":
-      return <Landmark size={16} className="text-[#5A9A8E]" />;
-    case "church":
-      return <Church size={16} className="text-[#5A9A8E]" />;
-    case "synagogue":
-      return <Building2 size={16} className="text-[#5A9A8E]" />;
-    default:
-      return <MapPin size={16} className="text-[#5A9A8E]" />;
-  }
-}
-
-// Reusable list item for the desktop and mobile safe space sections
-type SafeSpaceListItemProps = {
-  safeSpace: SafeSpace;
-};
-
-function SafeSpaceListItem({ safeSpace }: SafeSpaceListItemProps) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm">
-        {renderSafeSpaceIcon(safeSpace.type)}
-      </div>
-
-      <div>
-        <p className="text-sm font-medium text-[#1E2939]">{safeSpace.name}</p>
-        <p className="mt-1 text-xs font-medium text-[#5A9A8E]">
-          {safeSpace.subTheme}
-        </p>
-        <p className="mt-1 text-xs leading-5 text-[#6A7282]">
-          {safeSpace.description}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// Main page component
+// Main map page component.
 export function Map() {
   const navigate = useNavigate();
 
-  // Noise monitoring popup + audio state
+  // Controls microphone permission popup visibility.
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
+
+  // Audio monitor state used by microphone button and live volume bar.
   const { volume, isMonitoring, startMonitoring, stopMonitoring } =
     useAudioMonitor();
 
-  // Mobile panel open/close state
+  // Controls whether the mobile search panel is open.
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(true);
 
-  // Controls whether safe spaces section is expanded
+  // Controls whether the safe spaces panel is expanded.
   const [isSafeSpacesOpen, setIsSafeSpacesOpen] = useState(false);
 
-  // Raw text currently typed into each field
+  // Stores raw text for start and destination fields.
   const [startLocation, setStartLocation] = useState("");
   const [destination, setDestination] = useState("");
 
-  // Selected suggestion objects
+  // Stores selected start suggestion with coordinates.
   const [selectedStart, setSelectedStart] = useState<LocationSuggestion | null>(
     null,
   );
+
+  // Stores selected destination suggestion with coordinates.
   const [selectedDestination, setSelectedDestination] =
     useState<LocationSuggestion | null>(null);
 
-  // Suggestion lists for each field
+  // Stores Photon suggestions for start.
   const [startSuggestions, setStartSuggestions] = useState<LocationSuggestion[]>(
     [],
   );
+
+  // Stores Photon suggestions for destination.
   const [destinationSuggestions, setDestinationSuggestions] = useState<
     LocationSuggestion[]
   >([]);
 
-  // Controls whether suggestion dropdowns are visible
+  // Controls suggestion dropdown visibility for start.
   const [isStartSuggestionsOpen, setIsStartSuggestionsOpen] = useState(false);
+
+  // Controls suggestion dropdown visibility for destination.
   const [isDestinationSuggestionsOpen, setIsDestinationSuggestionsOpen] =
     useState(false);
 
-  // Loading states for live search
+  // Loading state for start suggestions.
   const [isStartSuggestionsLoading, setIsStartSuggestionsLoading] =
     useState(false);
+
+  // Loading state for destination suggestions.
   const [isDestinationSuggestionsLoading, setIsDestinationSuggestionsLoading] =
     useState(false);
 
-  // Route API loading + error state
+  // Loading state for route planning.
   const [loading, setLoading] = useState(false);
+
+  // Route planning error text.
   const [error, setError] = useState("");
 
-  // Final route response shown on the map
+  // Current route response from backend.
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
 
-  // Crowd / noise line layer shown behind the route
+  // Selected safe space stopover shown in the UI.
+  const [selectedSafeSpaceStop, setSelectedSafeSpaceStop] =
+    useState<SafeSpace | null>(null);
+
+  // Crowd/noise map layer.
   const [crowdMapData, setCrowdMapData] =
     useState<CrowdMapFeatureCollection | null>(null);
 
-  // All safe spaces shown before a route is selected
+  // All safe spaces shown before a route is selected.
   const [allSafeSpaces, setAllSafeSpaces] = useState<SafeSpace[]>([]);
 
-  // Refs for click-outside handling
+  // Refs for detecting outside clicks.
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
   const mobileSearchPanelRef = useRef<HTMLDivElement | null>(null);
 
-  // Abort controllers prevent old Photon requests from overwriting newer ones
+  // Abort controllers stop old Photon requests overwriting newer results.
   const startAbortRef = useRef<AbortController | null>(null);
   const destinationAbortRef = useRef<AbortController | null>(null);
 
-  // Safe spaces returned by the backend for the active route
+  // Safe spaces returned by backend for the current route.
   const routeSafeSpaces = routeData?.safeSpaces ?? [];
 
-  // Helper to display route length nicely
+  // Formats route length into m/km.
   const formatRouteLength = (meters: number) => {
     if (meters < 1000) return `${Math.round(meters)} m`;
     return `${(meters / 1000).toFixed(1)} km`;
   };
 
-  // Rough walking duration estimate
+  // Estimates walking time from distance.
   const estimateWalkingMinutes = (meters: number) => {
     return Math.max(1, Math.round(meters / 84));
   };
 
-  // Returns the best display name for the route start
+  // Returns readable start label for route summary.
   const getStartDisplayName = () => {
     if (!routeData) return "";
+
     return (
       routeData.start.resolvedName ??
       (routeData.start.input === "selected_start_coordinates"
@@ -410,9 +377,10 @@ export function Map() {
     );
   };
 
-  // Returns the best display name for the route destination
+  // Returns readable destination label for route summary.
   const getEndDisplayName = () => {
     if (!routeData) return "";
+
     return (
       routeData.end.resolvedName ??
       (routeData.end.input === "selected_end_coordinates"
@@ -421,20 +389,39 @@ export function Map() {
     );
   };
 
-  // Clears the active route and resets route-specific UI state
+  // Sends Emily to the filter page from the route preview page.
+  // Cass can connect her filter page to this /filter route.
+  const handleOpenFilters = () => {
+    navigate("/filter");
+  };
+
+  // Clears the active route and resets route-specific UI state.
   const handleExitRoute = () => {
     setRouteData(null);
     setError("");
     setIsSafeSpacesOpen(false);
+    setSelectedSafeSpaceStop(null);
   };
 
-  // Close suggestion dropdowns when user clicks outside both panels
+  // Adds a safe space as a selected stopover in the UI.
+  const handleAddSafeSpaceStop = (safeSpace: SafeSpace) => {
+    setSelectedSafeSpaceStop(safeSpace);
+    setIsSafeSpacesOpen(false);
+  };
+
+  // Removes the selected safe space stopover from the UI.
+  const handleRemoveSafeSpaceStop = () => {
+    setSelectedSafeSpaceStop(null);
+  };
+
+  // Closes suggestion dropdowns when Emily clicks outside the panels.
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
 
       const clickedInsideDesktop =
         desktopSearchPanelRef.current?.contains(target) ?? false;
+
       const clickedInsideMobile =
         mobileSearchPanelRef.current?.contains(target) ?? false;
 
@@ -445,10 +432,11 @@ export function Map() {
     };
 
     document.addEventListener("mousedown", handleClickOutside);
+
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Watch start field and fetch live Photon suggestions
+  // Fetches start suggestions when Emily types in the start field.
   useEffect(() => {
     if (startLocation.trim().length < 2) {
       setStartSuggestions([]);
@@ -457,16 +445,19 @@ export function Map() {
     }
 
     startAbortRef.current?.abort();
+
     const controller = new AbortController();
     startAbortRef.current = controller;
 
     const timeout = setTimeout(async () => {
       try {
         setIsStartSuggestionsLoading(true);
+
         const results = await fetchPhotonSuggestions(
           startLocation,
           controller.signal,
         );
+
         setStartSuggestions(results);
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
@@ -486,7 +477,7 @@ export function Map() {
     };
   }, [startLocation]);
 
-  // Watch destination field and fetch live Photon suggestions
+  // Fetches destination suggestions when Emily types in the destination field.
   useEffect(() => {
     if (destination.trim().length < 2) {
       setDestinationSuggestions([]);
@@ -495,16 +486,19 @@ export function Map() {
     }
 
     destinationAbortRef.current?.abort();
+
     const controller = new AbortController();
     destinationAbortRef.current = controller;
 
     const timeout = setTimeout(async () => {
       try {
         setIsDestinationSuggestionsLoading(true);
+
         const results = await fetchPhotonSuggestions(
           destination,
           controller.signal,
         );
+
         setDestinationSuggestions(results);
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
@@ -524,7 +518,7 @@ export function Map() {
     };
   }, [destination]);
 
-  // Fetch crowd / noise map data once when the page loads
+  // Loads crowd/noise map data once when page opens.
   useEffect(() => {
     const fetchCrowdMap = async () => {
       try {
@@ -548,7 +542,7 @@ export function Map() {
     fetchCrowdMap();
   }, []);
 
-  // Fetch all safe spaces once so they can be shown before a route is selected
+  // Loads all safe spaces once so they can show before a route is planned.
   useEffect(() => {
     const fetchAllSafeSpaces = async () => {
       try {
@@ -573,7 +567,7 @@ export function Map() {
     fetchAllSafeSpaces();
   }, []);
 
-  // When a start suggestion is chosen, store both the label and coordinates
+  // Stores the selected start suggestion.
   const handleStartSelect = (suggestion: LocationSuggestion) => {
     setStartLocation(suggestion.place_name);
     setSelectedStart(suggestion);
@@ -581,7 +575,7 @@ export function Map() {
     setStartSuggestions([]);
   };
 
-  // When a destination suggestion is chosen, store both the label and coordinates
+  // Stores the selected destination suggestion.
   const handleDestinationSelect = (suggestion: LocationSuggestion) => {
     setDestination(suggestion.place_name);
     setSelectedDestination(suggestion);
@@ -589,11 +583,12 @@ export function Map() {
     setDestinationSuggestions([]);
   };
 
-  // Sends route request to backend
+  // Sends start/destination to backend to generate the quiet route.
   const handlePlanRoute = async () => {
     setError("");
     setIsStartSuggestionsOpen(false);
     setIsDestinationSuggestionsOpen(false);
+    setSelectedSafeSpaceStop(null);
 
     if (!startLocation.trim() || !destination.trim()) {
       setRouteData(null);
@@ -602,8 +597,7 @@ export function Map() {
     }
 
     if (
-      startLocation.trim().toLowerCase() ===
-      destination.trim().toLowerCase()
+      startLocation.trim().toLowerCase() === destination.trim().toLowerCase()
     ) {
       setRouteData(null);
       setError("Start location and destination cannot be the same.");
@@ -702,8 +696,9 @@ export function Map() {
   return (
     <main className="relative h-screen w-full overflow-hidden bg-[#D5E8E5]">
       <div className="h-full w-full lg:grid lg:grid-cols-[380px_1fr]">
-        {/* Desktop left sidebar */}
+        {/* Desktop left sidebar containing search and route summary. */}
         <aside className="z-20 hidden h-full flex-col border-r border-[#E8EEEC] bg-white lg:flex">
+          {/* Desktop search form. */}
           <div
             ref={desktopSearchPanelRef}
             className="border-b border-[#E8EEEC] px-5 pb-4 pt-5"
@@ -786,8 +781,8 @@ export function Map() {
             )}
           </div>
 
-          {/* Desktop route summary */}
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          {/* Desktop scrollable route summary area. */}
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 pb-8">
             {routeData ? (
               <div className="space-y-4">
                 <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
@@ -830,35 +825,15 @@ export function Map() {
                     </div>
                   </div>
 
-                  {routeSafeSpaces.length > 0 && (
-                    <div className="mt-5 border-t border-[#E8EEEC] pt-4">
-                      <button
-                        type="button"
-                        onClick={() => setIsSafeSpacesOpen((prev) => !prev)}
-                        className="flex w-full items-center justify-between text-left"
-                      >
-                        <h3 className="text-sm font-semibold text-[#1E2939]">
-                          Safe Spaces Along Route
-                        </h3>
-                        {isSafeSpacesOpen ? (
-                          <ChevronUp size={18} className="text-[#1E2939]" />
-                        ) : (
-                          <ChevronDown size={18} className="text-[#1E2939]" />
-                        )}
-                      </button>
-
-                      {isSafeSpacesOpen && (
-                        <div className="mt-4 space-y-4">
-                          {routeSafeSpaces.map((safeSpace) => (
-                            <SafeSpaceListItem
-                              key={safeSpace.id}
-                              safeSpace={safeSpace}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {/* Safe space stopover component for desktop. */}
+                  <SafeSpaceStopoverPanel
+                    safeSpaces={routeSafeSpaces}
+                    selectedStop={selectedSafeSpaceStop}
+                    isOpen={isSafeSpacesOpen}
+                    onToggleOpen={() => setIsSafeSpacesOpen((prev) => !prev)}
+                    onAddStop={handleAddSafeSpaceStop}
+                    onRemoveStop={handleRemoveSafeSpaceStop}
+                  />
                 </div>
 
                 <button
@@ -882,7 +857,7 @@ export function Map() {
           </div>
         </aside>
 
-        {/* Main map area */}
+        {/* Main map area containing map, mobile panels, and floating buttons. */}
         <div className="relative h-full w-full">
           <RouteMap
             key={
@@ -895,7 +870,7 @@ export function Map() {
             allSafeSpaces={allSafeSpaces}
           />
 
-          {/* Mobile collapsed top card */}
+          {/* Mobile collapsed search summary card. */}
           {!isMobileSearchOpen && (
             <div className="absolute left-4 right-4 top-4 z-10 lg:hidden">
               <button
@@ -919,7 +894,7 @@ export function Map() {
             </div>
           )}
 
-          {/* Mobile expanded search panel */}
+          {/* Mobile expanded search panel. */}
           {isMobileSearchOpen && (
             <section className="absolute left-4 right-4 top-4 z-20 lg:hidden">
               <div
@@ -1019,11 +994,11 @@ export function Map() {
             </section>
           )}
 
-          {/* Mobile bottom route summary */}
+          {/* Mobile bottom route summary and safe space stopover panel. */}
           <section className="absolute bottom-4 left-4 right-4 z-10 lg:hidden">
             <div className="overflow-hidden rounded-[28px] border border-white/80 bg-white/95 shadow-xl backdrop-blur-sm">
               {routeData ? (
-                <div className="max-h-[38vh] overflow-y-auto">
+                <div className="max-h-[45vh] overflow-y-auto">
                   <div className="grid grid-cols-4 items-center text-center">
                     <div className="border-r border-[#E8EEEC] px-3 py-4">
                       <p className="text-xs text-[#6A7282]">Noise Level</p>
@@ -1056,35 +1031,15 @@ export function Map() {
                     </div>
                   </div>
 
-                  {routeSafeSpaces.length > 0 && (
-                    <div className="border-t border-[#E8EEEC] px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => setIsSafeSpacesOpen((prev) => !prev)}
-                        className="flex w-full items-center justify-between text-left"
-                      >
-                        <h3 className="text-sm font-semibold text-[#1E2939]">
-                          Safe Spaces Along Route
-                        </h3>
-                        {isSafeSpacesOpen ? (
-                          <ChevronUp size={18} className="text-[#1E2939]" />
-                        ) : (
-                          <ChevronDown size={18} className="text-[#1E2939]" />
-                        )}
-                      </button>
-
-                      {isSafeSpacesOpen && (
-                        <div className="mt-4 space-y-4">
-                          {routeSafeSpaces.map((safeSpace) => (
-                            <SafeSpaceListItem
-                              key={safeSpace.id}
-                              safeSpace={safeSpace}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {/* Safe space stopover component for mobile. */}
+                  <SafeSpaceStopoverPanel
+                    safeSpaces={routeSafeSpaces}
+                    selectedStop={selectedSafeSpaceStop}
+                    isOpen={isSafeSpacesOpen}
+                    onToggleOpen={() => setIsSafeSpacesOpen((prev) => !prev)}
+                    onAddStop={handleAddSafeSpaceStop}
+                    onRemoveStop={handleRemoveSafeSpaceStop}
+                  />
                 </div>
               ) : (
                 <div className="flex items-center justify-between gap-4 px-5 py-4">
@@ -1108,7 +1063,7 @@ export function Map() {
             </div>
           </section>
 
-          {/* Mobile mic button + live noise bar */}
+          {/* Mobile microphone button and live volume bar. */}
           <div
             className={`absolute left-4 z-10 lg:hidden transition-all ${
               isSafeSpacesOpen
@@ -1125,7 +1080,7 @@ export function Map() {
             />
           </div>
 
-          {/* Mobile find calm button */}
+          {/* Mobile Find Calm shortcut button. */}
           <div
             className={`absolute right-4 z-10 lg:hidden transition-all ${
               isSafeSpacesOpen
@@ -1143,7 +1098,7 @@ export function Map() {
             </button>
           </div>
 
-          {/* Desktop mic button + live noise bar */}
+          {/* Desktop microphone button and live volume bar. */}
           <div className="absolute bottom-6 right-6 z-10 hidden lg:block">
             {isMonitoring && <VolumeBar volume={volume} />}
             <MicButton
@@ -1154,7 +1109,7 @@ export function Map() {
             />
           </div>
 
-          {/* Desktop find calm button */}
+          {/* Desktop Find Calm shortcut button. */}
           <div className="absolute bottom-6 right-24 z-10 hidden lg:block">
             <button
               type="button"
@@ -1168,7 +1123,7 @@ export function Map() {
         </div>
       </div>
 
-      {/* Microphone permission popup */}
+      {/* Microphone permission popup shown before audio monitoring starts. */}
       {isPopUpOpen && (
         <PopUp
           onClose={() => setIsPopUpOpen(false)}

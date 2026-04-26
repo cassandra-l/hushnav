@@ -1,48 +1,45 @@
-import { getAllSafeSpaces } from "./safeSpaces";
+const handleAddSafeSpaceStop = async (safeSpace: SafeSpace) => {
+  if (!routeData || !API_BASE_URL) return;
 
-export async function handlePlanRoute(body: unknown) {
   try {
-    // Import planRoute only when this function is actually called.
-    // This prevents the safe-spaces Lambda from loading geocode.ts on startup.
-    const { planRoute } = await import("./planRoute");
+    setLoading(true);
 
-    const result = await planRoute(body as Parameters<typeof planRoute>[0]);
+    const requestBody = {
+      start: {
+        lat: routeData.start.lat,
+        lng: routeData.start.lng,
+      },
+      end: {
+        lat: routeData.end.lat,
+        lng: routeData.end.lng,
+      },
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify(result),
+      // 🔥 NEW PART (stopover)
+      stop: {
+        lat: safeSpace.lat,
+        lng: safeSpace.lng,
+      },
+
+      startQuery: routeData.start.input,
+      endQuery: routeData.end.input,
     };
-  } catch (error) {
-    console.error("Plan route handler error:", error);
 
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        error: error instanceof Error ? error.message : "Failed to plan route.",
-      }),
-    };
+    const response = await fetch(`${API_BASE_URL}/plan-route`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    const data = await response.json();
+
+    setRouteData(data);
+    setIsSafeSpacesOpen(false);
+
+  } catch (err) {
+    console.error("Failed to add stop:", err);
+  } finally {
+    setLoading(false);
   }
-}
-
-export async function handleGetSafeSpaces() {
-  try {
-    const result = await getAllSafeSpaces();
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify(result),
-    };
-  } catch (error) {
-    console.error("Get safe spaces handler error:", error);
-
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to load safe spaces.",
-      }),
-    };
-  }
-}
+};
