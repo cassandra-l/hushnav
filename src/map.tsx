@@ -789,6 +789,16 @@ export function Map() {
                   <h2 className="mb-3 text-base font-semibold text-[#1E2939]">
                     Route Summary
                   </h2>
+                  {/* Filter button allowing Emily to customise route preferences.
+    This connects to the filter page (handled by Cass). */}
+<button
+  type="button"
+  onClick={handleOpenFilters}
+  className="mb-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#7DB0A6] px-4 py-3 text-sm font-medium text-white shadow-sm"
+>
+  <SlidersVertical size={16} className="text-white" />
+  Filters
+</button>
 
                   <div className="space-y-3 text-sm text-[#1E2939]">
                     <div className="flex justify-between gap-4">
@@ -1000,6 +1010,18 @@ export function Map() {
               {routeData ? (
                 <div className="max-h-[45vh] overflow-y-auto">
                   <div className="grid grid-cols-4 items-center text-center">
+                    {/* Mobile filter button placed below route summary.
+    Allows navigation to filter page on smaller screens. */}
+<div className="border-t border-[#E8EEEC] px-5 py-3">
+  <button
+    type="button"
+    onClick={handleOpenFilters}
+    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#7DB0A6] px-4 py-3 text-sm font-medium text-white shadow-sm"
+  >
+    <SlidersVertical size={16} className="text-white" />
+    Filters
+  </button>
+</div>
                     <div className="border-r border-[#E8EEEC] px-3 py-4">
                       <p className="text-xs text-[#6A7282]">Noise Level</p>
                       <p className="text-[15px] font-medium text-[#5A9A8E]">

@@ -1,45 +1,73 @@
-const handleAddSafeSpaceStop = async (safeSpace: SafeSpace) => {
-  if (!routeData || !API_BASE_URL) return;
+import { getAllSafeSpaces } from "./safeSpaces";
 
+// ================= PLAN ROUTE HANDLER =================
+
+// Handles route planning requests from frontend.
+// This is used by BOTH:
+// - Express server (local development)
+// - AWS Lambda
+export async function handlePlanRoute(body: unknown) {
   try {
-    setLoading(true);
+    // Dynamically import planRoute only when needed.
+    // This prevents unnecessary loading (important for Lambda cold starts).
+    const { planRoute } = await import("./planRoute");
 
-    const requestBody = {
-      start: {
-        lat: routeData.start.lat,
-        lng: routeData.start.lng,
-      },
-      end: {
-        lat: routeData.end.lat,
-        lng: routeData.end.lng,
-      },
+    // Call the actual routing logic
+    const result = await planRoute(
+      body as Parameters<typeof planRoute>[0],
+    );
 
-      // 🔥 NEW PART (stopover)
-      stop: {
-        lat: safeSpace.lat,
-        lng: safeSpace.lng,
-      },
-
-      startQuery: routeData.start.input,
-      endQuery: routeData.end.input,
+    // Return successful response
+    return {
+      statusCode: 200,
+      body: JSON.stringify(result),
     };
+  } catch (error) {
+    // Log error for debugging
+    console.error("Plan route handler error:", error);
 
-    const response = await fetch(`${API_BASE_URL}/plan-route`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    const data = await response.json();
-
-    setRouteData(data);
-    setIsSafeSpacesOpen(false);
-
-  } catch (err) {
-    console.error("Failed to add stop:", err);
-  } finally {
-    setLoading(false);
+    // Return error response
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to plan route.",
+      }),
+    };
   }
-};
+}
+
+// ================= SAFE SPACES HANDLER =================
+
+// Returns all safe spaces for the application.
+// This is used by BOTH:
+// - Local Express server (/safe-spaces)
+// - AWS Lambda (/safe-spaces endpoint)
+export async function handleGetSafeSpaces() {
+  try {
+    // Fetch safe spaces from shared data source
+    const result = await getAllSafeSpaces();
+
+    // Return successful response
+    return {
+      statusCode: 200,
+      body: JSON.stringify(result),
+    };
+  } catch (error) {
+    // Log error for debugging
+    console.error("Get safe spaces handler error:", error);
+
+    // Return error response
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to load safe spaces.",
+      }),
+    };
+  }
+}
