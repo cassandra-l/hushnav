@@ -110,7 +110,7 @@ function AutocompleteInput({
       )}
 
       <div className="relative">
-        <div className="flex items-center gap-3 rounded-2xl border border-[#DCE7E3] bg-white px-4 py-3">
+        <div className="flex items-center gap-3 rounded-2xl px-4 py-2">
           {/* Circle icon changes depending on whether this is start or destination */}
           <div
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
@@ -348,6 +348,11 @@ export function Map() {
   // Safe spaces returned by the backend for the active route
   const routeSafeSpaces = routeData?.safeSpaces ?? [];
 
+  // Reference to the 'Safe Spaces' section container
+  const safeSpacesRef = useRef<HTMLDivElement>(null);
+
+  const sidebarScrollRef = useRef<HTMLDivElement>(null);
+
   // Helper to display route length nicely
   const formatRouteLength = (meters: number) => {
     if (meters < 1000) return `${Math.round(meters)} m`;
@@ -390,6 +395,7 @@ export function Map() {
 
   // Clears the active route and resets route-specific UI state
   const handleExitRoute = () => {
+    // Remove the line from the map
     setRouteData(null);
     setError("");
     setIsSafeSpacesOpen(false);
@@ -558,6 +564,29 @@ export function Map() {
 
     fetchAllSafeSpaces();
   }, []);
+
+  // Handle automatic scrolling when the Safe Spaces section is toggled
+  useEffect(() => {
+    if (isSafeSpacesOpen && safeSpacesRef.current && sidebarScrollRef.current) {
+      const timer = setTimeout(() => {
+        const containerTop =
+          sidebarScrollRef.current?.getBoundingClientRect().top || 0;
+        const elementTop =
+          safeSpacesRef.current?.getBoundingClientRect().top || 0;
+        const scrollOffset =
+          elementTop - containerTop + sidebarScrollRef.current!.scrollTop;
+
+        sidebarScrollRef.current?.scrollTo({
+          // Scrolling so the box starts about 100px from the top
+          // This keeps the context of the route summary visible
+          top: scrollOffset - 100,
+          behavior: "smooth",
+        });
+      }, 150);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isSafeSpacesOpen]);
 
   // When a start suggestion is chosen, store both the label and coordinates
   const handleStartSelect = (suggestion: LocationSuggestion) => {
