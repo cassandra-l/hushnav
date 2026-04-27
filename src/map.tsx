@@ -4,18 +4,14 @@ import {
   ArrowLeft,
   MapPin,
   Navigation,
-  ChevronUp,
   ChevronDown,
-  TreePine,
-  Book,
-  Landmark,
-  Church,
-  Building2,
   Wind,
+  SlidersVertical,
 } from "lucide-react";
 import { MicButton } from "./components/mic-button";
 import { PopUp } from "./components/pop-up";
 import { RouteMap } from "./components/route-map";
+import { SafeSpaceStopoverPanel } from "./components/safe-space-stopover-panel";
 import type { PlanRouteResponse, SafeSpace } from "./types/route";
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
@@ -103,12 +99,14 @@ function AutocompleteInput({
 
   return (
     <div className="mb-3">
-      <label
-        htmlFor={id}
-        className="mb-2 block text-xs font-medium text-[#4A5565]"
-      >
-        {label}
-      </label>
+      {label && (
+        <label
+          htmlFor={id}
+          className="mb-2 block text-xs font-medium text-[#4A5565]"
+        >
+          {label}
+        </label>
+      )}
 
       <div className="relative">
         <div className="flex items-center gap-3 rounded-2xl px-4 py-2">
@@ -273,49 +271,6 @@ async function fetchPhotonSuggestions(
     .filter((item): item is LocationSuggestion => item !== null);
 }
 
-// Returns the correct icon for each safe space type
-function renderSafeSpaceIcon(type: SafeSpace["type"]) {
-  switch (type) {
-    case "park":
-      return <TreePine size={16} className="text-[#5A9A8E]" />;
-    case "library":
-      return <Book size={16} className="text-[#5A9A8E]" />;
-    case "museum":
-      return <Landmark size={16} className="text-[#5A9A8E]" />;
-    case "church":
-      return <Church size={16} className="text-[#5A9A8E]" />;
-    case "synagogue":
-      return <Building2 size={16} className="text-[#5A9A8E]" />;
-    default:
-      return <MapPin size={16} className="text-[#5A9A8E]" />;
-  }
-}
-
-// Reusable list item for the desktop and mobile safe space sections
-type SafeSpaceListItemProps = {
-  safeSpace: SafeSpace;
-};
-
-function SafeSpaceListItem({ safeSpace }: SafeSpaceListItemProps) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm">
-        {renderSafeSpaceIcon(safeSpace.type)}
-      </div>
-
-      <div>
-        <p className="text-sm font-medium text-[#1E2939]">{safeSpace.name}</p>
-        <p className="mt-1 text-xs font-medium text-[#5A9A8E]">
-          {safeSpace.subTheme}
-        </p>
-        <p className="mt-1 text-xs leading-5 text-[#6A7282]">
-          {safeSpace.description}
-        </p>
-      </div>
-    </div>
-  );
-}
-
 // Main page component
 export function Map() {
   const navigate = useNavigate();
@@ -368,6 +323,10 @@ export function Map() {
   // Final route response shown on the map
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
 
+  // Selected safe space stopover shown in the UI
+  const [selectedSafeSpaceStop, setSelectedSafeSpaceStop] =
+    useState<SafeSpace | null>(null);
+
   // Crowd / noise line layer shown behind the route
   const [crowdMapData, setCrowdMapData] =
     useState<CrowdMapFeatureCollection | null>(null);
@@ -405,6 +364,7 @@ export function Map() {
   // Returns the best display name for the route start
   const getStartDisplayName = () => {
     if (!routeData) return "";
+
     return (
       routeData.start.resolvedName ??
       (routeData.start.input === "selected_start_coordinates"
@@ -416,6 +376,7 @@ export function Map() {
   // Returns the best display name for the route destination
   const getEndDisplayName = () => {
     if (!routeData) return "";
+
     return (
       routeData.end.resolvedName ??
       (routeData.end.input === "selected_end_coordinates"
@@ -424,10 +385,18 @@ export function Map() {
     );
   };
 
+  // Sends Emily to the filter page from the route preview page
+  const handleOpenFilters = () => {
+    navigate("/filter");
+  };
+
   // Clears the active route and resets route-specific UI state
   const handleExitRoute = () => {
     // Remove the line from the map
     setRouteData(null);
+    setError("");
+    setIsSafeSpacesOpen(false);
+    setSelectedSafeSpaceStop(null);
 
     // Clear the input strings so the search bar is empty
     setStartLocation("");
@@ -439,6 +408,17 @@ export function Map() {
 
     // Ensure the search panel stays open for a new search
     setIsMobileSearchOpen(true);
+  };
+
+  // Adds a safe space as a selected stopover in the UI
+  const handleAddSafeSpaceStop = (safeSpace: SafeSpace) => {
+    setSelectedSafeSpaceStop(safeSpace);
+    setIsSafeSpacesOpen(false);
+  };
+
+  // Removes the selected safe space stopover from the UI
+  const handleRemoveSafeSpaceStop = () => {
+    setSelectedSafeSpaceStop(null);
   };
 
   // Close suggestion dropdowns when user clicks outside both panels
@@ -632,6 +612,7 @@ export function Map() {
     setError("");
     setIsStartSuggestionsOpen(false);
     setIsDestinationSuggestionsOpen(false);
+    setSelectedSafeSpaceStop(null);
 
     if (!startLocation.trim() || !destination.trim()) {
       setRouteData(null);
@@ -837,6 +818,15 @@ export function Map() {
                     Route Summary
                   </h2>
 
+                  <button
+                    type="button"
+                    onClick={handleOpenFilters}
+                    className="mb-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#7DB0A6] px-4 py-3 text-sm font-medium text-white shadow-sm"
+                  >
+                    <SlidersVertical size={16} className="text-white" />
+                    Filters
+                  </button>
+
                   <div className="space-y-3 text-sm text-[#1E2939]">
                     <div className="flex justify-between gap-4">
                       <span className="text-[#6A7282]">Noise Level</span>
@@ -873,47 +863,16 @@ export function Map() {
                     </div>
                   </div>
 
-                  {routeSafeSpaces.length > 0 && (
-                    <div
-                      ref={safeSpacesRef}
-                      className="mt-5 border-t border-[#E8EEEC] pt-4"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setIsSafeSpacesOpen((prev) => !prev)}
-                        className="flex w-full items-center justify-between text-left"
-                      >
-                        <h3 className="text-sm font-semibold text-[#1E2939]">
-                          Safe Spaces Along Route
-                        </h3>
-                        {isSafeSpacesOpen ? (
-                          <ChevronUp size={18} className="text-[#1E2939]" />
-                        ) : (
-                          <ChevronDown size={18} className="text-[#1E2939]" />
-                        )}
-                      </button>
-
-                      {isSafeSpacesOpen && (
-                        <div className="mt-4 pr-2">
-                          {" "}
-                          {/* Added padding-right for the scrollbar space */}
-                          <div
-                            className="max-h-75 overflow-y-auto pr-2 custom-scrollbar"
-                            onWheel={(e) => e.stopPropagation()} // Prevents the sidebar from scrolling until the list hits the end
-                          >
-                            <div className="space-y-4">
-                              {routeSafeSpaces.map((safeSpace) => (
-                                <SafeSpaceListItem
-                                  key={safeSpace.id}
-                                  safeSpace={safeSpace}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <div ref={safeSpacesRef} className="mt-5">
+                    <SafeSpaceStopoverPanel
+                      safeSpaces={routeSafeSpaces}
+                      selectedStop={selectedSafeSpaceStop}
+                      isOpen={isSafeSpacesOpen}
+                      onToggleOpen={() => setIsSafeSpacesOpen((prev) => !prev)}
+                      onAddStop={handleAddSafeSpaceStop}
+                      onRemoveStop={handleRemoveSafeSpaceStop}
+                    />
+                  </div>
                 </div>
 
                 <button
@@ -976,15 +935,13 @@ export function Map() {
 
           {/* Mobile search panel */}
           {isMobileSearchOpen && !routeData && (
-            <section className=" absolute left-4 right-4 top-5 z-20 lg:hidden">
+            <section className="absolute left-4 right-4 top-5 z-20 lg:hidden">
               <div
                 ref={mobileSearchPanelRef}
                 className="flex items-start gap-3"
               >
                 {/* Back Button */}
                 <div className="pt-13">
-                  {/* className=" mb-4 flex items-start justify-between gap-3" */}
-                  {/* <div className="flex items-center gap-3"> */}
                   <button
                     onClick={() => navigate("/")}
                     className="flex h-10 w-10 items-center justify-center rounded-full border border-white bg-white/80 text-[#1E2939] shadow-sm"
@@ -992,25 +949,6 @@ export function Map() {
                   >
                     <ArrowLeft size={18} />
                   </button>
-
-                  {/* <div>
-                      <h1 className="text-[24px] font-semibold leading-tight text-[#1E2939]">
-                        Quiet Route
-                      </h1>
-                      <p className="text-sm text-[#6A7282]">
-                        Find the calmest path through the city
-                      </p>
-                    </div> */}
-                  {/* </div> */}
-
-                  {/* <button
-                    type="button"
-                    onClick={() => setIsMobileSearchOpen(false)}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E8EEEC] bg-[#F7FAF9] text-[#1E2939]"
-                    aria-label="Collapse panel"
-                  >
-                    <ChevronUp size={18} />
-                  </button> */}
                 </div>
 
                 <div className="flex flex-1 flex-col">
@@ -1100,7 +1038,18 @@ export function Map() {
           {routeData && (
             <section className="absolute bottom-4 left-4 right-4 z-10 lg:hidden">
               <div className="overflow-hidden rounded-[28px] border border-white/80 bg-white/95 shadow-xl backdrop-blur-sm">
-                <div className="max-h-[38vh] overflow-y-auto overscroll-contain">
+                <div className="max-h-[45vh] overflow-y-auto overscroll-contain">
+                  <div className="border-b border-[#E8EEEC] px-5 py-3">
+                    <button
+                      type="button"
+                      onClick={handleOpenFilters}
+                      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#7DB0A6] px-4 py-3 text-sm font-medium text-white shadow-sm"
+                    >
+                      <SlidersVertical size={16} className="text-white" />
+                      Filters
+                    </button>
+                  </div>
+
                   <div className="grid grid-cols-4 items-center text-center">
                     <div className="border-r border-[#E8EEEC] px-3 py-4">
                       <p className="text-xs text-[#6A7282]">Noise Level</p>
@@ -1134,35 +1083,14 @@ export function Map() {
                     </div>
                   </div>
 
-                  {routeSafeSpaces.length > 0 && (
-                    <div className="border-t border-[#E8EEEC] px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => setIsSafeSpacesOpen((prev) => !prev)}
-                        className="flex w-full items-center justify-between text-left"
-                      >
-                        <h3 className="text-sm font-semibold text-[#1E2939]">
-                          Safe Spaces Along Route
-                        </h3>
-                        {isSafeSpacesOpen ? (
-                          <ChevronUp size={18} className="text-[#1E2939]" />
-                        ) : (
-                          <ChevronDown size={18} className="text-[#1E2939]" />
-                        )}
-                      </button>
-
-                      {isSafeSpacesOpen && (
-                        <div className="mt-4 space-y-4">
-                          {routeSafeSpaces.map((safeSpace) => (
-                            <SafeSpaceListItem
-                              key={safeSpace.id}
-                              safeSpace={safeSpace}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <SafeSpaceStopoverPanel
+                    safeSpaces={routeSafeSpaces}
+                    selectedStop={selectedSafeSpaceStop}
+                    isOpen={isSafeSpacesOpen}
+                    onToggleOpen={() => setIsSafeSpacesOpen((prev) => !prev)}
+                    onAddStop={handleAddSafeSpaceStop}
+                    onRemoveStop={handleRemoveSafeSpaceStop}
+                  />
                 </div>
               </div>
             </section>
