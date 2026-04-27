@@ -1160,7 +1160,7 @@ export function Map() {
         </div>
       </div>
 
-      {/* Microphone permission popu */}
+      {/* Microphone permission popup */}
       {isPopUpOpen && (
         <PopUp
           onClose={() => setIsPopUpOpen(false)}
