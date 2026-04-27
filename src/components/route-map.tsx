@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Map, {
   Marker,
-  NavigationControl,
   Popup,
   Source,
   Layer,
@@ -166,7 +165,7 @@ export function RouteMap({
         mapStyle="mapbox://styles/mapbox/streets-v12"
       >
         {/* Map controls */}
-        <NavigationControl position="top-right" />
+        {/* <NavigationControl position="top-right" /> */}
 
         {/* Crowd / noise line layer */}
         {crowdMapData && (
