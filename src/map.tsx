@@ -7,7 +7,6 @@ import {
   ChevronDown,
   Wind,
   SlidersVertical,
-  Search,
 } from "lucide-react";
 import { MicButton } from "./components/mic-button";
 import { PopUp } from "./components/pop-up";
@@ -123,8 +122,6 @@ function AutocompleteInput({
               <MapPin size={16} className="text-white" />
             )}
           </div>
-
-          <Search size={16} className="shrink-0 text-[#5A9A8E]" />
 
           {/* User text input */}
           <input
@@ -401,11 +398,15 @@ export function Map() {
     setIsSafeSpacesOpen(false);
     setSelectedSafeSpaceStop(null);
 
+    // Clear the input strings so the search bar is empty
     setStartLocation("");
     setDestination("");
+
+    // Clear the actual coordinate objects
     setSelectedStart(null);
     setSelectedDestination(null);
 
+    // Ensure the search panel stays open for a new search
     setIsMobileSearchOpen(true);
   };
 
@@ -806,7 +807,10 @@ export function Map() {
           </div>
 
           {/* Desktop route summary */}
-          <div className="flex-1 overflow-y-auto px-5 py-4 custom-scrollbar min-h-0">
+          <div
+            ref={sidebarScrollRef}
+            className="flex-1 overflow-y-auto px-5 py-4 custom-scrollbar min-h-0"
+          >
             {routeData ? (
               <div className="space-y-4">
                 <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
@@ -859,14 +863,16 @@ export function Map() {
                     </div>
                   </div>
 
-                  <SafeSpaceStopoverPanel
-                    safeSpaces={routeSafeSpaces}
-                    selectedStop={selectedSafeSpaceStop}
-                    isOpen={isSafeSpacesOpen}
-                    onToggleOpen={() => setIsSafeSpacesOpen((prev) => !prev)}
-                    onAddStop={handleAddSafeSpaceStop}
-                    onRemoveStop={handleRemoveSafeSpaceStop}
-                  />
+                  <div ref={safeSpacesRef} className="mt-5">
+                    <SafeSpaceStopoverPanel
+                      safeSpaces={routeSafeSpaces}
+                      selectedStop={selectedSafeSpaceStop}
+                      isOpen={isSafeSpacesOpen}
+                      onToggleOpen={() => setIsSafeSpacesOpen((prev) => !prev)}
+                      onAddStop={handleAddSafeSpaceStop}
+                      onRemoveStop={handleRemoveSafeSpaceStop}
+                    />
+                  </div>
                 </div>
 
                 <button
@@ -969,7 +975,6 @@ export function Map() {
                         setIsDestinationSuggestionsOpen(false);
                       }}
                     />
-
                     {/* Divider Line */}
                     <div className="mx-4 h-px bg-[#E8EEEC]" />
 
@@ -998,7 +1003,6 @@ export function Map() {
                       }}
                     />
                   </div>
-
                   <AnimatePresence>
                     {startLocation && destination && (
                       <motion.div
