@@ -193,10 +193,6 @@ async function getConstructionBlockedEdgeIds(
   }
 }
 
-function toNumericId(value: string | number): number {
-  return Number(value);
-}
-
 
 export async function snapToNearestNode(
   coordinate: Coordinate,
