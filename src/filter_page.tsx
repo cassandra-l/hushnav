@@ -99,7 +99,7 @@ export default function FilterScreen() {
   ];
 
   const sensitivities: FilterOption[] = [
-    { id: 'standard', title: 'Standard Sensitivity', description: 'Includes mechanical and social noise filters.', icon: <Settings2 />, theme: 'tan' },
+    { id: 'standard', title: 'Standard Sensitivity', description: 'Considers both mechanical and social noise.', icon: <Settings2 />, theme: 'tan' },
     { id: 'mechanical', title: 'Mechanical Sounds', description: 'Reduces exposure to harsh sounds', icon: <Settings2 />, theme: 'tan' },
     { id: 'social', title: 'Social Noise', description: 'Avoid busy areas and chatters.', icon: <Users />, theme: 'tan' },
   ];
