@@ -12,9 +12,11 @@ export type SafeSpace = {
   lng: number;
 };
 
+export type SafeSpaceType = SafeSpace["type"];
+
 // Raw database row shape returned by Postgres
 type SafeSpaceRow = {
-  id: number;
+  safe_space_id: number;
   feature_name: string;
   sub_theme: string;
   lat: number;
@@ -62,7 +64,8 @@ function buildDescription(subTheme: string): string {
 // Finds safe spaces close to the planned route line
 export async function getSafeSpacesNearRoute(
   routeGeoJson: LineString,
-  bufferMeters = 200,
+  safeSpaceTypes?: SafeSpaceType[],
+  bufferMeters = 100,
 ): Promise<SafeSpace[]> {
   const client = await pool.connect();
 
@@ -75,18 +78,11 @@ export async function getSafeSpacesNearRoute(
         SELECT ST_SetSRID(ST_GeomFromGeoJSON($1), 4326) AS geom
       )
       SELECT
-        ROW_NUMBER() OVER (
-          ORDER BY
-            ST_Distance(
-              ss.geom_safe_space::geography,
-              rg.geom::geography
-            ) ASC,
-            ss.feature_name ASC
-        ) AS id,
-        ss.feature_name,
-        ss.sub_theme,
-        ST_Y(ss.geom_safe_space) AS lat,
-        ST_X(ss.geom_safe_space) AS lng
+      ss.safe_space_id,
+      ss.feature_name,
+      ss.sub_theme,
+      ST_Y(ss.geom_safe_space) AS lat,
+      ST_X(ss.geom_safe_space) AS lng
       FROM safe_space ss
       CROSS JOIN route_geom rg
       WHERE ss.geom_safe_space IS NOT NULL
@@ -110,8 +106,8 @@ export async function getSafeSpacesNearRoute(
       `Found ${result.rows.length} safe spaces within ${bufferMeters}m of route.`,
     );
 
-    return result.rows.map((row) => ({
-      id: Number(row.id),
+    const safeSpaces = result.rows.map((row) => ({
+      id: Number(row.safe_space_id),
       name: row.feature_name,
       subTheme: row.sub_theme,
       type: mapSubThemeToType(row.sub_theme),
@@ -119,17 +115,26 @@ export async function getSafeSpacesNearRoute(
       lat: Number(row.lat),
       lng: Number(row.lng),
     }));
+
+    if (!safeSpaceTypes || safeSpaceTypes.length === 0) {
+      return safeSpaces;
+    }
+
+    return safeSpaces.filter((safeSpace) =>
+      safeSpaceTypes.includes(safeSpace.type),
+    );
   } finally {
     client.release();
   }
 }
 
-// Returns all safe spaces so markers can always be shown on the map
-export async function getAllSafeSpaces(): Promise<SafeSpace[]> {
+
+export async function getSafeSpaceById(id: number): Promise<SafeSpace | null> {
   const client = await pool.connect();
 
   try {
     const result = await client.query<{
+      safe_space_id: number;
       feature_name: string;
       sub_theme: string;
       lat: number;
@@ -137,6 +142,55 @@ export async function getAllSafeSpaces(): Promise<SafeSpace[]> {
     }>(
       `
       SELECT
+        ss.safe_space_id,
+        ss.feature_name,
+        ss.sub_theme,
+        ST_Y(ss.geom_safe_space) AS lat,
+        ST_X(ss.geom_safe_space) AS lng
+      FROM safe_space ss
+      WHERE ss.safe_space_id = $1
+        AND ss.geom_safe_space IS NOT NULL
+      LIMIT 1
+      `,
+      [id],
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const row = result.rows[0];
+
+    return {
+      id: Number(row.safe_space_id),
+      name: row.feature_name,
+      subTheme: row.sub_theme,
+      type: mapSubThemeToType(row.sub_theme),
+      description: buildDescription(row.sub_theme),
+      lat: Number(row.lat),
+      lng: Number(row.lng),
+    };
+  } finally {
+    client.release();
+  }
+}
+
+
+// Returns all safe spaces so markers can always be shown on the map
+export async function getAllSafeSpaces(): Promise<SafeSpace[]> {
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query<{
+      safe_space_id: number;
+      feature_name: string;
+      sub_theme: string;
+      lat: number;
+      lng: number;
+    }>(
+      `
+      SELECT
+        ss.safe_space_id,
         ss.feature_name,
         ss.sub_theme,
         ST_Y(ss.geom_safe_space) AS lat,
@@ -149,8 +203,8 @@ export async function getAllSafeSpaces(): Promise<SafeSpace[]> {
 
     console.log(`Loaded ${result.rows.length} total safe spaces.`);
 
-    return result.rows.map((row, index) => ({
-      id: index + 1,
+    return result.rows.map((row) => ({
+      id: Number(row.safe_space_id),
       name: row.feature_name,
       subTheme: row.sub_theme,
       type: mapSubThemeToType(row.sub_theme),
