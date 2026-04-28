@@ -387,7 +387,7 @@ export function Map() {
 
   // Sends Emily to the filter page from the route preview page
   const handleOpenFilters = () => {
-    navigate("/filter");
+    navigate("/filter_page");
   };
 
   // Clears the active route and resets route-specific UI state
