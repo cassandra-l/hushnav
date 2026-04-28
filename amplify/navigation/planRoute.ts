@@ -1,6 +1,15 @@
 import { geocodePlace } from "./geocode";
-import { getQuietestRouteFromCoordinates } from "./route";
-import { getSafeSpacesNearRoute, type SafeSpace } from "./safeSpaces";
+import {
+  getQuietestRouteFromCoordinates,
+  type AvoidMode,
+  type RouteResult,
+} from "./route";
+import {
+  getSafeSpacesNearRoute,
+  getSafeSpaceById,
+  type SafeSpace,
+  type SafeSpaceType,
+} from "./safeSpaces";
 import type { LineString } from "geojson";
 
 export type Coordinate = {
@@ -14,6 +23,9 @@ export type PlanRouteRequest = {
   end?: Coordinate;
   startQuery?: string;
   endQuery?: string;
+  avoidMode?: AvoidMode;
+  safeSpaceTypes?: SafeSpaceType[];
+  stopSafeSpaceId?: number;
 };
 
 // Full response returned to the frontend
@@ -40,6 +52,13 @@ export type PlanRouteResponse = {
     geojson: LineString;
   };
   safeSpaces: SafeSpace[];
+  stopover?: {
+    id: number;
+    name: string;
+    type: SafeSpaceType;
+    lat: number;
+    lng: number;
+  };
 };
 
 // Checks whether a value is a valid coordinate object
@@ -50,10 +69,63 @@ function isValidCoordinate(value: unknown): value is Coordinate {
   return typeof coord.lat === "number" && typeof coord.lng === "number";
 }
 
+// Merges two route results into one route.
+// Removes the duplicated stopover node / coordinate at the join point.
+function mergeRouteResults(first: RouteResult, second: RouteResult): RouteResult {
+  const mergedCoordinates = [...first.geojson.coordinates];
+
+  if (second.geojson.coordinates.length > 0) {
+    const firstLastCoordinate = mergedCoordinates[mergedCoordinates.length - 1];
+    const secondFirstCoordinate = second.geojson.coordinates[0];
+
+    const sameCoordinate =
+      firstLastCoordinate &&
+      secondFirstCoordinate &&
+      firstLastCoordinate[0] === secondFirstCoordinate[0] &&
+      firstLastCoordinate[1] === secondFirstCoordinate[1];
+
+    mergedCoordinates.push(
+      ...(sameCoordinate
+        ? second.geojson.coordinates.slice(1)
+        : second.geojson.coordinates)
+    );
+  }
+
+  const mergedNodeIds = [...first.nodeIds];
+  if (second.nodeIds.length > 0) {
+    const sameNode =
+      mergedNodeIds.length > 0 &&
+      mergedNodeIds[mergedNodeIds.length - 1] === second.nodeIds[0];
+
+    mergedNodeIds.push(...(sameNode ? second.nodeIds.slice(1) : second.nodeIds));
+  }
+
+  const mergedEdgeIds = [...first.edgeIds, ...second.edgeIds];
+
+  return {
+    geojson: {
+      type: "LineString",
+      coordinates: mergedCoordinates,
+    },
+    totalCost: first.totalCost + second.totalCost,
+    totalLength: first.totalLength + second.totalLength,
+    nodeIds: mergedNodeIds,
+    edgeIds: mergedEdgeIds,
+  };
+}
+
 export async function planRoute(
   body: PlanRouteRequest
 ): Promise<PlanRouteResponse> {
-  const { start, end, startQuery, endQuery } = body;
+  const {
+    start,
+    end,
+    startQuery,
+    endQuery,
+    avoidMode = "both",
+    safeSpaceTypes,
+    stopSafeSpaceId,
+  } = body;
 
   let startCoordinate: Coordinate;
   let endCoordinate: Coordinate;
@@ -96,14 +168,79 @@ export async function planRoute(
     );
   }
 
-  // Calculate the quietest route between the two locations
-  const result = await getQuietestRouteFromCoordinates(
+  // Original route logic: start -> end
+  if (stopSafeSpaceId === undefined) {
+    const result = await getQuietestRouteFromCoordinates(
+      startCoordinate,
+      endCoordinate,
+      avoidMode
+    );
+
+    const safeSpaces = await getSafeSpacesNearRoute(
+      result.route.geojson,
+      safeSpaceTypes
+    );
+
+    return {
+      start: {
+        input: isValidCoordinate(start)
+          ? "selected_start_coordinates"
+          : startQuery!,
+        resolvedName: resolvedStartName,
+        lat: startCoordinate.lat,
+        lng: startCoordinate.lng,
+        snappedNodeId: result.startNode.node_id,
+      },
+      end: {
+        input: isValidCoordinate(end)
+          ? "selected_end_coordinates"
+          : endQuery!,
+        resolvedName: resolvedEndName,
+        lat: endCoordinate.lat,
+        lng: endCoordinate.lng,
+        snappedNodeId: result.endNode.node_id,
+      },
+      route: {
+        totalCost: result.route.totalCost,
+        totalLength: result.route.totalLength,
+        edgeIds: result.route.edgeIds,
+        nodeIds: result.route.nodeIds,
+        geojson: result.route.geojson,
+      },
+      safeSpaces,
+    };
+  }
+
+  // Stopover route logic: start -> safe space -> end
+  const stopSafeSpace = await getSafeSpaceById(stopSafeSpaceId);
+
+  if (!stopSafeSpace) {
+    throw new Error(`Safe space ${stopSafeSpaceId} not found.`);
+  }
+
+  const stopCoordinate: Coordinate = {
+    lat: stopSafeSpace.lat,
+    lng: stopSafeSpace.lng,
+  };
+
+  const firstLeg = await getQuietestRouteFromCoordinates(
     startCoordinate,
-    endCoordinate
+    stopCoordinate,
+    avoidMode
   );
 
-  // Find nearby safe spaces based on the final route geometry
-  const safeSpaces = await getSafeSpacesNearRoute(result.route.geojson);
+  const secondLeg = await getQuietestRouteFromCoordinates(
+    stopCoordinate,
+    endCoordinate,
+    avoidMode
+  );
+
+  const mergedRoute = mergeRouteResults(firstLeg.route, secondLeg.route);
+
+  const safeSpaces = await getSafeSpacesNearRoute(
+    mergedRoute.geojson,
+    safeSpaceTypes
+  );
 
   return {
     start: {
@@ -113,7 +250,7 @@ export async function planRoute(
       resolvedName: resolvedStartName,
       lat: startCoordinate.lat,
       lng: startCoordinate.lng,
-      snappedNodeId: result.startNode.node_id,
+      snappedNodeId: firstLeg.startNode.node_id,
     },
     end: {
       input: isValidCoordinate(end)
@@ -122,15 +259,22 @@ export async function planRoute(
       resolvedName: resolvedEndName,
       lat: endCoordinate.lat,
       lng: endCoordinate.lng,
-      snappedNodeId: result.endNode.node_id,
+      snappedNodeId: secondLeg.endNode.node_id,
     },
     route: {
-      totalCost: result.route.totalCost,
-      totalLength: result.route.totalLength,
-      edgeIds: result.route.edgeIds,
-      nodeIds: result.route.nodeIds,
-      geojson: result.route.geojson,
+      totalCost: mergedRoute.totalCost,
+      totalLength: mergedRoute.totalLength,
+      edgeIds: mergedRoute.edgeIds,
+      nodeIds: mergedRoute.nodeIds,
+      geojson: mergedRoute.geojson,
     },
     safeSpaces,
+    stopover: {
+    id: stopSafeSpace.id,
+    name: stopSafeSpace.name,
+    type: stopSafeSpace.type,
+    lat: stopSafeSpace.lat,
+    lng: stopSafeSpace.lng,
+    },
   };
 }
