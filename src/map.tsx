@@ -7,6 +7,8 @@ import {
   ChevronDown,
   Wind,
   SlidersVertical,
+  Mic,
+  AlertTriangle,
 } from "lucide-react";
 import { MicButton } from "./components/mic-button";
 import { PopUp } from "./components/pop-up";
@@ -271,6 +273,12 @@ async function fetchPhotonSuggestions(
     .filter((item): item is LocationSuggestion => item !== null);
 }
 
+// Noise monitoring configuration
+// Time interval between every triggers
+const COOLDOWN_DURATION = 5 * 60 * 1000;
+// Noise threshold to trigger the alert
+const NOISE_THRESHOLD = 10;
+
 // Main page component
 export function Map() {
   const navigate = useNavigate();
@@ -279,6 +287,10 @@ export function Map() {
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
   const { volume, isMonitoring, startMonitoring, stopMonitoring } =
     useAudioMonitor();
+
+  // Inside Map component
+  const [isHighNoiseAlertOpen, setIsHighNoiseAlertOpen] = useState(false);
+  const [lastAlertTime, setLastAlertTime] = useState<number>(0);
 
   // Mobile panel open/close state
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(true);
@@ -420,6 +432,31 @@ export function Map() {
   const handleRemoveSafeSpaceStop = () => {
     setSelectedSafeSpaceStop(null);
   };
+  useEffect(() => {
+    // Get exact time of this specific check
+    const currentTime = Date.now();
+    // Only show the popup if ALL of these are true:
+    if (
+      // User has noise monitor turned on
+      isMonitoring &&
+      // Current noise level hits the threshold limit
+      volume > NOISE_THRESHOLD &&
+      // The popup isn't already visible
+      !isHighNoiseAlertOpen &&
+      // Has been more than five minutes
+      currentTime - lastAlertTime > COOLDOWN_DURATION
+    ) {
+      setIsHighNoiseAlertOpen(true);
+      // Start the 5-minute timer
+      setLastAlertTime(currentTime);
+    }
+
+    // If user stop the mic, reset everything
+    if (!isMonitoring) {
+      setLastAlertTime(0);
+      setIsHighNoiseAlertOpen(false);
+    }
+  }, [volume, isMonitoring, isHighNoiseAlertOpen, lastAlertTime]);
 
   // Close suggestion dropdowns when user clicks outside both panels
   useEffect(() => {
@@ -1043,10 +1080,10 @@ export function Map() {
                     <button
                       type="button"
                       onClick={handleOpenFilters}
-                      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#7DB0A6] px-4 py-3 text-sm font-medium text-white shadow-sm"
+                      className="flex h-9 w-9 items-center justify-center rounded-full text-[#5A9A8E]"
+                      aria-label="Open filters"
                     >
-                      <SlidersVertical size={16} className="text-white" />
-                      Filters
+                      <SlidersVertical size={18} />
                     </button>
                   </div>
 
@@ -1161,15 +1198,41 @@ export function Map() {
       </div>
 
       {/* Microphone permission popup */}
-      {isPopUpOpen && (
-        <PopUp
-          onClose={() => setIsPopUpOpen(false)}
-          onAllow={async () => {
-            setIsPopUpOpen(false);
-            await startMonitoring();
-          }}
-        />
-      )}
+      <PopUp
+        isOpen={isPopUpOpen}
+        title="Noise Monitor"
+        buttonText="Allow Microphone"
+        icon={<Mic size={24} />}
+        iconBgColor="bg-[#7DB0A6]/80"
+        description={
+          <>
+            A tool to measure the real time noise level in your surroundings.
+            <br />
+            Please allow microphone access.
+          </>
+        }
+        onClose={() => setIsPopUpOpen(false)}
+        onConfirm={async () => {
+          setIsPopUpOpen(false);
+          await startMonitoring();
+        }}
+      />
+      {/* High Noise Alert Popup */}
+      <PopUp
+        isOpen={isHighNoiseAlertOpen}
+        title="High Noise Level"
+        buttonText="Report Noise"
+        icon={<AlertTriangle size={24} className="text-[#C9A882]" />}
+        iconBgColor="bg-[#C9A882]/20"
+        description={
+          <>
+            The noise level in your area is extremely high. <br />
+            Consider finding a quieter location for your comfort and well-being.
+          </>
+        }
+        onClose={() => setIsHighNoiseAlertOpen(false)}
+        onConfirm={() => setIsHighNoiseAlertOpen(false)}
+      />
     </main>
   );
 }
