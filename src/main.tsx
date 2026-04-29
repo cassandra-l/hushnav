@@ -4,6 +4,7 @@ import { Home } from "./home.tsx";
 import { Map } from "./map.tsx";
 import { SupportPage } from "./support-page.tsx";
 import { BreathingExercise } from "./breathing-exercise.tsx";
+import { AchievementSummaryPage } from "./achievement-summary-page.tsx";
 import "./index.css";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
@@ -15,6 +16,7 @@ const router = createBrowserRouter([
       { path: "map", element: <Map /> },
       { path: "support", element: <SupportPage /> },
       { path: "breathing-exercise", element: <BreathingExercise /> },
+      { path: "achievements", element: <AchievementSummaryPage /> },
     ],
   },
 ]);

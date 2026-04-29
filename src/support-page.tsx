@@ -2,6 +2,7 @@ import { BreathingExercise } from "./breathing-exercise";
 import { XButton } from "./components/x-button";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { incrementBreathingUses } from "./achievements-store";
 
 export function SupportPage() {
   const navigate = useNavigate();
@@ -59,7 +60,10 @@ export function SupportPage() {
           </p>
           {/* button to start the breathing exercise */}
           <button
-            onClick={() => setShowExercise(true)}
+            onClick={() => {
+              incrementBreathingUses(1);
+              setShowExercise(true);
+            }}
             className="mt-4 w-full rounded-2xl bg-[#5A9A8E] py-4 text-lg font-medium text-[#FFFFFF] shadow-lg shadow-[#5A9A8E]/20 transition-all hover:bg-[#4d857a] active:scale-95"
           >
             Start Breathing Exercise

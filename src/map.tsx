@@ -19,6 +19,11 @@ import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
 import type { CrowdMapFeatureCollection } from "./types/noise-map";
 import { AnimatePresence, motion } from "framer-motion";
+import {
+  incrementNoiseReports,
+  incrementRoutesPlanned,
+  incrementSafeSpacesVisited,
+} from "./achievements-store";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -425,6 +430,7 @@ export function Map() {
   // Adds a safe space as a selected stopover in the UI
   const handleAddSafeSpaceStop = (safeSpace: SafeSpace) => {
     setSelectedSafeSpaceStop(safeSpace);
+    incrementSafeSpacesVisited(1);
     setIsSafeSpacesOpen(false);
   };
 
@@ -734,6 +740,8 @@ export function Map() {
       }
 
       setRouteData(data as PlanRouteResponse);
+      // Achievement counters
+      incrementRoutesPlanned(1);
       setIsSafeSpacesOpen(false);
 
       if (window.innerWidth < 1024) {
@@ -1231,7 +1239,10 @@ export function Map() {
           </>
         }
         onClose={() => setIsHighNoiseAlertOpen(false)}
-        onConfirm={() => setIsHighNoiseAlertOpen(false)}
+        onConfirm={() => {
+          incrementNoiseReports(1);
+          setIsHighNoiseAlertOpen(false);
+        }}
       />
     </main>
   );
