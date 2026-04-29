@@ -14,26 +14,23 @@ import {
   Landmark,
   Church,
   Building2,
-  X,
 } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { PlanRouteResponse, SafeSpace } from "../types/route";
 import type { CrowdMapFeatureCollection } from "../types/noise-map";
 
-// Props for map component
 type RouteMapProps = {
   routeData: PlanRouteResponse | null;
   crowdMapData: CrowdMapFeatureCollection | null;
   allSafeSpaces: SafeSpace[];
+  isNavigationActive?: boolean;
 };
 
-// Reusable safe space marker button shown on the map
 type SafeSpaceMarkerProps = {
   safeSpace: SafeSpace;
   onClick: () => void;
 };
 
-// Returns the correct Lucide icon for each safe space type
 function renderSafeSpaceIcon(type: SafeSpace["type"]) {
   switch (type) {
     case "park":
@@ -51,14 +48,12 @@ function renderSafeSpaceIcon(type: SafeSpace["type"]) {
   }
 }
 
-// Small reusable marker UI so all safe space markers stay visually consistent
 function SafeSpaceMarker({ safeSpace, onClick }: SafeSpaceMarkerProps) {
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={safeSpace.name}
-      className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-md transition-transform hover:scale-105"
+      className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-md"
     >
       {renderSafeSpaceIcon(safeSpace.type)}
     </button>
@@ -67,36 +62,23 @@ function SafeSpaceMarker({ safeSpace, onClick }: SafeSpaceMarkerProps) {
 
 export function RouteMap({
   routeData,
-  crowdMapData,
   allSafeSpaces,
+  isNavigationActive = false,
 }: RouteMapProps) {
   const mapRef = useRef<MapRef | null>(null);
+  const [selectedSafeSpace, setSelectedSafeSpace] =
+    useState<SafeSpace | null>(null);
 
-  // Tracks which safe space is currently selected so a popup can be shown
-  const [selectedSafeSpace, setSelectedSafeSpace] = useState<SafeSpace | null>(
-    null,
-  );
-
-  // Read Mapbox token from .env
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
-  // Default Melbourne CBD view before a route is loaded
   const melbourneCBD = {
     longitude: 144.9631,
     latitude: -37.8136,
     zoom: 14.5,
   };
 
-  // Convert backend route geometry into a GeoJSON feature for Mapbox
   const routeGeoJson = useMemo(() => {
-    if (
-      !routeData ||
-      routeData.route.geojson.type !== "LineString" ||
-      !routeData.route.geojson.coordinates ||
-      routeData.route.geojson.coordinates.length === 0
-    ) {
-      return null;
-    }
+    if (!routeData) return null;
 
     return {
       type: "Feature" as const,
@@ -108,52 +90,51 @@ export function RouteMap({
     };
   }, [routeData]);
 
-  // Before a route is selected, show all safe spaces.
-  // After a route is selected, only show safe spaces that belong to that route.
   const safeSpaces = routeData ? routeData.safeSpaces : allSafeSpaces;
 
-  // Fit the map to the route bounds after data arrives
+  // Fit full route (preview mode)
   useEffect(() => {
-    if (!mapRef.current || !routeData) return;
+    if (!mapRef.current || !routeData || isNavigationActive) return;
 
-    const coordinates = routeData.route.geojson.coordinates;
-    if (!coordinates || coordinates.length === 0) return;
+    const coords = routeData.route.geojson.coordinates;
+    if (!coords?.length) return;
 
-    let minLng = coordinates[0][0];
-    let minLat = coordinates[0][1];
-    let maxLng = coordinates[0][0];
-    let maxLat = coordinates[0][1];
+    let minLng = coords[0][0];
+    let minLat = coords[0][1];
+    let maxLng = coords[0][0];
+    let maxLat = coords[0][1];
 
-    for (const [lng, lat] of coordinates) {
+    for (const [lng, lat] of coords) {
       if (lng < minLng) minLng = lng;
       if (lng > maxLng) maxLng = lng;
       if (lat < minLat) minLat = lat;
       if (lat > maxLat) maxLat = lat;
     }
 
-    const isDesktop = window.innerWidth >= 1024;
-
     mapRef.current.fitBounds(
       [
         [minLng, minLat],
         [maxLng, maxLat],
       ],
-      {
-        padding: isDesktop
-          ? { top: 80, right: 80, bottom: 80, left: 420 }
-          : { top: 80, right: 40, bottom: 170, left: 40 },
-        duration: 1200,
-      },
+      { padding: 80, duration: 1200 }
     );
-  }, [routeData]);
+  }, [routeData, isNavigationActive]);
 
-  // Fallback if Mapbox token is missing
+  // Navigation mode → zoom into start
+  useEffect(() => {
+    if (!mapRef.current || !routeData || !isNavigationActive) return;
+
+    mapRef.current.flyTo({
+      center: [routeData.start.lng, routeData.start.lat],
+      zoom: 18.5,
+      pitch: 60,
+      bearing: 0,
+      duration: 1200,
+    });
+  }, [isNavigationActive, routeData]);
+
   if (!mapboxToken) {
-    return (
-      <div className="flex h-full w-full items-center justify-center bg-[#DDEAE7] px-6 text-center text-[#6A7282]">
-        Mapbox token not found. Add VITE_MAPBOX_TOKEN to your .env file.
-      </div>
-    );
+    return <div>Missing Mapbox Token</div>;
   }
 
   return (
@@ -164,161 +145,60 @@ export function RouteMap({
         mapboxAccessToken={mapboxToken}
         mapStyle="mapbox://styles/mapbox/streets-v12"
       >
-        {/* Map controls */}
-        {/* <NavigationControl position="top-right" /> */}
-
-        {/* Crowd / noise line layer */}
-        {crowdMapData && (
-          <Source id="crowd-map" type="geojson" data={crowdMapData}>
-            <Layer
-              id="crowd-map-layer"
-              type="line"
-              paint={{
-                "line-color": [
-                  "case",
-                  ["==", ["get", "crowdCategory"], "high"],
-                  "#E7C0C0",
-                  "#D3D3D3",
-                ],
-                "line-width": [
-                  "case",
-                  ["==", ["get", "crowdCategory"], "high"],
-                  2.5,
-                  1.5,
-                ],
-                "line-opacity": 0.9,
-              }}
-              layout={{
-                "line-join": "round",
-                "line-cap": "round",
-              }}
-            />
-          </Source>
-        )}
-
-        {/* Start marker */}
-        {routeData && (
-          <Marker
-            longitude={routeData.start.lng}
-            latitude={routeData.start.lat}
-            anchor="bottom"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border-4 border-white bg-[#D4B896] shadow-lg">
-              <Navigation size={18} className="text-white" />
-            </div>
-          </Marker>
-        )}
-
-        {/* Destination marker */}
-        {routeData && (
-          <Marker
-            longitude={routeData.end.lng}
-            latitude={routeData.end.lat}
-            anchor="bottom"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border-4 border-white bg-[#7DB0A6] shadow-lg">
-              <MapPin size={18} className="text-white" />
-            </div>
-          </Marker>
-        )}
-
-        {/* Safe space markers */}
-        {safeSpaces.map((safeSpace) => (
-          <Marker
-            key={safeSpace.id}
-            longitude={safeSpace.lng}
-            latitude={safeSpace.lat}
-            anchor="bottom"
-          >
-            <SafeSpaceMarker
-              safeSpace={safeSpace}
-              onClick={() => setSelectedSafeSpace(safeSpace)}
-            />
-          </Marker>
-        ))}
-
-        {/* Safe space popup shown when a marker is clicked */}
-        {selectedSafeSpace && (
-          <Popup
-            longitude={selectedSafeSpace.lng}
-            latitude={selectedSafeSpace.lat}
-            anchor="top"
-            closeOnClick={false}
-            closeButton={false}
-            onClose={() => setSelectedSafeSpace(null)}
-            offset={14}
-            maxWidth="220px"
-          >
-            <div className="relative min-w-[170px] max-w-[190px] rounded-2xl bg-white p-1 text-[#1E2939]">
-              <button
-                type="button"
-                onClick={() => setSelectedSafeSpace(null)}
-                className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full text-[#6A7282] hover:bg-[#F4F7F6]"
-                aria-label="Close safe space popup"
-              >
-                <X size={14} />
-              </button>
-
-              <div className="pr-7">
-                <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm">
-                  {renderSafeSpaceIcon(selectedSafeSpace.type)}
-                </div>
-
-                <h3 className="text-[15px] font-semibold leading-5 text-[#1E2939]">
-                  {selectedSafeSpace.name}
-                </h3>
-
-                <p className="mt-1 text-[11px] font-medium text-[#5A9A8E]">
-                  {selectedSafeSpace.subTheme}
-                </p>
-
-                <p className="mt-2 text-[13px] leading-5 text-[#4A5565]">
-                  {selectedSafeSpace.description}
-                </p>
-              </div>
-            </div>
-          </Popup>
-        )}
-
-        {/* Route line */}
         {routeGeoJson && (
-          <Source
-            id="planned-route"
-            type="geojson"
-            data={routeGeoJson}
-            key={JSON.stringify(routeData?.route.geojson.coordinates)}
-          >
-            {/* Glow line behind the main route */}
+          <Source id="route" type="geojson" data={routeGeoJson}>
             <Layer
-              id="planned-route-glow"
-              type="line"
-              paint={{
-                "line-color": "#A9D1C8",
-                "line-width": 10,
-                "line-opacity": 0.35,
-                "line-blur": 1.2,
-              }}
-              layout={{
-                "line-join": "round",
-                "line-cap": "round",
-              }}
-            />
-
-            {/* Main route line */}
-            <Layer
-              id="planned-route-line"
+              id="route-line"
               type="line"
               paint={{
                 "line-color": "#7DB0A6",
                 "line-width": 6,
-                "line-opacity": 0.95,
-              }}
-              layout={{
-                "line-join": "round",
-                "line-cap": "round",
               }}
             />
           </Source>
+        )}
+
+        {routeData && (
+          <>
+            <Marker
+              longitude={routeData.start.lng}
+              latitude={routeData.start.lat}
+              anchor="bottom"
+            >
+              <div className="flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#D4B896] shadow-lg">
+                <Navigation size={22} className="text-white" />
+              </div>
+            </Marker>
+
+            <Marker
+              longitude={routeData.end.lng}
+              latitude={routeData.end.lat}
+              anchor="bottom"
+            >
+              <div className="flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#7DB0A6] shadow-lg">
+                <MapPin size={22} className="text-white" />
+              </div>
+            </Marker>
+          </>
+        )}
+
+        {safeSpaces.map((s) => (
+          <Marker key={s.id} longitude={s.lng} latitude={s.lat}>
+            <SafeSpaceMarker
+              safeSpace={s}
+              onClick={() => setSelectedSafeSpace(s)}
+            />
+          </Marker>
+        ))}
+
+        {selectedSafeSpace && (
+          <Popup
+            longitude={selectedSafeSpace.lng}
+            latitude={selectedSafeSpace.lat}
+            onClose={() => setSelectedSafeSpace(null)}
+          >
+            {selectedSafeSpace.name}
+          </Popup>
         )}
       </Map>
     </div>
