@@ -1138,7 +1138,7 @@ export function Map() {
           )}
 
           {/* Mobile route preview panel - Google Maps style bottom sheet */}
-          {routeData && (
+          {routeData && !isNavigationActive && (
             <RoutePreviewPanel
               routeData={routeData}
               safeSpaces={routeSafeSpaces}
@@ -1157,6 +1157,14 @@ export function Map() {
               onRemoveStop={handleRemoveSafeSpaceStop}
             />
           )}
+          {routeData && isNavigationActive && (
+  <button
+    onClick={handleExitRoute}
+    className="absolute bottom-6 left-4 right-4 z-20 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-lg lg:hidden"
+  >
+    Exit Navigation
+  </button>
+)}
 
           {/* Mobile mic button + live noise bar */}
           <div
