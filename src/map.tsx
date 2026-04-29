@@ -29,7 +29,6 @@ const CBD_CENTER = {
   lng: 144.9631,
   lat: -37.8136,
 };
-
 // A wider Melbourne inner bounding box so nearby areas like Docklands,
 // Southbank, and East Melbourne can still appear in suggestions
 const MELBOURNE_INNER_BBOX = "144.88,-37.86,145.05,-37.77";
@@ -412,6 +411,7 @@ export function Map() {
   const handleStartNavigation = () => {
     setIsNavigationActive(true);
     setIsMobileSearchOpen(false);
+    setIsSafeSpacesOpen(false);
   };
 
   // Clears the active route and resets route-specific UI state
@@ -869,14 +869,16 @@ export function Map() {
                     Quiet Route Preview
                   </h2>
 
-                  <button
-                    type="button"
-                    onClick={handleOpenFilters}
-                    className="mb-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#7DB0A6] px-4 py-3 text-sm font-medium text-white shadow-sm"
-                  >
-                    <SlidersVertical size={16} className="text-white" />
-                    Filter route
-                  </button>
+                  {!isNavigationActive && (
+                    <button
+                      type="button"
+                      onClick={handleOpenFilters}
+                      className="mb-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#7DB0A6] px-4 py-3 text-sm font-medium text-white shadow-sm"
+                    >
+                      <SlidersVertical size={16} className="text-white" />
+                      Filter route
+                    </button>
+                  )}
 
                   <div className="space-y-3 text-sm text-[#1E2939]">
                     <div className="flex justify-between gap-4">
@@ -925,15 +927,23 @@ export function Map() {
                     />
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={handleStartNavigation}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white"
-                >
-                  <Navigation size={16} />
-                  Start
-                </button>
+                {isNavigationActive ? (
+                  <button
+                    onClick={handleExitRoute}
+                    className="w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm"
+                  >
+                    Exit
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStartNavigation}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm"
+                  >
+                    <Navigation size={16} />
+                    Start
+                  </button>
+                )}
+                
               </div>
             ) : (
               <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
