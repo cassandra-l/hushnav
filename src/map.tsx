@@ -339,8 +339,16 @@ export function Map() {
   // Final route response shown on the map
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
 
-  // Selected safe space stopover shown in the UI
-  const [selectedSafeSpaceStop, setSelectedSafeSpaceStop] =
+  // Ordered safe-space stopovers selected by Emily.
+  // The array order controls the route order:
+  // start → first stop → second stop → destination.
+  const [selectedSafeSpaceStops, setSelectedSafeSpaceStops] = useState<
+    SafeSpace[]
+  >([]);
+
+  // Safe space selected from the preview/sidebar list.
+  // Passing this to RouteMap lets the map fly to the marker and open its popup.
+  const [selectedSafeSpaceFromPanel, setSelectedSafeSpaceFromPanel] =
     useState<SafeSpace | null>(null);
 
   // Crowd / noise line layer shown behind the route
@@ -406,6 +414,11 @@ export function Map() {
     navigate("/filter");
   };
 
+  // Opens the map popup for a safe space selected from the list.
+  const handleViewSafeSpaceOnMap = (safeSpace: SafeSpace) => {
+    setSelectedSafeSpaceFromPanel({ ...safeSpace });
+  };
+
   // Starts navigation from the route preview page.
   // Map zoom/follow can be wired inside RouteMap when that nav feature is ready.
   const handleStartNavigation = () => {
@@ -420,7 +433,8 @@ export function Map() {
     setRouteData(null);
     setError("");
     setIsSafeSpacesOpen(false);
-    setSelectedSafeSpaceStop(null);
+    setSelectedSafeSpaceStops([]);
+    setSelectedSafeSpaceFromPanel(null);
     setIsNavigationActive(false);
 
     // Clear the input strings so the search bar is empty
@@ -435,15 +449,32 @@ export function Map() {
     setIsMobileSearchOpen(true);
   };
 
-  // Adds a safe space as a selected stopover in the UI
-  const handleAddSafeSpaceStop = (safeSpace: SafeSpace) => {
-    setSelectedSafeSpaceStop(safeSpace);
+  // Adds a safe space as the next ordered stopover and replans the route.
+  const handleAddSafeSpaceStop = async (safeSpace: SafeSpace) => {
+    const alreadyAdded = selectedSafeSpaceStops.some(
+      (stop) => stop.id === safeSpace.id,
+    );
+
+    if (alreadyAdded) return;
+
+    const updatedStops = [...selectedSafeSpaceStops, safeSpace];
+    setSelectedSafeSpaceStops(updatedStops);
     setIsSafeSpacesOpen(false);
+    setIsNavigationActive(false);
+
+    await handlePlanRoute(updatedStops);
   };
 
-  // Removes the selected safe space stopover from the UI
-  const handleRemoveSafeSpaceStop = () => {
-    setSelectedSafeSpaceStop(null);
+  // Removes a safe space stopover and replans the route using the remaining stops.
+  const handleRemoveSafeSpaceStop = async (safeSpaceId: number) => {
+    const updatedStops = safeSpaceId
+      ? selectedSafeSpaceStops.filter((stop) => stop.id !== safeSpaceId)
+      : selectedSafeSpaceStops.slice(0, -1);
+
+    setSelectedSafeSpaceStops(updatedStops);
+    setIsNavigationActive(false);
+
+    await handlePlanRoute(updatedStops);
   };
   useEffect(() => {
     // Get exact time of this specific check
@@ -656,13 +687,12 @@ export function Map() {
   };
 
   // Sends route request to backend
-  const handlePlanRoute = async () => {
+  const handlePlanRoute = async (safeSpaceStops = selectedSafeSpaceStops) => {
     console.log("DEBUG - Start Selection:", selectedStart);
     console.log("DEBUG - Destination Selection:", selectedDestination);
     setError("");
     setIsStartSuggestionsOpen(false);
     setIsDestinationSuggestionsOpen(false);
-    setSelectedSafeSpaceStop(null);
 
     if (!startLocation.trim() || !destination.trim()) {
       setRouteData(null);
@@ -706,6 +736,13 @@ export function Map() {
             : undefined,
         startQuery: startLocation,
         endQuery: destination,
+        // Ordered stopovers. Backend should route through these in array order.
+        stopovers: safeSpaceStops.map((stop) => ({
+          id: stop.id,
+          name: stop.name,
+          lng: stop.lng,
+          lat: stop.lat,
+        })),
       };
 
       const response = await fetch(`${API_BASE_URL}/plan-route`, {
@@ -845,7 +882,7 @@ export function Map() {
             />
 
             <button
-              onClick={handlePlanRoute}
+              onClick={() => handlePlanRoute()}
               disabled={loading}
               className="w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm disabled:opacity-70"
             >
@@ -919,11 +956,12 @@ export function Map() {
                   <div ref={safeSpacesRef} className="mt-5">
                     <SafeSpaceStopoverPanel
                       safeSpaces={routeSafeSpaces}
-                      selectedStop={selectedSafeSpaceStop}
+                      selectedStops={selectedSafeSpaceStops}
                       isOpen={isSafeSpacesOpen}
                       onToggleOpen={() => setIsSafeSpacesOpen((prev) => !prev)}
                       onAddStop={handleAddSafeSpaceStop}
                       onRemoveStop={handleRemoveSafeSpaceStop}
+                      onViewSafeSpace={handleViewSafeSpaceOnMap}
                     />
                   </div>
                 </div>
@@ -943,7 +981,6 @@ export function Map() {
                     Start
                   </button>
                 )}
-                
               </div>
             ) : (
               <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
@@ -961,17 +998,18 @@ export function Map() {
 
         {/* Main map area */}
         <div className="relative h-full w-full">
-        <RouteMap
-  key={
-    routeData
-      ? JSON.stringify(routeData.route.geojson.coordinates)
-      : "no-route"
-  }
-  routeData={routeData}
-  crowdMapData={crowdMapData}
-  allSafeSpaces={allSafeSpaces}
-  isNavigationActive={isNavigationActive}
-/>
+          <RouteMap
+            key={
+              routeData
+                ? JSON.stringify(routeData.route.geojson.coordinates)
+                : "no-route"
+            }
+            routeData={routeData}
+            crowdMapData={crowdMapData}
+            allSafeSpaces={allSafeSpaces}
+            isNavigationActive={isNavigationActive}
+            selectedSafeSpaceFromPanel={selectedSafeSpaceFromPanel}
+          />
 
           {/* Mobile collapsed top card */}
           {!isMobileSearchOpen && !routeData && (
@@ -1076,7 +1114,7 @@ export function Map() {
                         transition={{ duration: 0.3, ease: "easeInOut" }}
                       >
                         <button
-                          onClick={handlePlanRoute}
+                          onClick={() => handlePlanRoute()}
                           disabled={loading}
                           className="w-full mt-2 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-md disabled:opacity-70 active:scale-[0.98] transition-transform"
                         >
@@ -1138,11 +1176,11 @@ export function Map() {
           )}
 
           {/* Mobile route preview panel - Google Maps style bottom sheet */}
-          {routeData && (
+          {routeData && !isNavigationActive && (
             <RoutePreviewPanel
               routeData={routeData}
               safeSpaces={routeSafeSpaces}
-              selectedStop={selectedSafeSpaceStop}
+              selectedStops={selectedSafeSpaceStops}
               isSafeSpacesOpen={isSafeSpacesOpen}
               isNavigationActive={isNavigationActive}
               startName={getStartDisplayName()}
@@ -1155,7 +1193,16 @@ export function Map() {
               onToggleSafeSpaces={() => setIsSafeSpacesOpen((prev) => !prev)}
               onAddStop={handleAddSafeSpaceStop}
               onRemoveStop={handleRemoveSafeSpaceStop}
+              onViewSafeSpace={handleViewSafeSpaceOnMap}
             />
+          )}
+          {routeData && isNavigationActive && (
+            <button
+              onClick={handleExitRoute}
+              className="absolute bottom-6 left-4 right-4 z-20 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-lg lg:hidden"
+            >
+              Exit Navigation
+            </button>
           )}
 
           {/* Mobile mic button + live noise bar */}

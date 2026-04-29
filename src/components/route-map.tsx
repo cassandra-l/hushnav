@@ -24,6 +24,7 @@ type RouteMapProps = {
   crowdMapData: CrowdMapFeatureCollection | null;
   allSafeSpaces: SafeSpace[];
   isNavigationActive?: boolean;
+  selectedSafeSpaceFromPanel?: SafeSpace | null;
 };
 
 type SafeSpaceMarkerProps = {
@@ -62,8 +63,10 @@ function SafeSpaceMarker({ safeSpace, onClick }: SafeSpaceMarkerProps) {
 
 export function RouteMap({
   routeData,
+  crowdMapData,
   allSafeSpaces,
   isNavigationActive = false,
+  selectedSafeSpaceFromPanel = null,
 }: RouteMapProps) {
   const mapRef = useRef<MapRef | null>(null);
   const [selectedSafeSpace, setSelectedSafeSpace] =
@@ -133,6 +136,27 @@ export function RouteMap({
     });
   }, [isNavigationActive, routeData]);
 
+  // When a safe space is selected from the sidebar/bottom sheet,
+  // move the map to it and open the same popup used by map markers.
+ useEffect(() => {
+  if (!mapRef.current || !selectedSafeSpaceFromPanel) return;
+
+  mapRef.current.flyTo({
+    center: [
+      selectedSafeSpaceFromPanel.lng,
+      selectedSafeSpaceFromPanel.lat,
+    ],
+    zoom: 18,
+    duration: 800,
+  });
+
+  const timer = window.setTimeout(() => {
+    setSelectedSafeSpace(selectedSafeSpaceFromPanel);
+  }, 0);
+
+  return () => window.clearTimeout(timer);
+}, [selectedSafeSpaceFromPanel]);
+
   if (!mapboxToken) {
     return <div>Missing Mapbox Token</div>;
   }
@@ -145,6 +169,35 @@ export function RouteMap({
         mapboxAccessToken={mapboxToken}
         mapStyle="mapbox://styles/mapbox/streets-v12"
       >
+        {/* Crowd / noise road layer. High-crowd roads are shown in red. */}
+        {crowdMapData && (
+          <Source id="crowd-map" type="geojson" data={crowdMapData}>
+            <Layer
+              id="crowd-map-layer"
+              type="line"
+              paint={{
+                "line-color": [
+                  "case",
+                  ["==", ["get", "crowdCategory"], "high"],
+                  "#E7C0C0",
+                  "#D3D3D3",
+                ],
+                "line-width": [
+                  "case",
+                  ["==", ["get", "crowdCategory"], "high"],
+                  2.5,
+                  1.5,
+                ],
+                "line-opacity": 0.9,
+              }}
+              layout={{
+                "line-join": "round",
+                "line-cap": "round",
+              }}
+            />
+          </Source>
+        )}
+
         {routeGeoJson && (
           <Source id="route" type="geojson" data={routeGeoJson}>
             <Layer
@@ -195,9 +248,29 @@ export function RouteMap({
           <Popup
             longitude={selectedSafeSpace.lng}
             latitude={selectedSafeSpace.lat}
+            anchor="top"
+            closeOnClick={false}
             onClose={() => setSelectedSafeSpace(null)}
+            offset={14}
+            maxWidth="240px"
           >
-            {selectedSafeSpace.name}
+            <div className="max-w-[210px] rounded-2xl bg-white p-2 text-[#1E2939]">
+              <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm">
+                {renderSafeSpaceIcon(selectedSafeSpace.type)}
+              </div>
+
+              <h3 className="text-[15px] font-semibold leading-5">
+                {selectedSafeSpace.name}
+              </h3>
+
+              <p className="mt-1 text-[11px] font-medium text-[#5A9A8E]">
+                {selectedSafeSpace.subTheme}
+              </p>
+
+              <p className="mt-2 text-[13px] leading-5 text-[#4A5565]">
+                {selectedSafeSpace.description}
+              </p>
+            </div>
           </Popup>
         )}
       </Map>
