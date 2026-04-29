@@ -866,7 +866,7 @@ export function Map() {
               <div className="space-y-4">
                 <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
                   <h2 className="mb-3 text-base font-semibold text-[#1E2939]">
-                    Route Summary
+                    Quiet Route Preview
                   </h2>
 
                   <button
@@ -875,7 +875,7 @@ export function Map() {
                     className="mb-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#7DB0A6] px-4 py-3 text-sm font-medium text-white shadow-sm"
                   >
                     <SlidersVertical size={16} className="text-white" />
-                    Filters
+                    Filter route
                   </button>
 
                   <div className="space-y-3 text-sm text-[#1E2939]">
@@ -927,10 +927,12 @@ export function Map() {
                 </div>
 
                 <button
-                  onClick={handleExitRoute}
-                  className="w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white"
+                  type="button"
+                  onClick={handleStartNavigation}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white"
                 >
-                  Exit
+                  <Navigation size={16} />
+                  Start
                 </button>
               </div>
             ) : (
