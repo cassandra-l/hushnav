@@ -163,28 +163,15 @@ function computeEdgeCost(edge: GraphEdge, avoidMode: AvoidMode): number {
   return edge.defaultCost ?? edge.length;
 }
 
-async function getConstructionBlockedEdgeIds(
-  bufferMeters = 20
-): Promise<Set<number>> {
+async function getConstructionBlockedEdgeIds(): Promise<Set<number>> {
   const client = await pool.connect();
 
   try {
     const result = await client.query<{ edge_id: number }>(
       `
-      SELECT DISTINCT e.edge_id
-      FROM edge e
-      JOIN construction_event c
-        ON (
-          ST_Intersects(e.geom_edge, c.geom)
-          OR ST_DWithin(
-            e.geom_edge::geography,
-            c.geom::geography,
-            $1
-          )
-        )
-      WHERE c.is_active = true
-      `,
-      [bufferMeters]
+      SELECT edge_id
+      FROM construction_blocked_edge
+      `
     );
 
     return new Set(result.rows.map((row) => Number(row.edge_id)));
