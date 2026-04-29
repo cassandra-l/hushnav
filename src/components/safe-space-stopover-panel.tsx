@@ -13,18 +13,17 @@ import {
 import type { SafeSpace } from "../types/route";
 
 // Props for the safe space stopover panel.
-// This component handles expanding the safe space list, selecting a safe space,
-// confirming Add Stop, displaying the selected stop, and removing the stop.
+// This version supports multiple ordered stopovers.
 type SafeSpaceStopoverPanelProps = {
   safeSpaces: SafeSpace[];
-  selectedStop: SafeSpace | null;
+  selectedStops: SafeSpace[];
   isOpen: boolean;
   onToggleOpen: () => void;
   onAddStop: (safeSpace: SafeSpace) => void;
-  onRemoveStop: () => void;
+  onRemoveStop: (safeSpaceId: string) => void;
+  onViewSafeSpace?: (safeSpace: SafeSpace) => void;
 };
 
-// Returns the correct Lucide icon for each safe space type.
 function renderSafeSpaceIcon(type: SafeSpace["type"]) {
   switch (type) {
     case "park":
@@ -42,64 +41,79 @@ function renderSafeSpaceIcon(type: SafeSpace["type"]) {
   }
 }
 
-// Main safe space stopover panel component.
 export function SafeSpaceStopoverPanel({
   safeSpaces,
-  selectedStop,
+  selectedStops,
   isOpen,
   onToggleOpen,
   onAddStop,
   onRemoveStop,
+  onViewSafeSpace,
 }: SafeSpaceStopoverPanelProps) {
-  // Stores the safe space Emily clicked before confirming Add Stop.
+  // Stores the safe space Emily clicked so she can view details before adding it.
   const [selectedSafeSpace, setSelectedSafeSpace] =
     useState<SafeSpace | null>(null);
 
-  // If there are no safe spaces and no selected stop, nothing needs to render.
-  if (safeSpaces.length === 0 && !selectedStop) {
+  if (safeSpaces.length === 0 && selectedStops.length === 0) {
     return null;
   }
+
+  const selectedStopIds = new Set(selectedStops.map((stop) => stop.id));
 
   return (
     <>
       <div className="border-t border-[#E8EEEC] px-5 py-4">
-        {/* Selected stop card shown after Emily adds a safe space stopover. */}
-        {selectedStop && (
-          <div className="mb-4 rounded-2xl border border-[#5A9A8E]/40 bg-[#5A9A8E]/10 p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm">
-                  {renderSafeSpaceIcon(selectedStop.type)}
-                </div>
+        {/* Ordered stopover list shown after Emily adds one or more safe spaces. */}
+        {selectedStops.length > 0 && (
+          <div className="mb-4 space-y-3">
+            {selectedStops.map((stop, index) => (
+              <div
+                key={stop.id}
+                className="rounded-2xl border border-[#5A9A8E]/40 bg-[#5A9A8E]/10 p-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedSafeSpace(stop);
+                      onViewSafeSpace?.(stop);
+                    }}
+                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                    aria-label={`View details for ${stop.name}`}
+                  >
+                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm">
+                      {renderSafeSpaceIcon(stop.type)}
+                    </div>
 
-                <div>
-                  <p className="text-xs font-medium text-[#5A9A8E]">
-                    Next Stop
-                  </p>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-[#5A9A8E]">
+                        Stop {index + 1}
+                      </p>
 
-                  <p className="mt-1 text-sm font-semibold text-[#1E2939]">
-                    {selectedStop.name}
-                  </p>
+                      <p className="mt-1 text-sm font-semibold text-[#1E2939]">
+                        {stop.name}
+                      </p>
 
-                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#6A7282]">
-                    {selectedStop.description}
-                  </p>
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#6A7282]">
+                        {stop.description}
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onRemoveStop(stop.id)}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#6A7282] shadow-sm hover:bg-[#F4F7F6]"
+                    aria-label={`Remove ${stop.name} from route`}
+                  >
+                    <X size={15} />
+                  </button>
                 </div>
               </div>
-
-              <button
-                type="button"
-                onClick={onRemoveStop}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#6A7282] shadow-sm hover:bg-[#F4F7F6]"
-                aria-label="Remove selected safe space stop"
-              >
-                <X size={15} />
-              </button>
-            </div>
+            ))}
           </div>
         )}
 
-        {/* Expand/collapse button for the safe spaces along route list. */}
         <button
           type="button"
           onClick={onToggleOpen}
@@ -116,21 +130,23 @@ export function SafeSpaceStopoverPanel({
           )}
         </button>
 
-        {/* Expanded safe space list. Each item can open the confirmation popup. */}
+        {/* Expanded safe space list. Click any item to view information and add it. */}
         {isOpen && (
           <div className="mt-4 space-y-3">
             {safeSpaces.map((safeSpace) => {
-              const isAlreadySelected = selectedStop?.id === safeSpace.id;
+              const isAlreadySelected = selectedStopIds.has(safeSpace.id);
 
               return (
                 <button
                   key={safeSpace.id}
                   type="button"
-                  onClick={() => setSelectedSafeSpace(safeSpace)}
-                  disabled={isAlreadySelected}
+                  onClick={() => {
+                    setSelectedSafeSpace(safeSpace);
+                    onViewSafeSpace?.(safeSpace);
+                  }}
                   className={`flex w-full items-start gap-3 rounded-2xl border p-2 text-left transition ${
                     isAlreadySelected
-                      ? "border-[#5A9A8E]/40 bg-[#5A9A8E]/10 opacity-80"
+                      ? "border-[#5A9A8E]/40 bg-[#5A9A8E]/10"
                       : "border-transparent hover:border-[#5A9A8E]/40 hover:bg-[#5A9A8E]/10 hover:scale-[1.01]"
                   }`}
                 >
@@ -144,7 +160,9 @@ export function SafeSpaceStopoverPanel({
                     </p>
 
                     <p className="mt-1 text-xs font-medium text-[#5A9A8E]">
-                      {isAlreadySelected ? "Selected stop" : safeSpace.subTheme}
+                      {isAlreadySelected
+                        ? "Already added — tap to view details"
+                        : safeSpace.subTheme}
                     </p>
 
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#6A7282]">
@@ -158,7 +176,6 @@ export function SafeSpaceStopoverPanel({
         )}
       </div>
 
-      {/* Confirmation modal shown after Emily selects a safe space from the list. */}
       {selectedSafeSpace && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-5">
           <div className="relative w-full max-w-[340px] rounded-[28px] border border-white bg-white p-5 shadow-2xl">
@@ -166,7 +183,7 @@ export function SafeSpaceStopoverPanel({
               type="button"
               onClick={() => setSelectedSafeSpace(null)}
               className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F7F6] text-[#6A7282]"
-              aria-label="Close add stop confirmation"
+              aria-label="Close safe space details"
             >
               <X size={16} />
             </button>
@@ -194,16 +211,29 @@ export function SafeSpaceStopoverPanel({
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  onAddStop(selectedSafeSpace);
-                  setSelectedSafeSpace(null);
-                }}
-                className="rounded-2xl bg-[#7DB0A6] py-3 text-sm font-medium text-white shadow-sm"
-              >
-                Add Stop
-              </button>
+              {selectedStopIds.has(selectedSafeSpace.id) ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onRemoveStop(selectedSafeSpace.id);
+                    setSelectedSafeSpace(null);
+                  }}
+                  className="rounded-2xl bg-white py-3 text-sm font-medium text-[#1E2939] shadow-sm ring-1 ring-[#E8EEEC]"
+                >
+                  Remove Stop
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onAddStop(selectedSafeSpace);
+                    setSelectedSafeSpace(null);
+                  }}
+                  className="rounded-2xl bg-[#7DB0A6] py-3 text-sm font-medium text-white shadow-sm"
+                >
+                  Add Stop
+                </button>
+              )}
 
               <button
                 type="button"

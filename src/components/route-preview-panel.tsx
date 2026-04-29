@@ -5,7 +5,7 @@ import type { PlanRouteResponse, SafeSpace } from "../types/route";
 type RoutePreviewPanelProps = {
   routeData: PlanRouteResponse;
   safeSpaces: SafeSpace[];
-  selectedStop: SafeSpace | null;
+  selectedStops: SafeSpace[];
   isSafeSpacesOpen: boolean;
   isNavigationActive: boolean;
   startName: string;
@@ -17,7 +17,8 @@ type RoutePreviewPanelProps = {
   onExitRoute: () => void;
   onToggleSafeSpaces: () => void;
   onAddStop: (safeSpace: SafeSpace) => void;
-  onRemoveStop: () => void;
+  onRemoveStop: (safeSpaceId: string) => void;
+  onViewSafeSpace: (safeSpace: SafeSpace) => void;
 };
 
 // Google Maps-style route preview bottom sheet.
@@ -26,7 +27,7 @@ type RoutePreviewPanelProps = {
 export function RoutePreviewPanel({
   routeData,
   safeSpaces,
-  selectedStop,
+  selectedStops,
   isSafeSpacesOpen,
   isNavigationActive,
   startName,
@@ -39,6 +40,7 @@ export function RoutePreviewPanel({
   onToggleSafeSpaces,
   onAddStop,
   onRemoveStop,
+  onViewSafeSpace,
 }: RoutePreviewPanelProps) {
   const totalLength = routeData.route.totalLength;
 
@@ -103,7 +105,7 @@ export function RoutePreviewPanel({
               <button
                 type="button"
                 onClick={onStartNavigation}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm active:scale-[0.98] transition-transform"
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm transition-transform active:scale-[0.98]"
               >
                 <Navigation size={17} />
                 Start
@@ -121,11 +123,12 @@ export function RoutePreviewPanel({
 
           <SafeSpaceStopoverPanel
             safeSpaces={safeSpaces}
-            selectedStop={selectedStop}
+            selectedStops={selectedStops}
             isOpen={isSafeSpacesOpen}
             onToggleOpen={onToggleSafeSpaces}
             onAddStop={onAddStop}
             onRemoveStop={onRemoveStop}
+            onViewSafeSpace={onViewSafeSpace}
           />
         </div>
       </div>
