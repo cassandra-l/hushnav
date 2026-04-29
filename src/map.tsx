@@ -466,7 +466,7 @@ export function Map() {
   };
 
   // Removes a safe space stopover and replans the route using the remaining stops.
-  const handleRemoveSafeSpaceStop = async (safeSpaceId?: string) => {
+  const handleRemoveSafeSpaceStop = async (safeSpaceId: number) => {
     const updatedStops = safeSpaceId
       ? selectedSafeSpaceStops.filter((stop) => stop.id !== safeSpaceId)
       : selectedSafeSpaceStops.slice(0, -1);

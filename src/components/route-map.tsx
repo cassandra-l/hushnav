@@ -138,17 +138,24 @@ export function RouteMap({
 
   // When a safe space is selected from the sidebar/bottom sheet,
   // move the map to it and open the same popup used by map markers.
-  useEffect(() => {
-    if (!mapRef.current || !selectedSafeSpaceFromPanel) return;
+ useEffect(() => {
+  if (!mapRef.current || !selectedSafeSpaceFromPanel) return;
 
-    mapRef.current.flyTo({
-      center: [selectedSafeSpaceFromPanel.lng, selectedSafeSpaceFromPanel.lat],
-      zoom: 17.5,
-      duration: 900,
-    });
+  mapRef.current.flyTo({
+    center: [
+      selectedSafeSpaceFromPanel.lng,
+      selectedSafeSpaceFromPanel.lat,
+    ],
+    zoom: 18,
+    duration: 800,
+  });
 
+  const timer = window.setTimeout(() => {
     setSelectedSafeSpace(selectedSafeSpaceFromPanel);
-  }, [selectedSafeSpaceFromPanel]);
+  }, 0);
+
+  return () => window.clearTimeout(timer);
+}, [selectedSafeSpaceFromPanel]);
 
   if (!mapboxToken) {
     return <div>Missing Mapbox Token</div>;

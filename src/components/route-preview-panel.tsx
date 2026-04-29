@@ -17,7 +17,7 @@ type RoutePreviewPanelProps = {
   onExitRoute: () => void;
   onToggleSafeSpaces: () => void;
   onAddStop: (safeSpace: SafeSpace) => void;
-  onRemoveStop: (safeSpaceId: string) => void;
+  onRemoveStop: (safeSpaceId: number) => void;
   onViewSafeSpace: (safeSpace: SafeSpace) => void;
 };
 
