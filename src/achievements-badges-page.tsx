@@ -3,37 +3,16 @@ import { ArrowLeft, Lock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { AchievementsState } from "./achievements-store";
 import {
+  BADGE_DEFINITIONS,
+  type BadgeCategory,
+  type BadgeDefinition,
+} from "./achievement-badges";
+import {
   loadAchievementsState,
   subscribeToAchievementsUpdates,
 } from "./achievements-store";
 
-type BadgeCategory = "routes" | "breathing" | "safe-spaces" | "reports";
 type BadgeFilter = "all" | BadgeCategory;
-
-type BadgeCardDef = {
-  id: string;
-  title: string;
-  emoji: string;
-  category: BadgeCategory;
-  requirementLabel: string;
-  requirement: (state: AchievementsState) => boolean;
-};
-
-const badgeCards: BadgeCardDef[] = [
-  { id: "path-starter", title: "First Steps", emoji: "🗺️", category: "routes", requirementLabel: "Complete 1 quiet route", requirement: (s) => s.routesPlanned >= 1 },
-  { id: "route-regular", title: "Night Owl", emoji: "🌙", category: "routes", requirementLabel: "Complete 5 quiet routes", requirement: (s) => s.routesPlanned >= 5 },
-  { id: "neighborhood-navigator", title: "Quiet Navigator", emoji: "🧭", category: "routes", requirementLabel: "Complete 10 quiet routes", requirement: (s) => s.routesPlanned >= 10 },
-  { id: "breathing-spot-finder", title: "Safe Space Explorer", emoji: "🏛️", category: "safe-spaces", requirementLabel: "Visit 1 safe space", requirement: (s) => s.safeSpacesVisited >= 1 },
-  { id: "sanctuary-seeker", title: "Nature Seeker", emoji: "🌳", category: "safe-spaces", requirementLabel: "Visit 3 safe spaces", requirement: (s) => s.safeSpacesVisited >= 3 },
-  { id: "one-minute-calm", title: "Calm Master", emoji: "🧘", category: "breathing", requirementLabel: "Use breathing tool 1 time", requirement: (s) => s.breathingUses >= 1 },
-  { id: "reset-ritual", title: "Early Riser", emoji: "🌅", category: "breathing", requirementLabel: "Use breathing tool 3 times", requirement: (s) => s.breathingUses >= 3 },
-  { id: "library-lover", title: "Library Lover", emoji: "📚", category: "safe-spaces", requirementLabel: "Visit 5 safe spaces", requirement: (s) => s.safeSpacesVisited >= 5 },
-  { id: "first-voice", title: "First Voice", emoji: "📣", category: "reports", requirementLabel: "Submit 1 report", requirement: (s) => s.noiseReports >= 1 },
-  { id: "street-listener", title: "Street Listener", emoji: "🎧", category: "reports", requirementLabel: "Submit 3 reports", requirement: (s) => s.noiseReports >= 3 },
-  { id: "signal-scout", title: "Signal Scout", emoji: "📡", category: "reports", requirementLabel: "Submit 5 reports", requirement: (s) => s.noiseReports >= 5 },
-  { id: "community-spotter", title: "Community Spotter", emoji: "🛰️", category: "reports", requirementLabel: "Submit 10 reports", requirement: (s) => s.noiseReports >= 10 },
-  { id: "city-guardian", title: "City Guardian", emoji: "🛡️", category: "reports", requirementLabel: "Submit 20 reports", requirement: (s) => s.noiseReports >= 20 },
-];
 
 const filterChips: Array<{ id: BadgeFilter; label: string }> = [
   { id: "all", label: "All" },
@@ -76,7 +55,7 @@ export function AchievementsBadgesPage() {
   const [state, setState] = useState<AchievementsState>(() => loadAchievementsState());
   const [activeFilter, setActiveFilter] = useState<BadgeFilter>("all");
   const [selectedBadge, setSelectedBadge] = useState<
-    (BadgeCardDef & { unlocked: boolean }) | null
+    (BadgeDefinition & { unlocked: boolean }) | null
   >(null);
 
   useEffect(() => {
@@ -84,7 +63,10 @@ export function AchievementsBadgesPage() {
   }, []);
 
   const filteredCards = useMemo(() => {
-    const cards = badgeCards.map(b => ({ ...b, unlocked: b.requirement(state) }));
+    const cards = BADGE_DEFINITIONS.map((b) => ({
+      ...b,
+      unlocked: b.requirement(state),
+    }));
     if (activeFilter === "all") return cards;
     return cards.filter(c => c.category === activeFilter);
   }, [activeFilter, state]);

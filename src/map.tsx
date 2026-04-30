@@ -25,10 +25,14 @@ import { VolumeBar } from "./components/noise-volume-bar";
 import type { CrowdMapFeatureCollection } from "./types/noise-map";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  consumeNextPendingBadgePopup,
   incrementNoiseReports,
   incrementRoutesPlanned,
   incrementSafeSpacesVisited,
+  subscribeToAchievementsUpdates,
 } from "./achievements-store";
+import type { BadgeDefinition } from "./achievement-badges";
+import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -302,6 +306,7 @@ export function Map() {
   // Inside Map component
   const [isHighNoiseAlertOpen, setIsHighNoiseAlertOpen] = useState(false);
   const [lastAlertTime, setLastAlertTime] = useState<number>(0);
+  const [newBadgePopup, setNewBadgePopup] = useState<BadgeDefinition | null>(null);
 
   // Mobile panel open/close state
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(true);
@@ -488,6 +493,18 @@ export function Map() {
 
     await handlePlanRoute(updatedStops);
   };
+
+  useEffect(() => {
+    const tryShowNewBadge = () => {
+      setNewBadgePopup((current) => {
+        if (current) return current;
+        return consumeNextPendingBadgePopup({ includeDeferred: false });
+      });
+    };
+
+    tryShowNewBadge();
+    return subscribeToAchievementsUpdates(tryShowNewBadge);
+  }, []);
 
   useEffect(() => {
     // Get exact time of this specific check
@@ -1336,6 +1353,21 @@ export function Map() {
           setIsHighNoiseAlertOpen(false);
         }}
       />
+
+      {newBadgePopup && (
+        <BadgeUnlockedPopup
+          badge={newBadgePopup}
+          onClose={() => {
+            setNewBadgePopup(null);
+            const nextBadge = consumeNextPendingBadgePopup({
+              includeDeferred: false,
+            });
+            if (nextBadge) {
+              setNewBadgePopup(nextBadge);
+            }
+          }}
+        />
+      )}
     </main>
   );
 }

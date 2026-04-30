@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, ChevronRight, Check } from "lucide-react";
 import type { AchievementsState } from "./achievements-store";
+import { BADGE_DEFINITIONS } from "./achievement-badges";
 import {
   loadAchievementsState,
   subscribeToAchievementsUpdates,
@@ -22,30 +23,11 @@ export function AchievementSummaryPage() {
     });
   }, []);
 
-  const allBadgeDefinitions = useMemo(
-    () => [
-      { id: "path-starter", category: "routes", requirement: (s: AchievementsState) => s.routesPlanned >= 1 },
-      { id: "route-regular", category: "routes", requirement: (s: AchievementsState) => s.routesPlanned >= 5 },
-      { id: "neighborhood-navigator", category: "routes", requirement: (s: AchievementsState) => s.routesPlanned >= 10 },
-      { id: "one-minute-calm", category: "breathing", requirement: (s: AchievementsState) => s.breathingUses >= 1 },
-      { id: "reset-ritual", category: "breathing", requirement: (s: AchievementsState) => s.breathingUses >= 3 },
-      { id: "breathing-spot-finder", category: "safe-spaces", requirement: (s: AchievementsState) => s.safeSpacesVisited >= 1 },
-      { id: "sanctuary-seeker", category: "safe-spaces", requirement: (s: AchievementsState) => s.safeSpacesVisited >= 3 },
-      { id: "library-lover", category: "safe-spaces", requirement: (s: AchievementsState) => s.safeSpacesVisited >= 5 },
-      { id: "first-voice", category: "reports", requirement: (s: AchievementsState) => s.noiseReports >= 1 },
-      { id: "street-listener", category: "reports", requirement: (s: AchievementsState) => s.noiseReports >= 3 },
-      { id: "signal-scout", category: "reports", requirement: (s: AchievementsState) => s.noiseReports >= 5 },
-      { id: "community-spotter", category: "reports", requirement: (s: AchievementsState) => s.noiseReports >= 10 },
-      { id: "city-guardian", category: "reports", requirement: (s: AchievementsState) => s.noiseReports >= 20 },
-    ],
-    []
-  );
-
   const totalCollectedBadges = useMemo(
-    () => allBadgeDefinitions.filter((badge) => badge.requirement(state)).length,
-    [allBadgeDefinitions, state]
+    () => BADGE_DEFINITIONS.filter((badge) => badge.requirement(state)).length,
+    [state]
   );
-  const totalLockedBadges = allBadgeDefinitions.length - totalCollectedBadges;
+  const totalLockedBadges = BADGE_DEFINITIONS.length - totalCollectedBadges;
 
   const levelSteps = useMemo(
     () => [
@@ -166,8 +148,8 @@ export function AchievementSummaryPage() {
         {/* Categories List */}
         <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-5 lg:space-y-0">
           {categories.map((cat) => {
-            const total = allBadgeDefinitions.filter(b => b.category === cat.id).length;
-            const unlocked = allBadgeDefinitions.filter(b => b.category === cat.id && b.requirement(state)).length;
+            const total = BADGE_DEFINITIONS.filter((b) => b.category === cat.id).length;
+            const unlocked = BADGE_DEFINITIONS.filter((b) => b.category === cat.id && b.requirement(state)).length;
             const progress = (unlocked / total) * 100;
 
             return (

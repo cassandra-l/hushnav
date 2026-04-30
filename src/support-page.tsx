@@ -1,12 +1,33 @@
 import { BreathingExercise } from "./breathing-exercise";
 import { XButton } from "./components/x-button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { incrementBreathingUses } from "./achievements-store";
+import type { BadgeDefinition } from "./achievement-badges";
+import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
+import {
+  consumeNextPendingBadgePopup,
+  incrementBreathingUses,
+  subscribeToAchievementsUpdates,
+} from "./achievements-store";
 
 export function SupportPage() {
   const navigate = useNavigate();
   const [showExercise, setShowExercise] = useState(false);
+  const [newBadgePopup, setNewBadgePopup] = useState<BadgeDefinition | null>(null);
+
+  useEffect(() => {
+    const tryShowNewBadge = () => {
+      if (showExercise) return;
+
+      setNewBadgePopup((current) => {
+        if (current) return current;
+        return consumeNextPendingBadgePopup({ includeDeferred: true });
+      });
+    };
+
+    tryShowNewBadge();
+    return subscribeToAchievementsUpdates(tryShowNewBadge);
+  }, [showExercise]);
 
   const handleClose = () => {
     // This returns the user to their previous page
@@ -70,6 +91,20 @@ export function SupportPage() {
           </button>
         </div>
       </div>
+      {newBadgePopup && (
+        <BadgeUnlockedPopup
+          badge={newBadgePopup}
+          onClose={() => {
+            setNewBadgePopup(null);
+            const nextBadge = consumeNextPendingBadgePopup({
+              includeDeferred: true,
+            });
+            if (nextBadge) {
+              setNewBadgePopup(nextBadge);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,3 +1,10 @@
+import {
+  getBadgeById,
+  getNewlyUnlockedBadges,
+  type BadgeCategory,
+  type BadgeDefinition,
+} from "./achievement-badges";
+
 export type AchievementsState = {
   routesPlanned: number;
   safeSpacesVisited: number;
@@ -7,6 +14,7 @@ export type AchievementsState = {
 
 const STORAGE_KEY = "hushnav.achievements.v1";
 const UPDATED_EVENT = "achievements:updated";
+const PENDING_BADGE_POPUPS_STORAGE_KEY = "hushnav.pendingBadgePopups.v1";
 
 const defaultState: AchievementsState = {
   routesPlanned: 0,
@@ -27,6 +35,12 @@ function parseMaybeNumber(value: unknown): number {
   }
   return 0;
 }
+
+type PendingBadgePopup = {
+  badgeId: string;
+  deferred: boolean;
+  createdAt: number;
+};
 
 export function loadAchievementsState(): AchievementsState {
   if (!isBrowser()) return defaultState;
@@ -52,36 +66,93 @@ export function saveAchievementsState(state: AchievementsState) {
   window.dispatchEvent(new Event(UPDATED_EVENT));
 }
 
-export function incrementRoutesPlanned(delta = 1) {
+function loadPendingBadgePopups(): PendingBadgePopup[] {
+  if (!isBrowser()) return [];
+
+  try {
+    const raw = window.localStorage.getItem(PENDING_BADGE_POPUPS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as PendingBadgePopup[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item) =>
+        typeof item?.badgeId === "string" &&
+        typeof item?.deferred === "boolean" &&
+        typeof item?.createdAt === "number",
+    );
+  } catch {
+    return [];
+  }
+}
+
+function savePendingBadgePopups(popups: PendingBadgePopup[]) {
+  if (!isBrowser()) return;
+  window.localStorage.setItem(
+    PENDING_BADGE_POPUPS_STORAGE_KEY,
+    JSON.stringify(popups),
+  );
+}
+
+function enqueueNewBadgePopups(
+  previousState: AchievementsState,
+  nextState: AchievementsState,
+  triggerCategory: BadgeCategory,
+) {
+  const newlyUnlocked = getNewlyUnlockedBadges(previousState, nextState);
+  if (newlyUnlocked.length === 0) return;
+
+  const existing = loadPendingBadgePopups();
+  const existingIds = new Set(existing.map((item) => item.badgeId));
+  const now = Date.now();
+  const additions = newlyUnlocked
+    .filter((badge) => !existingIds.has(badge.id))
+    .map((badge) => ({
+      badgeId: badge.id,
+      deferred: badge.category === "breathing" && triggerCategory === "breathing",
+      createdAt: now,
+    }));
+
+  if (additions.length > 0) {
+    savePendingBadgePopups([...existing, ...additions]);
+  }
+}
+
+function updateAchievements(
+  triggerCategory: BadgeCategory,
+  updater: (current: AchievementsState) => AchievementsState,
+) {
   const current = loadAchievementsState();
-  saveAchievementsState({
+  const next = updater(current);
+  enqueueNewBadgePopups(current, next, triggerCategory);
+  saveAchievementsState(next);
+}
+
+export function incrementRoutesPlanned(delta = 1) {
+  updateAchievements("routes", (current) => ({
     ...current,
     routesPlanned: current.routesPlanned + delta,
-  });
+  }));
 }
 
 export function incrementSafeSpacesVisited(delta = 1) {
-  const current = loadAchievementsState();
-  saveAchievementsState({
+  updateAchievements("safe-spaces", (current) => ({
     ...current,
     safeSpacesVisited: current.safeSpacesVisited + delta,
-  });
+  }));
 }
 
 export function incrementNoiseReports(delta = 1) {
-  const current = loadAchievementsState();
-  saveAchievementsState({
+  updateAchievements("reports", (current) => ({
     ...current,
     noiseReports: current.noiseReports + delta,
-  });
+  }));
 }
 
 export function incrementBreathingUses(delta = 1) {
-  const current = loadAchievementsState();
-  saveAchievementsState({
+  updateAchievements("breathing", (current) => ({
     ...current,
     breathingUses: current.breathingUses + delta,
-  });
+  }));
 }
 
 export function subscribeToAchievementsUpdates(handler: () => void) {
@@ -89,5 +160,25 @@ export function subscribeToAchievementsUpdates(handler: () => void) {
   const listener = () => handler();
   window.addEventListener(UPDATED_EVENT, listener);
   return () => window.removeEventListener(UPDATED_EVENT, listener);
+}
+
+export function consumeNextPendingBadgePopup(options?: {
+  includeDeferred?: boolean;
+}): BadgeDefinition | null {
+  if (!isBrowser()) return null;
+  const includeDeferred = options?.includeDeferred ?? false;
+
+  const pending = loadPendingBadgePopups();
+  if (pending.length === 0) return null;
+
+  const nextIndex = pending.findIndex(
+    (item) => includeDeferred || !item.deferred,
+  );
+  if (nextIndex < 0) return null;
+
+  const [selected] = pending.splice(nextIndex, 1);
+  savePendingBadgePopups(pending);
+
+  return getBadgeById(selected.badgeId) ?? null;
 }
 
