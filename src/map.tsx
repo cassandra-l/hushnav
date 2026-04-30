@@ -1204,8 +1204,6 @@ export function Map() {
               selectedStops={selectedSafeSpaceStops}
               isSafeSpacesOpen={isSafeSpacesOpen}
               isNavigationActive={isNavigationActive}
-              startName={getStartDisplayName()}
-              endName={getEndDisplayName()}
               formatRouteLength={formatRouteLength}
               estimateWalkingMinutes={estimateWalkingMinutes}
               onOpenFilters={handleOpenFilters}

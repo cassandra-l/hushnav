@@ -8,8 +8,6 @@ type RoutePreviewPanelProps = {
   selectedStops: SafeSpace[];
   isSafeSpacesOpen: boolean;
   isNavigationActive: boolean;
-  startName: string;
-  endName: string;
   formatRouteLength: (meters: number) => string;
   estimateWalkingMinutes: (meters: number) => number;
   onOpenFilters: () => void;
@@ -30,8 +28,6 @@ export function RoutePreviewPanel({
   selectedStops,
   isSafeSpacesOpen,
   isNavigationActive,
-  startName,
-  endName,
   formatRouteLength,
   estimateWalkingMinutes,
   onOpenFilters,
@@ -91,8 +87,6 @@ export function RoutePreviewPanel({
                 </p>
               </div>
             </div>
-
-            
 
             {!isNavigationActive ? (
               <button
