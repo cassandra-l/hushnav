@@ -15,7 +15,11 @@ import { PopUp } from "./components/pop-up";
 import { RouteMap } from "./components/route-map";
 import { SafeSpaceStopoverPanel } from "./components/safe-space-stopover-panel";
 import { RoutePreviewPanel } from "./components/route-preview-panel";
-import type { PlanRouteResponse, SafeSpace } from "./types/route";
+import type {
+  PlanRouteRequest,
+  PlanRouteResponse,
+  SafeSpace,
+} from "./types/route";
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
 import type { CrowdMapFeatureCollection } from "./types/noise-map";
@@ -29,6 +33,7 @@ const CBD_CENTER = {
   lng: 144.9631,
   lat: -37.8136,
 };
+
 // A wider Melbourne inner bounding box so nearby areas like Docklands,
 // Southbank, and East Melbourne can still appear in suggestions
 const MELBOURNE_INNER_BBOX = "144.88,-37.86,145.05,-37.77";
@@ -134,7 +139,7 @@ function AutocompleteInput({
             onFocus={onFocus}
             placeholder={placeholder}
             autoComplete="off"
-            className="w-full bg-transparent text-[14px] text-[#1E2939] outline-none placeholder:text-[#8B98A5]"
+            className="min-w-0 w-full bg-transparent text-[14px] text-[#1E2939] outline-none placeholder:text-[#8B98A5]"
           />
         </div>
 
@@ -276,6 +281,7 @@ async function fetchPhotonSuggestions(
 // Noise monitoring configuration
 // Time interval between every triggers
 const COOLDOWN_DURATION = 5 * 60 * 1000;
+
 // Noise threshold to trigger the alert
 const NOISE_THRESHOLD = 10;
 
@@ -476,9 +482,11 @@ export function Map() {
 
     await handlePlanRoute(updatedStops);
   };
+
   useEffect(() => {
     // Get exact time of this specific check
     const currentTime = Date.now();
+
     // Only show the popup if ALL of these are true:
     if (
       // User has noise monitor turned on
@@ -491,6 +499,7 @@ export function Map() {
       currentTime - lastAlertTime > COOLDOWN_DURATION
     ) {
       setIsHighNoiseAlertOpen(true);
+
       // Start the 5-minute timer
       setLastAlertTime(currentTime);
     }
@@ -690,6 +699,7 @@ export function Map() {
   const handlePlanRoute = async (safeSpaceStops = selectedSafeSpaceStops) => {
     console.log("DEBUG - Start Selection:", selectedStart);
     console.log("DEBUG - Destination Selection:", selectedDestination);
+
     setError("");
     setIsStartSuggestionsOpen(false);
     setIsDestinationSuggestionsOpen(false);
@@ -719,7 +729,7 @@ export function Map() {
     setLoading(true);
 
     try {
-      const requestBody = {
+      const requestBody: PlanRouteRequest = {
         start:
           selectedStart?.center && selectedStart.center.length >= 2
             ? {
@@ -727,6 +737,7 @@ export function Map() {
                 lat: selectedStart.center[1],
               }
             : undefined,
+
         end:
           selectedDestination?.center && selectedDestination.center.length >= 2
             ? {
@@ -734,15 +745,14 @@ export function Map() {
                 lat: selectedDestination.center[1],
               }
             : undefined,
+
         startQuery: startLocation,
         endQuery: destination,
-        // Ordered stopovers. Backend should route through these in array order.
-        stopovers: safeSpaceStops.map((stop) => ({
-          id: stop.id,
-          name: stop.name,
-          lng: stop.lng,
-          lat: stop.lat,
-        })),
+
+        // Send selected safe spaces to the backend in the exact order Emily selected them.
+        // Backend will calculate:
+        // start -> stop 1 -> stop 2 -> ... -> destination
+        stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
       };
 
       const response = await fetch(`${API_BASE_URL}/plan-route`, {
@@ -808,10 +818,10 @@ export function Map() {
   };
 
   return (
-    <main className="h-[100dvh] fixed inset-0 w-full overflow-hidden bg-[#D5E8E5]">
+    <main className="fixed inset-0 h-[100dvh] w-full overflow-hidden bg-[#D5E8E5]">
       <div className="h-full w-full lg:grid lg:grid-cols-[380px_1fr]">
         {/* Desktop left sidebar */}
-        <aside className="z-20 hidden max-h-screen h-full flex-col border-r border-[#E8EEEC] bg-white lg:flex">
+        <aside className="z-20 hidden h-full max-h-screen flex-col border-r border-[#E8EEEC] bg-white lg:flex">
           <div
             ref={desktopSearchPanelRef}
             className="border-b border-[#E8EEEC] px-5 pb-4 pt-5"
@@ -897,25 +907,47 @@ export function Map() {
           {/* Desktop route summary */}
           <div
             ref={sidebarScrollRef}
-            className="flex-1 overflow-y-auto px-5 py-4 custom-scrollbar min-h-0"
+            className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-4"
           >
             {routeData ? (
               <div className="space-y-4">
-                <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
-                  <h2 className="mb-3 text-base font-semibold text-[#1E2939]">
-                    Quiet Route Preview
-                  </h2>
+                {/* Desktop Start / Exit button is now above the summary card */}
+                {isNavigationActive ? (
+                  <button
+                    onClick={handleExitRoute}
+                    className="w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm"
+                  >
+                    Exit
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStartNavigation}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm"
+                  >
+                    <Navigation size={16} />
+                    Start
+                  </button>
+                )}
 
-                  {!isNavigationActive && (
-                    <button
-                      type="button"
-                      onClick={handleOpenFilters}
-                      className="mb-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#7DB0A6] px-4 py-3 text-sm font-medium text-white shadow-sm"
-                    >
-                      <SlidersVertical size={16} className="text-white" />
-                      Filter route
-                    </button>
-                  )}
+                <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
+                  {/* Route Summary heading with small filter button on the right */}
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h2 className="text-base font-semibold text-[#1E2939]">
+                      Route Summary
+                    </h2>
+
+                    {!isNavigationActive && (
+                      <button
+                        type="button"
+                        onClick={handleOpenFilters}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#DCE7E3] bg-[#E8F4F1] text-[#5A9A8E] shadow-sm transition-transform hover:scale-105 active:scale-95"
+                        aria-label="Filter route"
+                        title="Filter route"
+                      >
+                        <SlidersVertical size={17} className="text-[#5A9A8E]" />
+                      </button>
+                    )}
+                  </div>
 
                   <div className="space-y-3 text-sm text-[#1E2939]">
                     <div className="flex justify-between gap-4">
@@ -965,22 +997,6 @@ export function Map() {
                     />
                   </div>
                 </div>
-                {isNavigationActive ? (
-                  <button
-                    onClick={handleExitRoute}
-                    className="w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm"
-                  >
-                    Exit
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleStartNavigation}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm"
-                  >
-                    <Navigation size={16} />
-                    Start
-                  </button>
-                )}
               </div>
             ) : (
               <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
@@ -1013,48 +1029,51 @@ export function Map() {
 
           {/* Mobile collapsed top card */}
           {!isMobileSearchOpen && !routeData && (
-            <div className="absolute left-4 right-4 top-4 z-10 lg:hidden">
+            <div className="absolute left-3 right-3 top-4 z-10 max-w-[calc(100vw-24px)] overflow-hidden lg:hidden">
               <button
                 type="button"
                 onClick={() => setIsMobileSearchOpen(true)}
-                className="flex w-full items-center justify-between rounded-2xl border border-white/70 bg-white/92 px-4 py-3 shadow-lg backdrop-blur-sm"
+                className="flex w-full min-w-0 items-center justify-between rounded-2xl border border-white/70 bg-white/92 px-4 py-3 shadow-lg backdrop-blur-sm"
               >
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-[#1E2939]">
+                <div className="min-w-0 flex-1 text-left">
+                  <p className="truncate text-sm font-semibold text-[#1E2939]">
                     Quiet Route
                   </p>
-                  <p className="text-xs text-[#6A7282]">
+                  <p className="truncate text-xs text-[#6A7282]">
                     {startLocation && destination
                       ? `${startLocation} → ${destination}`
                       : "Open search"}
                   </p>
                 </div>
 
-                <ChevronDown size={18} className="text-[#1E2939]" />
+                <ChevronDown
+                  size={18}
+                  className="ml-2 shrink-0 text-[#1E2939]"
+                />
               </button>
             </div>
           )}
 
           {/* Mobile search panel */}
           {isMobileSearchOpen && !routeData && (
-            <section className="absolute left-4 right-4 top-5 z-20 lg:hidden">
+            <section className="absolute left-3 right-3 top-4 z-20 max-w-[calc(100vw-24px)] overflow-hidden lg:hidden">
               <div
                 ref={mobileSearchPanelRef}
-                className="flex items-start gap-3"
+                className="flex w-full items-start gap-2"
               >
                 {/* Back Button */}
-                <div className="pt-13">
+                <div className="shrink-0 pt-3">
                   <button
                     onClick={() => navigate("/")}
-                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white bg-white/80 text-[#1E2939] shadow-sm"
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-white bg-white/85 text-[#1E2939] shadow-sm"
                     aria-label="Go back"
                   >
-                    <ArrowLeft size={18} />
+                    <ArrowLeft size={17} />
                   </button>
                 </div>
 
-                <div className="flex flex-1 flex-col">
-                  <div className="flex-1 bg-white/80 border border-white rounded-3xl">
+                <div className="min-w-0 flex-1 flex-col">
+                  <div className="min-w-0 flex-1 overflow-hidden rounded-3xl border border-white bg-white/85 shadow-md backdrop-blur-sm">
                     <AutocompleteInput
                       id="mobileStartLocation"
                       label=""
@@ -1077,6 +1096,7 @@ export function Map() {
                         setIsDestinationSuggestionsOpen(false);
                       }}
                     />
+
                     {/* Divider Line */}
                     <div className="mx-4 h-px bg-[#E8EEEC]" />
 
@@ -1105,6 +1125,7 @@ export function Map() {
                       }}
                     />
                   </div>
+
                   <AnimatePresence>
                     {startLocation && destination && (
                       <motion.div
@@ -1116,7 +1137,7 @@ export function Map() {
                         <button
                           onClick={() => handlePlanRoute()}
                           disabled={loading}
-                          className="w-full mt-2 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-md disabled:opacity-70 active:scale-[0.98] transition-transform"
+                          className="mt-2 w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-md transition-transform active:scale-[0.98] disabled:opacity-70"
                         >
                           {loading
                             ? "Finding quiet route..."
@@ -1138,35 +1159,35 @@ export function Map() {
 
           {/* Mobile route preview top card - visible before navigation starts */}
           {routeData && !isNavigationActive && (
-            <section className="absolute left-4 right-4 top-5 z-20 lg:hidden">
-              <div className="flex items-start gap-3">
-                <div className="pt-13">
+            <section className="absolute left-3 right-3 top-4 z-20 max-w-[calc(100vw-24px)] overflow-hidden lg:hidden">
+              <div className="flex w-full items-start gap-2">
+                <div className="shrink-0 pt-3">
                   <button
                     onClick={handleExitRoute}
-                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white bg-white/80 text-[#1E2939] shadow-sm"
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-white bg-white/85 text-[#1E2939] shadow-sm"
                     aria-label="Go back to search"
                   >
-                    <ArrowLeft size={18} />
+                    <ArrowLeft size={17} />
                   </button>
                 </div>
 
-                <div className="flex-1 rounded-3xl border border-white bg-white/80 shadow-md backdrop-blur-sm">
-                  <div className="flex items-center gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1 overflow-hidden rounded-3xl border border-white bg-white/85 shadow-md backdrop-blur-sm">
+                  <div className="flex min-w-0 items-center gap-2 px-3 py-2.5">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#D4B896]">
                       <Navigation size={16} className="text-white" />
                     </div>
-                    <p className="truncate text-[14px] text-[#1E2939]">
+                    <p className="min-w-0 flex-1 truncate text-[13px] text-[#1E2939]">
                       {getStartDisplayName()}
                     </p>
                   </div>
 
                   <div className="mx-4 h-px bg-[#E8EEEC]" />
 
-                  <div className="flex items-center gap-3 px-4 py-3">
+                  <div className="flex min-w-0 items-center gap-2 px-3 py-2.5">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#7DB0A6]">
                       <MapPin size={16} className="text-white" />
                     </div>
-                    <p className="truncate text-[14px] text-[#1E2939]">
+                    <p className="min-w-0 flex-1 truncate text-[13px] text-[#1E2939]">
                       {getEndDisplayName()}
                     </p>
                   </div>
@@ -1196,6 +1217,7 @@ export function Map() {
               onViewSafeSpace={handleViewSafeSpaceOnMap}
             />
           )}
+
           {routeData && isNavigationActive && (
             <button
               onClick={handleExitRoute}
@@ -1207,10 +1229,10 @@ export function Map() {
 
           {/* Mobile mic button + live noise bar */}
           <div
-            className={`absolute left-4 z-10 lg:hidden transition-all duration-300 ${
+            className={`absolute left-4 z-10 transition-all duration-300 lg:hidden ${
               routeData
                 ? isSafeSpacesOpen
-                  ? "bottom-78 opacity-0 pointer-events-none"
+                  ? "bottom-78 pointer-events-none opacity-0"
                   : "bottom-44" // Moves up when the route bar appears
                 : "bottom-6" // Stays at the bottom when no route is entered
             }`}
@@ -1226,10 +1248,10 @@ export function Map() {
 
           {/* Mobile find calm button */}
           <div
-            className={`absolute right-4 z-10 lg:hidden transition-all duration-300 ${
+            className={`absolute right-4 z-10 transition-all duration-300 lg:hidden ${
               routeData
                 ? isSafeSpacesOpen
-                  ? "bottom-78 opacity-0 pointer-events-none"
+                  ? "bottom-78 pointer-events-none opacity-0"
                   : "bottom-44" // Moves up when the route bar appears
                 : "bottom-6" // Stays at the bottom when no route is entered
             }`}
@@ -1289,6 +1311,7 @@ export function Map() {
           await startMonitoring();
         }}
       />
+
       {/* High Noise Alert Popup */}
       <PopUp
         isOpen={isHighNoiseAlertOpen}

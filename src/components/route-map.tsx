@@ -95,7 +95,7 @@ export function RouteMap({
 
   const safeSpaces = routeData ? routeData.safeSpaces : allSafeSpaces;
 
-  // Fit full route (preview mode)
+  // Fit full route in preview mode.
   useEffect(() => {
     if (!mapRef.current || !routeData || isNavigationActive) return;
 
@@ -119,11 +119,11 @@ export function RouteMap({
         [minLng, minLat],
         [maxLng, maxLat],
       ],
-      { padding: 80, duration: 1200 }
+      { padding: 80, duration: 1200 },
     );
   }, [routeData, isNavigationActive]);
 
-  // Navigation mode → zoom into start
+  // Navigation mode: zoom into the start location.
   useEffect(() => {
     if (!mapRef.current || !routeData || !isNavigationActive) return;
 
@@ -138,24 +138,24 @@ export function RouteMap({
 
   // When a safe space is selected from the sidebar/bottom sheet,
   // move the map to it and open the same popup used by map markers.
- useEffect(() => {
-  if (!mapRef.current || !selectedSafeSpaceFromPanel) return;
+  useEffect(() => {
+    if (!mapRef.current || !selectedSafeSpaceFromPanel) return;
 
-  mapRef.current.flyTo({
-    center: [
-      selectedSafeSpaceFromPanel.lng,
-      selectedSafeSpaceFromPanel.lat,
-    ],
-    zoom: 18,
-    duration: 800,
-  });
+    mapRef.current.flyTo({
+      center: [
+        selectedSafeSpaceFromPanel.lng,
+        selectedSafeSpaceFromPanel.lat,
+      ],
+      zoom: 18,
+      duration: 800,
+    });
 
-  const timer = window.setTimeout(() => {
-    setSelectedSafeSpace(selectedSafeSpaceFromPanel);
-  }, 0);
+    const timer = window.setTimeout(() => {
+      setSelectedSafeSpace(selectedSafeSpaceFromPanel);
+    }, 0);
 
-  return () => window.clearTimeout(timer);
-}, [selectedSafeSpaceFromPanel]);
+    return () => window.clearTimeout(timer);
+  }, [selectedSafeSpaceFromPanel]);
 
   if (!mapboxToken) {
     return <div>Missing Mapbox Token</div>;
@@ -235,11 +235,15 @@ export function RouteMap({
           </>
         )}
 
-        {safeSpaces.map((s) => (
-          <Marker key={s.id} longitude={s.lng} latitude={s.lat}>
+        {safeSpaces.map((safeSpace) => (
+          <Marker
+            key={safeSpace.id}
+            longitude={safeSpace.lng}
+            latitude={safeSpace.lat}
+          >
             <SafeSpaceMarker
-              safeSpace={s}
-              onClick={() => setSelectedSafeSpace(s)}
+              safeSpace={safeSpace}
+              onClick={() => setSelectedSafeSpace(safeSpace)}
             />
           </Marker>
         ))}
@@ -251,23 +255,24 @@ export function RouteMap({
             anchor="top"
             closeOnClick={false}
             onClose={() => setSelectedSafeSpace(null)}
-            offset={14}
-            maxWidth="240px"
+            offset={10}
+            maxWidth="210px"
+            className="safe-space-popup"
           >
-            <div className="max-w-[210px] rounded-2xl bg-white p-2 text-[#1E2939]">
-              <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm">
+            <div className="w-[180px] max-w-[calc(100vw-96px)] rounded-2xl bg-white p-3 text-left text-[#1E2939] sm:w-[220px] sm:p-4">
+              <div className="mb-2 flex h-7 w-7 items-center justify-center rounded-full border border-white/90 bg-[#E8F4F1] text-[#5A9A8E] shadow-sm sm:h-8 sm:w-8">
                 {renderSafeSpaceIcon(selectedSafeSpace.type)}
               </div>
 
-              <h3 className="text-[15px] font-semibold leading-5">
+              <h3 className="text-sm font-semibold leading-tight text-[#1E2939] sm:text-base">
                 {selectedSafeSpace.name}
               </h3>
 
-              <p className="mt-1 text-[11px] font-medium text-[#5A9A8E]">
+              <p className="mt-1 text-[11px] font-medium text-[#5A9A8E] sm:text-xs">
                 {selectedSafeSpace.subTheme}
               </p>
 
-              <p className="mt-2 text-[13px] leading-5 text-[#4A5565]">
+              <p className="mt-2 text-xs leading-snug text-[#4A5565] sm:text-sm">
                 {selectedSafeSpace.description}
               </p>
             </div>
