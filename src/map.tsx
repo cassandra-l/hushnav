@@ -24,6 +24,11 @@ import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
 import type { CrowdMapFeatureCollection } from "./types/noise-map";
 import { AnimatePresence, motion } from "framer-motion";
+import {
+  incrementNoiseReports,
+  incrementRoutesPlanned,
+  incrementSafeSpacesVisited,
+} from "./achievements-store";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -465,6 +470,7 @@ export function Map() {
 
     const updatedStops = [...selectedSafeSpaceStops, safeSpace];
     setSelectedSafeSpaceStops(updatedStops);
+    incrementSafeSpacesVisited(1);
     setIsSafeSpacesOpen(false);
     setIsNavigationActive(false);
 
@@ -794,8 +800,9 @@ export function Map() {
       }
 
       setRouteData(data as PlanRouteResponse);
-      setIsNavigationActive(false);
       setIsSafeSpacesOpen(false);
+      setIsNavigationActive(false);
+      incrementRoutesPlanned(1);
 
       if (window.innerWidth < 1024) {
         setIsMobileSearchOpen(false);
@@ -1324,7 +1331,10 @@ export function Map() {
           </>
         }
         onClose={() => setIsHighNoiseAlertOpen(false)}
-        onConfirm={() => setIsHighNoiseAlertOpen(false)}
+        onConfirm={() => {
+          incrementNoiseReports(1);
+          setIsHighNoiseAlertOpen(false);
+        }}
       />
     </main>
   );
