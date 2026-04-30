@@ -55,6 +55,12 @@ export function Home() {
               >
                 Calming Tool
               </a>
+              <a
+                href="/achievements"
+                className="hover:text-[#1E2939] transition-colors"
+              >
+                Achievements
+              </a>
             </div>
           </div>
         </nav>

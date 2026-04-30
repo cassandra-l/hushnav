@@ -1,11 +1,33 @@
 import { BreathingExercise } from "./breathing-exercise";
 import { XButton } from "./components/x-button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import type { BadgeDefinition } from "./achievement-badges";
+import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
+import {
+  consumeNextPendingBadgePopup,
+  incrementBreathingUses,
+  subscribeToAchievementsUpdates,
+} from "./achievements-store";
 
 export function SupportPage() {
   const navigate = useNavigate();
   const [showExercise, setShowExercise] = useState(false);
+  const [newBadgePopup, setNewBadgePopup] = useState<BadgeDefinition | null>(null);
+
+  useEffect(() => {
+    const tryShowNewBadge = () => {
+      if (showExercise) return;
+
+      setNewBadgePopup((current) => {
+        if (current) return current;
+        return consumeNextPendingBadgePopup({ includeDeferred: true });
+      });
+    };
+
+    tryShowNewBadge();
+    return subscribeToAchievementsUpdates(tryShowNewBadge);
+  }, [showExercise]);
 
   const handleClose = () => {
     // This returns the user to their previous page
@@ -59,13 +81,30 @@ export function SupportPage() {
           </p>
           {/* button to start the breathing exercise */}
           <button
-            onClick={() => setShowExercise(true)}
+            onClick={() => {
+              incrementBreathingUses(1);
+              setShowExercise(true);
+            }}
             className="mt-4 w-full rounded-2xl bg-[#5A9A8E] py-4 text-lg font-medium text-[#FFFFFF] shadow-lg shadow-[#5A9A8E]/20 transition-all hover:bg-[#4d857a] active:scale-95"
           >
             Start Breathing Exercise
           </button>
         </div>
       </div>
+      {newBadgePopup && (
+        <BadgeUnlockedPopup
+          badge={newBadgePopup}
+          onClose={() => {
+            setNewBadgePopup(null);
+            const nextBadge = consumeNextPendingBadgePopup({
+              includeDeferred: true,
+            });
+            if (nextBadge) {
+              setNewBadgePopup(nextBadge);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
