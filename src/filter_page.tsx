@@ -148,7 +148,7 @@ export default function FilterScreen() {
   const handleApplyFilters = () => {
     localStorage.setItem(SAFE_SPACES_STORAGE_KEY, JSON.stringify(selectedSafeSpaces));
     localStorage.setItem(SENSITIVITY_STORAGE_KEY, selectedSensitivity);
-    navigate(-1);
+    navigate("/map", { state: { restoreRoutePreview: true } });
   };
 
   return (
