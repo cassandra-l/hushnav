@@ -1,366 +1,280 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeft, ChevronRight, Check } from "lucide-react";
 import type { AchievementsState } from "./achievements-store";
 import {
   loadAchievementsState,
   subscribeToAchievementsUpdates,
 } from "./achievements-store";
 
-type LevelStep = {
-  name: string;
-  requirement: (s: AchievementsState) => boolean;
-  emoji: string;
-};
-
-type BadgeDef = {
-  id: string;
-  title: string;
-  emoji: string;
-  total: number;
-  getCurrent: (s: AchievementsState) => number;
-};
-
-const BADGE_SHOW_STEPS = 5;
-
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-function getBadgeProgress(currentValue: number, totalValue: number) {
-  const safeTotal = totalValue <= 0 ? 1 : totalValue;
-  const cappedCurrent = clamp(currentValue, 0, safeTotal);
-  const percent = (cappedCurrent / safeTotal) * 100;
-  const doneSteps = Math.floor(
-    (cappedCurrent / safeTotal) * BADGE_SHOW_STEPS,
-  );
-  return { cappedCurrent, safeTotal, percent, doneSteps };
-}
-
 export function AchievementSummaryPage() {
   const navigate = useNavigate();
-  const [state, setState] = useState<AchievementsState>(() =>
-    loadAchievementsState(),
-  );
+  const [state, setState] = useState<AchievementsState>(() => loadAchievementsState());
+  const [selectedLevelIndex, setSelectedLevelIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    setState(loadAchievementsState());
     return subscribeToAchievementsUpdates(() => {
       setState(loadAchievementsState());
     });
   }, []);
 
-  const levelSteps: LevelStep[] = useMemo(
+  const allBadgeDefinitions = useMemo(
     () => [
-      {
-        name: "Quiet Path Explorer",
-        emoji: "🌿",
-        requirement: (s) => s.routesPlanned >= 1,
-      },
-      {
-        name: "Calm Route Builder",
-        emoji: "🌱",
-        requirement: (s) => s.safeSpacesVisited >= 1,
-      },
-      {
-        name: "Breathway Navigator",
-        emoji: "😌",
-        requirement: (s) => s.breathingUses >= 1,
-      },
-      {
-        name: "Noise-Wise Walker",
-        emoji: "🔊",
-        requirement: (s) => s.noiseReports >= 1,
-      },
-      {
-        name: "Serenity Master",
-        emoji: "⭐",
-        requirement: (s) =>
-          s.routesPlanned >= 5 &&
-          s.safeSpacesVisited >= 5 &&
-          s.breathingUses >= 5 &&
-          s.noiseReports >= 5,
-      },
+      { id: "path-starter", category: "routes", requirement: (s: AchievementsState) => s.routesPlanned >= 1 },
+      { id: "route-regular", category: "routes", requirement: (s: AchievementsState) => s.routesPlanned >= 5 },
+      { id: "neighborhood-navigator", category: "routes", requirement: (s: AchievementsState) => s.routesPlanned >= 10 },
+      { id: "one-minute-calm", category: "breathing", requirement: (s: AchievementsState) => s.breathingUses >= 1 },
+      { id: "reset-ritual", category: "breathing", requirement: (s: AchievementsState) => s.breathingUses >= 3 },
+      { id: "breathing-spot-finder", category: "safe-spaces", requirement: (s: AchievementsState) => s.safeSpacesVisited >= 1 },
+      { id: "sanctuary-seeker", category: "safe-spaces", requirement: (s: AchievementsState) => s.safeSpacesVisited >= 3 },
+      { id: "library-lover", category: "safe-spaces", requirement: (s: AchievementsState) => s.safeSpacesVisited >= 5 },
+      { id: "first-voice", category: "reports", requirement: (s: AchievementsState) => s.noiseReports >= 1 },
+      { id: "street-listener", category: "reports", requirement: (s: AchievementsState) => s.noiseReports >= 3 },
+      { id: "signal-scout", category: "reports", requirement: (s: AchievementsState) => s.noiseReports >= 5 },
+      { id: "community-spotter", category: "reports", requirement: (s: AchievementsState) => s.noiseReports >= 10 },
+      { id: "city-guardian", category: "reports", requirement: (s: AchievementsState) => s.noiseReports >= 20 },
     ],
-    [],
+    []
+  );
+
+  const totalCollectedBadges = useMemo(
+    () => allBadgeDefinitions.filter((badge) => badge.requirement(state)).length,
+    [allBadgeDefinitions, state]
+  );
+  const totalLockedBadges = allBadgeDefinitions.length - totalCollectedBadges;
+
+  const levelSteps = useMemo(
+    () => [
+      { name: "Quiet Path Explorer", emoji: "🌱", minBadges: 0 },
+      { name: "Calm Route Builder", emoji: "🌿", minBadges: 2 },
+      { name: "Breathway Navigator", emoji: "🌳", minBadges: 5 },
+      { name: "Noise-Wise Walker", emoji: "🏔️", minBadges: 9 },
+      { name: "Serenity Master", emoji: "⭐", minBadges: 11 },
+    ],
+    []
   );
 
   const prefixUnlocked = useMemo(() => {
     let unlocked = 0;
     for (const step of levelSteps) {
-      if (step.requirement(state)) unlocked += 1;
+      if (totalCollectedBadges >= step.minBadges) unlocked += 1;
       else break;
     }
-    return unlocked; 
-  }, [levelSteps, state]);
+    return unlocked;
+  }, [levelSteps, totalCollectedBadges]);
 
-  const activeLevelIndex = clamp(prefixUnlocked, 0, levelSteps.length - 1);
+  const activeLevelIndex = clamp(prefixUnlocked - 1, 0, levelSteps.length - 1);
 
-  const badges: BadgeDef[] = useMemo(
+  const categories = useMemo(
     () => [
-      {
-        id: "route-first",
-        title: "First time routing",
-        emoji: "🗺️",
-        total: 1,
-        getCurrent: (s) => s.routesPlanned,
-      },
-      {
-        id: "route-5",
-        title: "Routing 5 times",
-        emoji: "🧭",
-        total: 5,
-        getCurrent: (s) => s.routesPlanned,
-      },
-      {
-        id: "route-10",
-        title: "Routing 10 times",
-        emoji: "🏁",
-        total: 10,
-        getCurrent: (s) => s.routesPlanned,
-      },
-      {
-        id: "safe-first",
-        title: "Add safe space first time",
-        emoji: "🍃",
-        total: 1,
-        getCurrent: (s) => s.safeSpacesVisited,
-      },
-      {
-        id: "safe-5",
-        title: "Add safe space 5 times",
-        emoji: "🌳",
-        total: 5,
-        getCurrent: (s) => s.safeSpacesVisited,
-      },
-      {
-        id: "safe-10",
-        title: "Add safe space 10 times",
-        emoji: "🌲",
-        total: 10,
-        getCurrent: (s) => s.safeSpacesVisited,
-      },
-      {
-        id: "breath-first",
-        title: "Using the breathing tool for the first time",
-        emoji: "🧘",
-        total: 1,
-        getCurrent: (s) => s.breathingUses,
-      },
-      {
-        id: "breath-5",
-        title: "Using the breathing tool 5 times",
-        emoji: "🌬️",
-        total: 5,
-        getCurrent: (s) => s.breathingUses,
-      },
-      {
-        id: "breath-10",
-        title: "Using the breathing tool 10 times",
-        emoji: "🫧",
-        total: 10,
-        getCurrent: (s) => s.breathingUses,
-      },
-      {
-        id: "noise-first",
-        title: "First noise report",
-        emoji: "📣",
-        total: 1,
-        getCurrent: (s) => s.noiseReports,
-      },
-      {
-        id: "noise-5",
-        title: "Reporting noise 5 times",
-        emoji: "🎚️",
-        total: 5,
-        getCurrent: (s) => s.noiseReports,
-      },
-      {
-        id: "noise-10",
-        title: "Reporting noise 10 times",
-        emoji: "📡",
-        total: 10,
-        getCurrent: (s) => s.noiseReports,
-      },
+      { id: "routes", title: "Routes", emoji: "🗺️" },
+      { id: "breathing", title: "Breathing", emoji: "🧘" },
+      { id: "safe-spaces", title: "Safe Spaces", emoji: "🏛️" },
+      { id: "reports", title: "Reports", emoji: "📣" },
     ],
-    [],
-  );
-
-  const stats = useMemo(
-    () => [
-      { value: state.noiseReports, label: "Noise reports" },
-      { value: state.safeSpacesVisited, label: "Safe spaces visited" },
-    ],
-    [state.noiseReports, state.safeSpacesVisited],
+    []
   );
 
   return (
-    <main className="min-h-screen w-full bg-[#D5E8E5] px-4 py-6">
-      <div className="mx-auto w-full max-w-md">
-        <div className="mb-4 flex items-center justify-center relative">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="absolute left-0 flex h-10 w-10 items-center justify-center rounded-full border border-[#E8EEEC] bg-[#F7FAF9] text-[#1E2939]"
-            aria-label="Go back"
-          >
-            ←
-          </button>
-          <h1 className="text-[26px] font-semibold text-[#1E2939]">
-            Achievements
-          </h1>
+    <main className="min-h-screen w-full bg-[#f4f7f8] pb-12">
+      {/* Header - Matching image_1b6625.png style */}
+      <header className="sticky top-0 z-20 flex items-center border-b border-slate-200 bg-white px-5 py-4">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200"
+        >
+          <ArrowLeft size={18} />
+        </button>
+        <h1 className="flex-1 text-center text-lg font-semibold text-[#1e293b] mr-10">
+          Achievements
+        </h1>
+      </header>
+
+      <div className="mx-auto max-w-[450px] px-5 pt-6 lg:max-w-6xl lg:px-8 lg:pt-10">
+        {/* Level Card */}
+        <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-100 lg:mb-10 lg:p-8">
+          <div className="mb-1 text-[11px] font-bold tracking-widest text-slate-400 uppercase">
+            Current Level
+          </div>
+          <h2 className="mb-6 text-2xl font-bold text-slate-800 lg:text-[30px]">
+            {levelSteps[activeLevelIndex]?.name}
+          </h2>
+          
+          <div className="flex items-center justify-between px-1 lg:px-0">
+            {levelSteps.map((step, idx) => {
+              const isDone = idx < prefixUnlocked;
+              const isCurrent = idx === activeLevelIndex;
+              const isLocked = totalCollectedBadges < step.minBadges;
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setSelectedLevelIndex(idx)}
+                  className="relative"
+                  aria-label={`View details for ${step.name}`}
+                >
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-full border-2 transition-all lg:h-14 lg:w-14
+                    ${isDone || isCurrent ? 'border-[#7CA9A0] bg-[#f0f7f6]' : 'border-slate-100 bg-slate-50'}`}>
+                    <span className={`text-xl lg:text-2xl ${isLocked ? 'grayscale opacity-40' : ''}`}>
+                      {step.emoji}
+                    </span>
+                  </div>
+                  {isDone && (
+                    <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#7CA9A0] text-white ring-2 ring-white lg:h-6 lg:w-6">
+                      <Check size={10} strokeWidth={4} />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Badge totals */}
+        <section className="mb-8 grid grid-cols-2 gap-3 lg:mb-10 lg:gap-4">
+          <article className="rounded-2xl bg-white p-4 text-center shadow-sm ring-1 ring-slate-100 lg:p-5">
+            <p className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.02em] text-slate-400 sm:text-[11px]">
+              Total Badges Unlocked
+            </p>
+            <p className="mt-2 text-2xl font-bold text-slate-700 lg:text-3xl">
+              {totalCollectedBadges}
+            </p>
+          </article>
+
+          <article className="rounded-2xl bg-white p-4 text-center shadow-sm ring-1 ring-slate-100 lg:p-5">
+            <p className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.02em] text-slate-400 sm:text-[11px]">
+              Total Badges Locked
+            </p>
+            <p className="mt-2 text-2xl font-bold text-slate-700 lg:text-3xl">
+              {totalLockedBadges}
+            </p>
+          </article>
+        </section>
+
+        {/* Section Header */}
+        <div className="mb-4 flex items-center justify-between px-1 lg:mb-6">
+          <h3 className="text-lg font-bold text-slate-800">Total Badges Earned</h3>
+          <Link to="/achievements/badges" className="flex items-center text-sm font-bold text-[#7CA9A0] hover:opacity-80 lg:text-base">
+            See All Badges <ChevronRight size={16} className="ml-0.5" strokeWidth={3} />
+          </Link>
         </div>
 
-        <div className="rounded-[24px] bg-white/90 border border-[#E8EEEC] shadow-sm overflow-hidden">
-          <div className="p-6">
-            <div className="flex flex-col gap-3">
-              <div className="text-[12px] font-bold tracking-[0.2em] text-[#6A7282]">
-                LEVEL
-              </div>
-              <div className="text-[28px] font-semibold leading-tight text-[#1E2939]">
-                {levelSteps[activeLevelIndex]?.name}
-              </div>
+        {/* Categories List */}
+        <div className="space-y-4 lg:grid lg:grid-cols-2 lg:gap-5 lg:space-y-0">
+          {categories.map((cat) => {
+            const total = allBadgeDefinitions.filter(b => b.category === cat.id).length;
+            const unlocked = allBadgeDefinitions.filter(b => b.category === cat.id && b.requirement(state)).length;
+            const progress = (unlocked / total) * 100;
 
-              <div className="mt-1 flex items-center justify-between gap-3">
-                {levelSteps.map((step, idx) => {
-                  const done = idx < activeLevelIndex;
-                  const active = idx === activeLevelIndex;
-                  return (
-                    <div
-                      key={step.name}
-                      className={[
-                        "relative flex items-center justify-center w-14 h-14 rounded-full bg-white",
-                        done
-                          ? "border-2 border-[#5A9A8E]"
-                          : active
-                            ? "border-2 border-[#5A9A8E] bg-[#F2F7F4]"
-                            : "border border-[#E8EEEC]",
-                      ].join(" ")}
-                      aria-label={
-                        done
-                          ? "Completed level step"
-                          : active
-                            ? "Active level step"
-                            : "Locked level step"
-                      }
-                    >
-                      <span
-                        className={[
-                          "text-[28px] leading-none",
-                          done || active ? "text-[#5A9A8E]" : "text-[#A0A7B3]",
-                        ].join(" ")}
-                      >
-                        {step.emoji}
-                      </span>
-                      {done ? (
-                        <span className="absolute -right-1 -top-1 grid h-6 w-6 place-items-center rounded-full bg-[#5A9A8E] text-white text-[14px]">
-                          ✓
-                        </span>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className="px-6 pb-6">
-            <div className="grid grid-cols-2 gap-4">
-              {stats.map((s) => (
-                <div
-                  key={s.label}
-                  className="rounded-[18px] bg-white border border-[#E8EEEC] p-5 text-center"
-                >
-                  <div className="text-[34px] font-semibold text-[#1E2939]">
-                    {s.value}
+            return (
+              <div key={cat.id} className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-100 lg:p-6">
+                <div className="flex gap-3 lg:gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-50 text-2xl ring-1 ring-slate-100">
+                    {cat.emoji}
                   </div>
-                  <div className="text-[12px] font-medium text-[#6A7282] mt-1">
-                    {s.label}
+                  
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-bold text-slate-700">{cat.title}</span>
+                      <span className="text-xs font-bold text-slate-400">{unlocked}/{total}</span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="h-2 w-full rounded-full bg-slate-100">
+                      <div 
+                        className="h-full rounded-full bg-[#7CA9A0] transition-all duration-1000" 
+                        style={{ width: `${progress}%` }} 
+                      />
+                    </div>
+
+                    {/* Milestone Checkmarks */}
+                    <div className="mt-3 flex gap-2.5 lg:mt-4">
+                      {Array.from({ length: total }).map((_, idx) => {
+                        const active = idx < unlocked;
+                        return (
+                          <div key={idx} className={`flex h-8 w-8 items-center justify-center rounded-full border transition-all
+                            ${active ? 'border-[#7CA9A0] bg-[#f0f7f6]' : 'border-slate-100 bg-white'}`}>
+                            {active ? (
+                               <Check size={14} className="text-[#7CA9A0]" strokeWidth={3} />
+                            ) : (
+                               <div className="h-1.5 w-1.5 rounded-full bg-slate-200" />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="px-6 pb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-[18px] font-semibold text-[#1E2939]">
-                Badges earned
               </div>
-              <a
-                href="#"
-                className="text-[14px] font-medium text-[#5A9A8E] hover:underline flex items-center gap-2"
-                aria-label="See all badges"
-              >
-                See all <span aria-hidden="true">›</span>
-              </a>
-            </div>
-
-            <div className="space-y-4">
-              {badges.map((b) => {
-                const progress = getBadgeProgress(b.getCurrent(state), b.total);
-                return (
-                  <div
-                    key={b.id}
-                    className="rounded-[18px] bg-white border border-[#E8EEEC] p-5"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-full bg-[#F2F7F4] flex items-center justify-center text-[20px]">
-                        <span aria-hidden="true">{b.emoji}</span>
-                      </div>
-
-                      <div className="flex-1">
-                        <div className="flex items-baseline justify-between gap-4">
-                          <div className="text-[16px] font-semibold text-[#1E2939]">
-                            {b.title}
-                          </div>
-                          <div className="text-[13px] font-medium text-[#6A7282]">
-                            {progress.cappedCurrent}/{progress.safeTotal}
-                          </div>
-                        </div>
-
-                        <div className="mt-3 h-2 w-full rounded-full bg-[#E8EEEC] overflow-hidden">
-                          <div
-                            className="h-full bg-[#5A9A8E] rounded-full"
-                            style={{ width: `${progress.percent}%` }}
-                            aria-hidden="true"
-                          />
-                        </div>
-
-                        <div className="mt-4 flex items-center justify-start gap-2">
-                          {Array.from({ length: BADGE_SHOW_STEPS }).map((_, i) => {
-                            const done = i < progress.doneSteps;
-                            return (
-                              <div
-                                key={i}
-                                className={[
-                                  "grid place-items-center w-8 h-8 rounded-full bg-white border",
-                                  done
-                                    ? "border-[#5A9A8E] text-[#5A9A8E]"
-                                    : "border-[#E8EEEC] text-[#C7CDD6]",
-                                ].join(" ")}
-                                aria-label={
-                                  done
-                                    ? "Completed badge step"
-                                    : "Remaining badge step"
-                                }
-                              >
-                                {done ? (
-                                  <span className="text-[14px] font-bold">✓</span>
-                                ) : null}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+            );
+          })}
         </div>
       </div>
+
+      {selectedLevelIndex !== null && (
+  <div
+    className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px] px-8"
+    onClick={() => setSelectedLevelIndex(null)}
+  >
+    <div
+      className="w-full max-w-[340px] rounded-[32px] bg-white px-6 pb-8 pt-10 shadow-xl"
+      onClick={(event) => event.stopPropagation()}
+    >
+      {/* Level Emoji Circle */}
+      <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-[#E8EDF1] text-4xl shadow-inner">
+        <span className={totalCollectedBadges >= levelSteps[selectedLevelIndex].minBadges ? "" : "grayscale opacity-50"}>
+          {levelSteps[selectedLevelIndex].emoji}
+        </span>
+      </div>
+
+      {/* Title */}
+      <h3 className="text-center text-2xl font-bold tracking-tight text-[#0f172a]">
+        {levelSteps[selectedLevelIndex].name}
+      </h3>
+
+      {/* Requirement Description */}
+      <p className="mt-1 text-center text-[15px] font-medium text-slate-500">
+        {selectedLevelIndex === 0
+          ? "This is your starting level"
+          : `Collect ${levelSteps[selectedLevelIndex].minBadges} badges to reach this level`}
+      </p>
+
+      {/* Dynamic Status Box */}
+      <div className="mt-8 rounded-[20px] bg-[#f8fafb] px-4 py-4 text-center text-[13px] font-medium text-slate-500 ring-1 ring-slate-100 whitespace-pre-line">
+        {totalCollectedBadges >= levelSteps[selectedLevelIndex].minBadges ? (
+          <span className="text-[#7CA9A0]">
+            {selectedLevelIndex === 0
+              ? "You start here!\nKeep earning badges to level up!"
+              : "You have reached this level!"}
+          </span>
+        ) : (
+          <span>
+            You need{" "}
+            <span className="font-bold text-slate-700">
+              {levelSteps[selectedLevelIndex].minBadges - totalCollectedBadges}
+            </span>{" "}
+            more badge
+            {levelSteps[selectedLevelIndex].minBadges - totalCollectedBadges === 1 ? "" : "s"}{" "}
+            to unlock this.
+          </span>
+        )}
+      </div>
+
+      {/* Close Button */}
+      <button
+        type="button"
+        onClick={() => setSelectedLevelIndex(null)}
+        className="mt-8 w-full rounded-full bg-[#84B0A7] py-3.5 text-[16px] font-bold text-white shadow-lg shadow-teal-900/10 active:scale-[0.98] transition-transform"
+      >
+        Close
+      </button>
+    </div>
+  </div>
+)}
     </main>
   );
 }
-
