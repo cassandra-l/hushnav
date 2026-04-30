@@ -65,7 +65,11 @@ function buildDescription(subTheme: string): string {
 export async function getSafeSpacesNearRoute(
   routeGeoJson: LineString,
   safeSpaceTypes?: SafeSpaceType[],
-  bufferMeters = 100,
+
+  // 100m was too strict for some routes after snapping to the road network.
+  // 250m is better for walking routes because it still feels "near the route"
+  // while giving Emily useful nearby safe spaces.
+  bufferMeters = 250,
 ): Promise<SafeSpace[]> {
   const client = await pool.connect();
 
@@ -78,14 +82,16 @@ export async function getSafeSpacesNearRoute(
         SELECT ST_SetSRID(ST_GeomFromGeoJSON($1), 4326) AS geom
       )
       SELECT
-      ss.safe_space_id,
-      ss.feature_name,
-      ss.sub_theme,
-      ST_Y(ss.geom_safe_space) AS lat,
-      ST_X(ss.geom_safe_space) AS lng
+        ss.safe_space_id,
+        ss.feature_name,
+        ss.sub_theme,
+        ST_Y(ss.geom_safe_space) AS lat,
+        ST_X(ss.geom_safe_space) AS lng
       FROM safe_space ss
       CROSS JOIN route_geom rg
       WHERE ss.geom_safe_space IS NOT NULL
+        AND ss.feature_name IS NOT NULL
+        AND ss.sub_theme IS NOT NULL
         AND ST_DWithin(
           ss.geom_safe_space::geography,
           rg.geom::geography,
@@ -128,18 +134,11 @@ export async function getSafeSpacesNearRoute(
   }
 }
 
-
 export async function getSafeSpaceById(id: number): Promise<SafeSpace | null> {
   const client = await pool.connect();
 
   try {
-    const result = await client.query<{
-      safe_space_id: number;
-      feature_name: string;
-      sub_theme: string;
-      lat: number;
-      lng: number;
-    }>(
+    const result = await client.query<SafeSpaceRow>(
       `
       SELECT
         ss.safe_space_id,
@@ -150,6 +149,8 @@ export async function getSafeSpaceById(id: number): Promise<SafeSpace | null> {
       FROM safe_space ss
       WHERE ss.safe_space_id = $1
         AND ss.geom_safe_space IS NOT NULL
+        AND ss.feature_name IS NOT NULL
+        AND ss.sub_theme IS NOT NULL
       LIMIT 1
       `,
       [id],
@@ -175,19 +176,12 @@ export async function getSafeSpaceById(id: number): Promise<SafeSpace | null> {
   }
 }
 
-
 // Returns all safe spaces so markers can always be shown on the map
 export async function getAllSafeSpaces(): Promise<SafeSpace[]> {
   const client = await pool.connect();
 
   try {
-    const result = await client.query<{
-      safe_space_id: number;
-      feature_name: string;
-      sub_theme: string;
-      lat: number;
-      lng: number;
-    }>(
+    const result = await client.query<SafeSpaceRow>(
       `
       SELECT
         ss.safe_space_id,
@@ -197,8 +191,10 @@ export async function getAllSafeSpaces(): Promise<SafeSpace[]> {
         ST_X(ss.geom_safe_space) AS lng
       FROM safe_space ss
       WHERE ss.geom_safe_space IS NOT NULL
+        AND ss.feature_name IS NOT NULL
+        AND ss.sub_theme IS NOT NULL
       ORDER BY ss.feature_name ASC
-      `
+      `,
     );
 
     console.log(`Loaded ${result.rows.length} total safe spaces.`);
