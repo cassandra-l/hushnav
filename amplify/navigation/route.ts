@@ -6,6 +6,8 @@ export type Coordinate = {
   lng: number;
 };
 
+export type AvoidMode = "crowd" | "construction" | "both";
+
 export type NodeRow = {
   node_id: number;
   lat: number;
@@ -19,14 +21,20 @@ type EdgeRow = {
   length: number;
   is_indoor: boolean | null;
   final_cost: number | null;
+  noise_db: number | null;
+  crowd_count: number | null;
+  is_high_crowd: boolean | null;
 };
 
 type GraphEdge = {
   edgeId: number;
   from: number;
   to: number;
-  cost: number;
   length: number;
+  defaultCost: number | null;
+  noiseDb: number | null;
+  crowdCount: number | null;
+  isHighCrowd: boolean;
 };
 
 export type RouteResult = {
@@ -103,6 +111,76 @@ function popLowestFScore(queue: QueueItem[]): QueueItem | undefined {
   return item;
 }
 
+function crowdCountToPenaltyDefault(count: number): number {
+  if (count < 20) return 0;
+  if (count < 50) return 0.05;
+  if (count < 100) return 0.1;
+  if (count < 200) return 0.2;
+  return 0.35;
+}
+
+function crowdCountToPenaltyStrong(count: number): number {
+  if (count < 20) return 0;
+  if (count < 50) return 0.1;
+  if (count < 100) return 0.3;
+  if (count < 200) return 0.6;
+  return 0.9;
+}
+
+function computeEdgeCost(edge: GraphEdge, avoidMode: AvoidMode): number {
+  if (edge.noiseDb === null) {
+    return edge.defaultCost ?? edge.length;
+  }
+
+  const noisePenalty = edge.noiseDb / 100;
+
+  // 1. noise + construction
+  if (avoidMode === "construction") {
+    return edge.length * (1 + noisePenalty);
+  }
+
+  // 2. noise + crowd + construction
+  if (avoidMode === "both") {
+  const crowdPenalty =
+    edge.crowdCount !== null ? crowdCountToPenaltyDefault(edge.crowdCount) : 0;
+
+  const normalCrowdWeight = 1;
+  return edge.length * (1 + noisePenalty + normalCrowdWeight * crowdPenalty);
+  }
+
+  // 3. noise + crowd (stronger crowd effect)
+  if (avoidMode === "crowd") {
+    const baseCrowdPenalty =
+      edge.crowdCount !== null ? crowdCountToPenaltyStrong(edge.crowdCount) : 0;
+    const extraHighCrowdPenalty = edge.isHighCrowd ? 0.5 : 0;
+    const crowdPenalty = baseCrowdPenalty + extraHighCrowdPenalty;
+
+    const strongCrowdWeight = 6;
+    return edge.length * (1 + noisePenalty + strongCrowdWeight * crowdPenalty);
+  }
+
+  // fallback / old default mode
+  return edge.defaultCost ?? edge.length;
+}
+
+async function getConstructionBlockedEdgeIds(): Promise<Set<number>> {
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query<{ edge_id: number }>(
+      `
+      SELECT edge_id
+      FROM construction_blocked_edge
+      `
+    );
+
+    return new Set(result.rows.map((row) => Number(row.edge_id)));
+  } finally {
+    client.release();
+  }
+}
+
+
 export async function snapToNearestNode(
   coordinate: Coordinate,
   bboxDelta = 0.003
@@ -143,14 +221,14 @@ export async function snapToNearestNode(
 
     let bestNode = candidates[0];
     let bestDistance = haversineDistanceMeters(coordinate, {
-      lat: bestNode.lat,
-      lng: bestNode.lon,
+      lat: Number(bestNode.lat),
+      lng: Number(bestNode.lon),
     });
 
     for (const node of candidates) {
       const distance = haversineDistanceMeters(coordinate, {
-        lat: node.lat,
-        lng: node.lon,
+        lat: Number(node.lat),
+        lng: Number(node.lon),
       });
 
       if (distance < bestDistance) {
@@ -159,7 +237,11 @@ export async function snapToNearestNode(
       }
     }
 
-    return bestNode;
+    return {
+      node_id: Number(bestNode.node_id),
+      lat: Number(bestNode.lat),
+      lon: Number(bestNode.lon),
+    };
   } finally {
     client.release();
   }
@@ -177,7 +259,10 @@ async function loadGraph(): Promise<Map<number, GraphEdge[]>> {
         e.v,
         e.length,
         e.is_indoor,
-        ew.final_cost
+        ew.final_cost,
+        ew.noise_db,
+        ew.crowd_count,
+        ew.is_high_crowd
       FROM edge e
       LEFT JOIN edge_weight ew
         ON e.edge_id = ew.edge_id
@@ -187,25 +272,30 @@ async function loadGraph(): Promise<Map<number, GraphEdge[]>> {
     const graph = new Map<number, GraphEdge[]>();
 
     for (const row of result.rows) {
-      const cost =
-        row.final_cost !== null && row.final_cost !== undefined
-          ? Number(row.final_cost)
-          : Number(row.length);
-
       const forward: GraphEdge = {
-        edgeId: row.edge_id,
-        from: row.u,
-        to: row.v,
-        cost,
+        edgeId: Number(row.edge_id),
+        from: Number(row.u),
+        to: Number(row.v),
         length: Number(row.length),
+        defaultCost:
+          row.final_cost !== null && row.final_cost !== undefined
+            ? Number(row.final_cost)
+            : null,
+        noiseDb:
+          row.noise_db !== null && row.noise_db !== undefined
+            ? Number(row.noise_db)
+            : null,
+        crowdCount:
+          row.crowd_count !== null && row.crowd_count !== undefined
+            ? Number(row.crowd_count)
+            : null,
+        isHighCrowd: Boolean(row.is_high_crowd),
       };
 
       const backward: GraphEdge = {
-        edgeId: row.edge_id,
-        from: row.v,
-        to: row.u,
-        cost,
-        length: Number(row.length),
+        ...forward,
+        from: Number(row.v),
+        to: Number(row.u),
       };
 
       if (!graph.has(forward.from)) graph.set(forward.from, []);
@@ -220,6 +310,8 @@ async function loadGraph(): Promise<Map<number, GraphEdge[]>> {
     client.release();
   }
 }
+
+
 
 async function getNodesByIds(nodeIds: number[]): Promise<NodeRow[]> {
   if (nodeIds.length === 0) return [];
@@ -238,11 +330,15 @@ async function getNodesByIds(nodeIds: number[]): Promise<NodeRow[]> {
 
     const byId = new Map<number, NodeRow>();
     for (const row of result.rows) {
-      byId.set(row.node_id, row);
+      byId.set(Number(row.node_id), {
+        node_id: Number(row.node_id),
+        lat: Number(row.lat),
+        lon: Number(row.lon),
+      });
     }
 
     return nodeIds.map((id) => {
-      const row = byId.get(id);
+      const row = byId.get(Number(id));
       if (!row) {
         throw new Error(`Node ${id} not found while building route geometry.`);
       }
@@ -272,19 +368,29 @@ async function getNodeCoordinate(nodeId: number): Promise<Coordinate> {
     }
 
     return {
-      lat: result.rows[0].lat,
-      lng: result.rows[0].lon,
+      lat: Number(result.rows[0].lat),
+      lng: Number(result.rows[0].lon),
     };
   } finally {
     client.release();
   }
 }
 
+
 export async function findQuietestRoute(
   startNodeId: number,
-  endNodeId: number
+  endNodeId: number,
+  avoidMode: AvoidMode = "both"
 ): Promise<RouteResult> {
+  startNodeId = Number(startNodeId);
+  endNodeId = Number(endNodeId);
+
   const graph = await loadGraph();
+
+  const blockedEdgeIds =
+    avoidMode === "construction" || avoidMode === "both"
+      ? await getConstructionBlockedEdgeIds()
+      : new Set<number>();
 
   if (!graph.has(startNodeId)) {
     throw new Error(`Start node ${startNodeId} has no connected edges.`);
@@ -311,14 +417,13 @@ export async function findQuietestRoute(
       const routeNodes = await getNodesByIds(nodeIds);
 
       let totalLength = 0;
-      const routeGraph = await loadGraph();
 
       for (let i = 0; i < nodeIds.length - 1; i++) {
-        const from = nodeIds[i];
-        const to = nodeIds[i + 1];
-        const edge = routeGraph.get(from)?.find((e) => e.to === to);
+        const from = Number(nodeIds[i]);
+        const to = Number(nodeIds[i + 1]);
+        const edge = graph.get(from)?.find((e) => Number(e.to) === to);
         if (edge) {
-          totalLength += edge.length;
+          totalLength += Number(edge.length);
         }
       }
 
@@ -326,8 +431,8 @@ export async function findQuietestRoute(
         geojson: buildLineString(routeNodes),
         totalCost: gScore.get(endNodeId)!,
         totalLength,
-        nodeIds,
-        edgeIds,
+        nodeIds: nodeIds.map(Number),
+        edgeIds: edgeIds.map(Number),
       };
     }
 
@@ -336,21 +441,27 @@ export async function findQuietestRoute(
     }
     visited.add(current.nodeId);
 
-    const neighbors = graph.get(current.nodeId) ?? [];
+    const neighbors = graph.get(Number(current.nodeId)) ?? [];
 
     for (const edge of neighbors) {
-      const tentativeG =
-        (gScore.get(current.nodeId) ?? Number.POSITIVE_INFINITY) + edge.cost;
+      if (blockedEdgeIds.has(Number(edge.edgeId))) {
+        continue;
+      }
 
-      if (tentativeG < (gScore.get(edge.to) ?? Number.POSITIVE_INFINITY)) {
-        cameFrom.set(edge.to, {
-          previousNodeId: current.nodeId,
-          edgeId: edge.edgeId,
+      const edgeCost = computeEdgeCost(edge, avoidMode);
+      const tentativeG =
+        (gScore.get(Number(current.nodeId)) ?? Number.POSITIVE_INFINITY) +
+        edgeCost;
+
+      if (tentativeG < (gScore.get(Number(edge.to)) ?? Number.POSITIVE_INFINITY)) {
+        cameFrom.set(Number(edge.to), {
+          previousNodeId: Number(current.nodeId),
+          edgeId: Number(edge.edgeId),
         });
 
-        gScore.set(edge.to, tentativeG);
+        gScore.set(Number(edge.to), tentativeG);
 
-        const neighborCoordinate = await getNodeCoordinate(edge.to);
+        const neighborCoordinate = await getNodeCoordinate(Number(edge.to));
         const heuristic = haversineDistanceMeters(
           neighborCoordinate,
           endCoordinate
@@ -359,7 +470,7 @@ export async function findQuietestRoute(
         const neighborFScore = tentativeG + heuristic;
 
         openSet.push({
-          nodeId: edge.to,
+          nodeId: Number(edge.to),
           fScore: neighborFScore,
         });
       }
@@ -371,7 +482,8 @@ export async function findQuietestRoute(
 
 export async function getQuietestRouteFromCoordinates(
   start: Coordinate,
-  end: Coordinate
+  end: Coordinate,
+  avoidMode: AvoidMode = "both"
 ): Promise<{
   startNode: NodeRow;
   endNode: NodeRow;
@@ -380,7 +492,11 @@ export async function getQuietestRouteFromCoordinates(
   const startNode = await snapToNearestNode(start);
   const endNode = await snapToNearestNode(end);
 
-  const route = await findQuietestRoute(startNode.node_id, endNode.node_id);
+  const route = await findQuietestRoute(
+    startNode.node_id,
+    endNode.node_id,
+    avoidMode
+  );
 
   return {
     startNode,

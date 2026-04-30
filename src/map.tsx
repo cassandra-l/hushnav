@@ -1,26 +1,38 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   MapPin,
   Navigation,
-  ChevronUp,
   ChevronDown,
-  TreePine,
-  Book,
-  Landmark,
-  Church,
-  Building2,
   Wind,
+  SlidersVertical,
+  Mic,
+  AlertTriangle,
 } from "lucide-react";
 import { MicButton } from "./components/mic-button";
 import { PopUp } from "./components/pop-up";
 import { RouteMap } from "./components/route-map";
-import type { PlanRouteResponse, SafeSpace } from "./types/route";
+import { SafeSpaceStopoverPanel } from "./components/safe-space-stopover-panel";
+import { RoutePreviewPanel } from "./components/route-preview-panel";
+import type {
+  PlanRouteRequest,
+  PlanRouteResponse,
+  SafeSpace,
+} from "./types/route";
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
 import type { CrowdMapFeatureCollection } from "./types/noise-map";
 import { AnimatePresence, motion } from "framer-motion";
+import {
+  consumeNextPendingBadgePopup,
+  incrementNoiseReports,
+  incrementRoutesPlanned,
+  incrementSafeSpacesVisited,
+  subscribeToAchievementsUpdates,
+} from "./achievements-store";
+import type { BadgeDefinition } from "./achievement-badges";
+import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -103,12 +115,14 @@ function AutocompleteInput({
 
   return (
     <div className="mb-3">
-      <label
-        htmlFor={id}
-        className="mb-2 block text-xs font-medium text-[#4A5565]"
-      >
-        {label}
-      </label>
+      {label && (
+        <label
+          htmlFor={id}
+          className="mb-2 block text-xs font-medium text-[#4A5565]"
+        >
+          {label}
+        </label>
+      )}
 
       <div className="relative">
         <div className="flex items-center gap-3 rounded-2xl px-4 py-2">
@@ -134,7 +148,7 @@ function AutocompleteInput({
             onFocus={onFocus}
             placeholder={placeholder}
             autoComplete="off"
-            className="w-full bg-transparent text-[14px] text-[#1E2939] outline-none placeholder:text-[#8B98A5]"
+            className="min-w-0 w-full bg-transparent text-[14px] text-[#1E2939] outline-none placeholder:text-[#8B98A5]"
           />
         </div>
 
@@ -273,60 +287,47 @@ async function fetchPhotonSuggestions(
     .filter((item): item is LocationSuggestion => item !== null);
 }
 
-// Returns the correct icon for each safe space type
-function renderSafeSpaceIcon(type: SafeSpace["type"]) {
-  switch (type) {
-    case "park":
-      return <TreePine size={16} className="text-[#5A9A8E]" />;
-    case "library":
-      return <Book size={16} className="text-[#5A9A8E]" />;
-    case "museum":
-      return <Landmark size={16} className="text-[#5A9A8E]" />;
-    case "church":
-      return <Church size={16} className="text-[#5A9A8E]" />;
-    case "synagogue":
-      return <Building2 size={16} className="text-[#5A9A8E]" />;
-    default:
-      return <MapPin size={16} className="text-[#5A9A8E]" />;
-  }
-}
+// Noise monitoring configuration
+// Time interval between every triggers
+const COOLDOWN_DURATION = 5 * 60 * 1000;
 
-// Reusable list item for the desktop and mobile safe space sections
-type SafeSpaceListItemProps = {
-  safeSpace: SafeSpace;
+// Noise threshold to trigger the alert
+const NOISE_THRESHOLD = 10;
+const FILTER_PREVIEW_STATE_KEY = "hushnav:mapPreviewBeforeFilters";
+
+type FilterPreviewSnapshot = {
+  routeData: PlanRouteResponse | null;
+  startLocation: string;
+  destination: string;
+  selectedStart: LocationSuggestion | null;
+  selectedDestination: LocationSuggestion | null;
+  selectedSafeSpaceStops: SafeSpace[];
+  selectedSafeSpaceFromPanel: SafeSpace | null;
+  isSafeSpacesOpen: boolean;
+  isMobileSearchOpen: boolean;
 };
-
-function SafeSpaceListItem({ safeSpace }: SafeSpaceListItemProps) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm">
-        {renderSafeSpaceIcon(safeSpace.type)}
-      </div>
-
-      <div>
-        <p className="text-sm font-medium text-[#1E2939]">{safeSpace.name}</p>
-        <p className="mt-1 text-xs font-medium text-[#5A9A8E]">
-          {safeSpace.subTheme}
-        </p>
-        <p className="mt-1 text-xs leading-5 text-[#6A7282]">
-          {safeSpace.description}
-        </p>
-      </div>
-    </div>
-  );
-}
 
 // Main page component
 export function Map() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Noise monitoring popup + audio state
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
   const { volume, isMonitoring, startMonitoring, stopMonitoring } =
     useAudioMonitor();
 
+  // Inside Map component
+  const [isHighNoiseAlertOpen, setIsHighNoiseAlertOpen] = useState(false);
+  const [lastAlertTime, setLastAlertTime] = useState<number>(0);
+  const [newBadgePopup, setNewBadgePopup] = useState<BadgeDefinition | null>(null);
+
   // Mobile panel open/close state
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(true);
+
+  // Tracks whether Emily is previewing the route or actively navigating.
+  // Preview mode shows the filter button. Navigation mode removes it.
+  const [isNavigationActive, setIsNavigationActive] = useState(false);
 
   // Controls whether safe spaces section is expanded
   const [isSafeSpacesOpen, setIsSafeSpacesOpen] = useState(false);
@@ -368,6 +369,18 @@ export function Map() {
   // Final route response shown on the map
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
 
+  // Ordered safe-space stopovers selected by Emily.
+  // The array order controls the route order:
+  // start → first stop → second stop → destination.
+  const [selectedSafeSpaceStops, setSelectedSafeSpaceStops] = useState<
+    SafeSpace[]
+  >([]);
+
+  // Safe space selected from the preview/sidebar list.
+  // Passing this to RouteMap lets the map fly to the marker and open its popup.
+  const [selectedSafeSpaceFromPanel, setSelectedSafeSpaceFromPanel] =
+    useState<SafeSpace | null>(null);
+
   // Crowd / noise line layer shown behind the route
   const [crowdMapData, setCrowdMapData] =
     useState<CrowdMapFeatureCollection | null>(null);
@@ -405,6 +418,7 @@ export function Map() {
   // Returns the best display name for the route start
   const getStartDisplayName = () => {
     if (!routeData) return "";
+
     return (
       routeData.start.resolvedName ??
       (routeData.start.input === "selected_start_coordinates"
@@ -416,6 +430,7 @@ export function Map() {
   // Returns the best display name for the route destination
   const getEndDisplayName = () => {
     if (!routeData) return "";
+
     return (
       routeData.end.resolvedName ??
       (routeData.end.input === "selected_end_coordinates"
@@ -424,10 +439,76 @@ export function Map() {
     );
   };
 
+  // Sends Emily to the filter page from the route preview page
+  const handleOpenFilters = () => {
+    const previewSnapshot: FilterPreviewSnapshot = {
+      routeData,
+      startLocation,
+      destination,
+      selectedStart,
+      selectedDestination,
+      selectedSafeSpaceStops,
+      selectedSafeSpaceFromPanel,
+      isSafeSpacesOpen,
+      isMobileSearchOpen,
+    };
+
+    sessionStorage.setItem(
+      FILTER_PREVIEW_STATE_KEY,
+      JSON.stringify(previewSnapshot),
+    );
+    navigate("/filter_page");
+  };
+
+  useEffect(() => {
+    const state = location.state as { restoreRoutePreview?: boolean } | null;
+    if (!state?.restoreRoutePreview) return;
+
+    const raw = sessionStorage.getItem(FILTER_PREVIEW_STATE_KEY);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as FilterPreviewSnapshot;
+      setRouteData(parsed.routeData);
+      setStartLocation(parsed.startLocation);
+      setDestination(parsed.destination);
+      setSelectedStart(parsed.selectedStart);
+      setSelectedDestination(parsed.selectedDestination);
+      setSelectedSafeSpaceStops(parsed.selectedSafeSpaceStops ?? []);
+      setSelectedSafeSpaceFromPanel(parsed.selectedSafeSpaceFromPanel ?? null);
+      setIsSafeSpacesOpen(Boolean(parsed.isSafeSpacesOpen));
+      setIsMobileSearchOpen(Boolean(parsed.isMobileSearchOpen));
+      setIsNavigationActive(false);
+      setError("");
+    } catch {
+      // Ignore malformed snapshots.
+    } finally {
+      sessionStorage.removeItem(FILTER_PREVIEW_STATE_KEY);
+    }
+  }, [location.state]);
+
+  // Opens the map popup for a safe space selected from the list.
+  const handleViewSafeSpaceOnMap = (safeSpace: SafeSpace) => {
+    setSelectedSafeSpaceFromPanel({ ...safeSpace });
+  };
+
+  // Starts navigation from the route preview page.
+  // Map zoom/follow can be wired inside RouteMap when that nav feature is ready.
+  const handleStartNavigation = () => {
+    setIsNavigationActive(true);
+    setIsMobileSearchOpen(false);
+    setIsSafeSpacesOpen(false);
+  };
+
   // Clears the active route and resets route-specific UI state
   const handleExitRoute = () => {
     // Remove the line from the map
     setRouteData(null);
+    setError("");
+    setIsSafeSpacesOpen(false);
+    setSelectedSafeSpaceStops([]);
+    setSelectedSafeSpaceFromPanel(null);
+    setIsNavigationActive(false);
 
     // Clear the input strings so the search bar is empty
     setStartLocation("");
@@ -440,6 +521,75 @@ export function Map() {
     // Ensure the search panel stays open for a new search
     setIsMobileSearchOpen(true);
   };
+
+  // Adds a safe space as the next ordered stopover and replans the route.
+  const handleAddSafeSpaceStop = async (safeSpace: SafeSpace) => {
+    const alreadyAdded = selectedSafeSpaceStops.some(
+      (stop) => stop.id === safeSpace.id,
+    );
+
+    if (alreadyAdded) return;
+
+    const updatedStops = [...selectedSafeSpaceStops, safeSpace];
+    setSelectedSafeSpaceStops(updatedStops);
+    incrementSafeSpacesVisited(1);
+    setIsSafeSpacesOpen(false);
+    setIsNavigationActive(false);
+
+    await handlePlanRoute(updatedStops);
+  };
+
+  // Removes a safe space stopover and replans the route using the remaining stops.
+  const handleRemoveSafeSpaceStop = async (safeSpaceId: number) => {
+    const updatedStops = safeSpaceId
+      ? selectedSafeSpaceStops.filter((stop) => stop.id !== safeSpaceId)
+      : selectedSafeSpaceStops.slice(0, -1);
+
+    setSelectedSafeSpaceStops(updatedStops);
+    setIsNavigationActive(false);
+
+    await handlePlanRoute(updatedStops);
+  };
+
+  useEffect(() => {
+    const tryShowNewBadge = () => {
+      setNewBadgePopup((current) => {
+        if (current) return current;
+        return consumeNextPendingBadgePopup({ includeDeferred: false });
+      });
+    };
+
+    tryShowNewBadge();
+    return subscribeToAchievementsUpdates(tryShowNewBadge);
+  }, []);
+
+  useEffect(() => {
+    // Get exact time of this specific check
+    const currentTime = Date.now();
+
+    // Only show the popup if ALL of these are true:
+    if (
+      // User has noise monitor turned on
+      isMonitoring &&
+      // Current noise level hits the threshold limit
+      volume > NOISE_THRESHOLD &&
+      // The popup isn't already visible
+      !isHighNoiseAlertOpen &&
+      // Has been more than five minutes
+      currentTime - lastAlertTime > COOLDOWN_DURATION
+    ) {
+      setIsHighNoiseAlertOpen(true);
+
+      // Start the 5-minute timer
+      setLastAlertTime(currentTime);
+    }
+
+    // If user stop the mic, reset everything
+    if (!isMonitoring) {
+      setLastAlertTime(0);
+      setIsHighNoiseAlertOpen(false);
+    }
+  }, [volume, isMonitoring, isHighNoiseAlertOpen, lastAlertTime]);
 
   // Close suggestion dropdowns when user clicks outside both panels
   useEffect(() => {
@@ -626,9 +776,10 @@ export function Map() {
   };
 
   // Sends route request to backend
-  const handlePlanRoute = async () => {
+  const handlePlanRoute = async (safeSpaceStops = selectedSafeSpaceStops) => {
     console.log("DEBUG - Start Selection:", selectedStart);
     console.log("DEBUG - Destination Selection:", selectedDestination);
+
     setError("");
     setIsStartSuggestionsOpen(false);
     setIsDestinationSuggestionsOpen(false);
@@ -658,7 +809,7 @@ export function Map() {
     setLoading(true);
 
     try {
-      const requestBody = {
+      const requestBody: PlanRouteRequest = {
         start:
           selectedStart?.center && selectedStart.center.length >= 2
             ? {
@@ -666,6 +817,7 @@ export function Map() {
                 lat: selectedStart.center[1],
               }
             : undefined,
+
         end:
           selectedDestination?.center && selectedDestination.center.length >= 2
             ? {
@@ -673,8 +825,14 @@ export function Map() {
                 lat: selectedDestination.center[1],
               }
             : undefined,
+
         startQuery: startLocation,
         endQuery: destination,
+
+        // Send selected safe spaces to the backend in the exact order Emily selected them.
+        // Backend will calculate:
+        // start -> stop 1 -> stop 2 -> ... -> destination
+        stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
       };
 
       const response = await fetch(`${API_BASE_URL}/plan-route`, {
@@ -717,6 +875,8 @@ export function Map() {
 
       setRouteData(data as PlanRouteResponse);
       setIsSafeSpacesOpen(false);
+      setIsNavigationActive(false);
+      incrementRoutesPlanned(1);
 
       if (window.innerWidth < 1024) {
         setIsMobileSearchOpen(false);
@@ -739,10 +899,10 @@ export function Map() {
   };
 
   return (
-    <main className="h-[100dvh] fixed inset-0 w-full overflow-hidden bg-[#D5E8E5]">
+    <main className="fixed inset-0 h-[100dvh] w-full overflow-hidden bg-[#D5E8E5]">
       <div className="h-full w-full lg:grid lg:grid-cols-[380px_1fr]">
         {/* Desktop left sidebar */}
-        <aside className="z-20 hidden max-h-screen h-full flex-col border-r border-[#E8EEEC] bg-white lg:flex">
+        <aside className="z-20 hidden h-full max-h-screen flex-col border-r border-[#E8EEEC] bg-white lg:flex">
           <div
             ref={desktopSearchPanelRef}
             className="border-b border-[#E8EEEC] px-5 pb-4 pt-5"
@@ -813,7 +973,7 @@ export function Map() {
             />
 
             <button
-              onClick={handlePlanRoute}
+              onClick={() => handlePlanRoute()}
               disabled={loading}
               className="w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm disabled:opacity-70"
             >
@@ -828,14 +988,47 @@ export function Map() {
           {/* Desktop route summary */}
           <div
             ref={sidebarScrollRef}
-            className="flex-1 overflow-y-auto px-5 py-4 custom-scrollbar min-h-0"
+            className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-4"
           >
             {routeData ? (
               <div className="space-y-4">
+                {/* Desktop Start / Exit button is now above the summary card */}
+                {isNavigationActive ? (
+                  <button
+                    onClick={handleExitRoute}
+                    className="w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm"
+                  >
+                    Exit
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStartNavigation}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm"
+                  >
+                    <Navigation size={16} />
+                    Start
+                  </button>
+                )}
+
                 <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
-                  <h2 className="mb-3 text-base font-semibold text-[#1E2939]">
-                    Route Summary
-                  </h2>
+                  {/* Route Summary heading with small filter button on the right */}
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h2 className="text-base font-semibold text-[#1E2939]">
+                      Route Summary
+                    </h2>
+
+                    {!isNavigationActive && (
+                      <button
+                        type="button"
+                        onClick={handleOpenFilters}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#DCE7E3] bg-[#E8F4F1] text-[#5A9A8E] shadow-sm transition-transform hover:scale-105 active:scale-95"
+                        aria-label="Filter route"
+                        title="Filter route"
+                      >
+                        <SlidersVertical size={17} className="text-[#5A9A8E]" />
+                      </button>
+                    )}
+                  </div>
 
                   <div className="space-y-3 text-sm text-[#1E2939]">
                     <div className="flex justify-between gap-4">
@@ -873,55 +1066,18 @@ export function Map() {
                     </div>
                   </div>
 
-                  {routeSafeSpaces.length > 0 && (
-                    <div
-                      ref={safeSpacesRef}
-                      className="mt-5 border-t border-[#E8EEEC] pt-4"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setIsSafeSpacesOpen((prev) => !prev)}
-                        className="flex w-full items-center justify-between text-left"
-                      >
-                        <h3 className="text-sm font-semibold text-[#1E2939]">
-                          Safe Spaces Along Route
-                        </h3>
-                        {isSafeSpacesOpen ? (
-                          <ChevronUp size={18} className="text-[#1E2939]" />
-                        ) : (
-                          <ChevronDown size={18} className="text-[#1E2939]" />
-                        )}
-                      </button>
-
-                      {isSafeSpacesOpen && (
-                        <div className="mt-4 pr-2">
-                          {" "}
-                          {/* Added padding-right for the scrollbar space */}
-                          <div
-                            className="max-h-75 overflow-y-auto pr-2 custom-scrollbar"
-                            onWheel={(e) => e.stopPropagation()} // Prevents the sidebar from scrolling until the list hits the end
-                          >
-                            <div className="space-y-4">
-                              {routeSafeSpaces.map((safeSpace) => (
-                                <SafeSpaceListItem
-                                  key={safeSpace.id}
-                                  safeSpace={safeSpace}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <div ref={safeSpacesRef} className="mt-5">
+                    <SafeSpaceStopoverPanel
+                      safeSpaces={routeSafeSpaces}
+                      selectedStops={selectedSafeSpaceStops}
+                      isOpen={isSafeSpacesOpen}
+                      onToggleOpen={() => setIsSafeSpacesOpen((prev) => !prev)}
+                      onAddStop={handleAddSafeSpaceStop}
+                      onRemoveStop={handleRemoveSafeSpaceStop}
+                      onViewSafeSpace={handleViewSafeSpaceOnMap}
+                    />
+                  </div>
                 </div>
-
-                <button
-                  onClick={handleExitRoute}
-                  className="w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white"
-                >
-                  Exit
-                </button>
               </div>
             ) : (
               <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
@@ -948,73 +1104,57 @@ export function Map() {
             routeData={routeData}
             crowdMapData={crowdMapData}
             allSafeSpaces={allSafeSpaces}
+            isNavigationActive={isNavigationActive}
+            selectedSafeSpaceFromPanel={selectedSafeSpaceFromPanel}
           />
 
           {/* Mobile collapsed top card */}
           {!isMobileSearchOpen && !routeData && (
-            <div className="absolute left-4 right-4 top-4 z-10 lg:hidden">
+            <div className="absolute left-3 right-3 top-4 z-10 max-w-[calc(100vw-24px)] overflow-hidden lg:hidden">
               <button
                 type="button"
                 onClick={() => setIsMobileSearchOpen(true)}
-                className="flex w-full items-center justify-between rounded-2xl border border-white/70 bg-white/92 px-4 py-3 shadow-lg backdrop-blur-sm"
+                className="flex w-full min-w-0 items-center justify-between rounded-2xl border border-white/70 bg-white/92 px-4 py-3 shadow-lg backdrop-blur-sm"
               >
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-[#1E2939]">
+                <div className="min-w-0 flex-1 text-left">
+                  <p className="truncate text-sm font-semibold text-[#1E2939]">
                     Quiet Route
                   </p>
-                  <p className="text-xs text-[#6A7282]">
+                  <p className="truncate text-xs text-[#6A7282]">
                     {startLocation && destination
                       ? `${startLocation} → ${destination}`
                       : "Open search"}
                   </p>
                 </div>
 
-                <ChevronDown size={18} className="text-[#1E2939]" />
+                <ChevronDown
+                  size={18}
+                  className="ml-2 shrink-0 text-[#1E2939]"
+                />
               </button>
             </div>
           )}
 
           {/* Mobile search panel */}
           {isMobileSearchOpen && !routeData && (
-            <section className=" absolute left-4 right-4 top-5 z-20 lg:hidden">
+            <section className="absolute left-3 right-3 top-4 z-20 max-w-[calc(100vw-24px)] overflow-hidden lg:hidden">
               <div
                 ref={mobileSearchPanelRef}
-                className="flex items-start gap-3"
+                className="flex w-full items-start gap-2"
               >
                 {/* Back Button */}
-                <div className="pt-13">
-                  {/* className=" mb-4 flex items-start justify-between gap-3" */}
-                  {/* <div className="flex items-center gap-3"> */}
+                <div className="shrink-0 pt-3">
                   <button
                     onClick={() => navigate("/")}
-                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white bg-white/80 text-[#1E2939] shadow-sm"
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-white bg-white/85 text-[#1E2939] shadow-sm"
                     aria-label="Go back"
                   >
-                    <ArrowLeft size={18} />
+                    <ArrowLeft size={17} />
                   </button>
-
-                  {/* <div>
-                      <h1 className="text-[24px] font-semibold leading-tight text-[#1E2939]">
-                        Quiet Route
-                      </h1>
-                      <p className="text-sm text-[#6A7282]">
-                        Find the calmest path through the city
-                      </p>
-                    </div> */}
-                  {/* </div> */}
-
-                  {/* <button
-                    type="button"
-                    onClick={() => setIsMobileSearchOpen(false)}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E8EEEC] bg-[#F7FAF9] text-[#1E2939]"
-                    aria-label="Collapse panel"
-                  >
-                    <ChevronUp size={18} />
-                  </button> */}
                 </div>
 
-                <div className="flex flex-1 flex-col">
-                  <div className="flex-1 bg-white/80 border border-white rounded-3xl">
+                <div className="min-w-0 flex-1 flex-col">
+                  <div className="min-w-0 flex-1 overflow-hidden rounded-3xl border border-white bg-white/85 shadow-md backdrop-blur-sm">
                     <AutocompleteInput
                       id="mobileStartLocation"
                       label=""
@@ -1037,6 +1177,7 @@ export function Map() {
                         setIsDestinationSuggestionsOpen(false);
                       }}
                     />
+
                     {/* Divider Line */}
                     <div className="mx-4 h-px bg-[#E8EEEC]" />
 
@@ -1065,6 +1206,7 @@ export function Map() {
                       }}
                     />
                   </div>
+
                   <AnimatePresence>
                     {startLocation && destination && (
                       <motion.div
@@ -1074,9 +1216,9 @@ export function Map() {
                         transition={{ duration: 0.3, ease: "easeInOut" }}
                       >
                         <button
-                          onClick={handlePlanRoute}
+                          onClick={() => handlePlanRoute()}
                           disabled={loading}
-                          className="w-full mt-2 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-md disabled:opacity-70 active:scale-[0.98] transition-transform"
+                          className="mt-2 w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-md transition-transform active:scale-[0.98] disabled:opacity-70"
                         >
                           {loading
                             ? "Finding quiet route..."
@@ -1096,84 +1238,80 @@ export function Map() {
             </section>
           )}
 
-          {/* Mobile bottom route summary - Only visible when a route exists */}
-          {routeData && (
-            <section className="absolute bottom-4 left-4 right-4 z-10 lg:hidden">
-              <div className="overflow-hidden rounded-[28px] border border-white/80 bg-white/95 shadow-xl backdrop-blur-sm">
-                <div className="max-h-[38vh] overflow-y-auto overscroll-contain">
-                  <div className="grid grid-cols-4 items-center text-center">
-                    <div className="border-r border-[#E8EEEC] px-3 py-4">
-                      <p className="text-xs text-[#6A7282]">Noise Level</p>
-                      <p className="text-[15px] font-medium text-[#5A9A8E]">
-                        Quiet
-                      </p>
-                    </div>
+          {/* Mobile route preview top card - visible before navigation starts */}
+          {routeData && !isNavigationActive && (
+            <section className="absolute left-3 right-3 top-4 z-20 max-w-[calc(100vw-24px)] overflow-hidden lg:hidden">
+              <div className="flex w-full items-start gap-2">
+                <div className="shrink-0 pt-3">
+                  <button
+                    onClick={handleExitRoute}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-white bg-white/85 text-[#1E2939] shadow-sm"
+                    aria-label="Go back to search"
+                  >
+                    <ArrowLeft size={17} />
+                  </button>
+                </div>
 
-                    <div className="border-r border-[#E8EEEC] px-3 py-4">
-                      <p className="text-xs text-[#6A7282]">Distance</p>
-                      <p className="text-[15px] font-medium text-[#1E2939]">
-                        {formatRouteLength(routeData.route.totalLength)}
-                      </p>
+                <div className="min-w-0 flex-1 overflow-hidden rounded-3xl border border-white bg-white/85 shadow-md backdrop-blur-sm">
+                  <div className="flex min-w-0 items-center gap-2 px-3 py-2.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#D4B896]">
+                      <Navigation size={16} className="text-white" />
                     </div>
-
-                    <div className="border-r border-[#E8EEEC] px-3 py-4">
-                      <p className="text-xs text-[#6A7282]">Duration</p>
-                      <p className="text-[15px] font-medium text-[#1E2939]">
-                        {estimateWalkingMinutes(routeData.route.totalLength)}{" "}
-                        min
-                      </p>
-                    </div>
-
-                    <div className="px-3 py-4">
-                      <button
-                        onClick={handleExitRoute}
-                        className="rounded-2xl bg-[#5A9A8E] px-5 py-2.5 font-medium text-white shadow-sm"
-                      >
-                        Exit
-                      </button>
-                    </div>
+                    <p className="min-w-0 flex-1 truncate text-[13px] text-[#1E2939]">
+                      {getStartDisplayName()}
+                    </p>
                   </div>
 
-                  {routeSafeSpaces.length > 0 && (
-                    <div className="border-t border-[#E8EEEC] px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => setIsSafeSpacesOpen((prev) => !prev)}
-                        className="flex w-full items-center justify-between text-left"
-                      >
-                        <h3 className="text-sm font-semibold text-[#1E2939]">
-                          Safe Spaces Along Route
-                        </h3>
-                        {isSafeSpacesOpen ? (
-                          <ChevronUp size={18} className="text-[#1E2939]" />
-                        ) : (
-                          <ChevronDown size={18} className="text-[#1E2939]" />
-                        )}
-                      </button>
+                  <div className="mx-4 h-px bg-[#E8EEEC]" />
 
-                      {isSafeSpacesOpen && (
-                        <div className="mt-4 space-y-4">
-                          {routeSafeSpaces.map((safeSpace) => (
-                            <SafeSpaceListItem
-                              key={safeSpace.id}
-                              safeSpace={safeSpace}
-                            />
-                          ))}
-                        </div>
-                      )}
+                  <div className="flex min-w-0 items-center gap-2 px-3 py-2.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#7DB0A6]">
+                      <MapPin size={16} className="text-white" />
                     </div>
-                  )}
+                    <p className="min-w-0 flex-1 truncate text-[13px] text-[#1E2939]">
+                      {getEndDisplayName()}
+                    </p>
+                  </div>
                 </div>
               </div>
             </section>
           )}
 
+          {/* Mobile route preview panel - Google Maps style bottom sheet */}
+          {routeData && !isNavigationActive && (
+            <RoutePreviewPanel
+              routeData={routeData}
+              safeSpaces={routeSafeSpaces}
+              selectedStops={selectedSafeSpaceStops}
+              isSafeSpacesOpen={isSafeSpacesOpen}
+              isNavigationActive={isNavigationActive}
+              formatRouteLength={formatRouteLength}
+              estimateWalkingMinutes={estimateWalkingMinutes}
+              onOpenFilters={handleOpenFilters}
+              onStartNavigation={handleStartNavigation}
+              onExitRoute={handleExitRoute}
+              onToggleSafeSpaces={() => setIsSafeSpacesOpen((prev) => !prev)}
+              onAddStop={handleAddSafeSpaceStop}
+              onRemoveStop={handleRemoveSafeSpaceStop}
+              onViewSafeSpace={handleViewSafeSpaceOnMap}
+            />
+          )}
+
+          {routeData && isNavigationActive && (
+            <button
+              onClick={handleExitRoute}
+              className="absolute bottom-6 left-4 right-4 z-20 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-lg lg:hidden"
+            >
+              Exit Navigation
+            </button>
+          )}
+
           {/* Mobile mic button + live noise bar */}
           <div
-            className={`absolute left-4 z-10 lg:hidden transition-all duration-300 ${
+            className={`absolute left-4 z-10 transition-all duration-300 lg:hidden ${
               routeData
                 ? isSafeSpacesOpen
-                  ? "bottom-78 opacity-0 pointer-events-none"
+                  ? "bottom-78 pointer-events-none opacity-0"
                   : "bottom-44" // Moves up when the route bar appears
                 : "bottom-6" // Stays at the bottom when no route is entered
             }`}
@@ -1189,10 +1327,10 @@ export function Map() {
 
           {/* Mobile find calm button */}
           <div
-            className={`absolute right-4 z-10 lg:hidden transition-all duration-300 ${
+            className={`absolute right-4 z-10 transition-all duration-300 lg:hidden ${
               routeData
                 ? isSafeSpacesOpen
-                  ? "bottom-78 opacity-0 pointer-events-none"
+                  ? "bottom-78 pointer-events-none opacity-0"
                   : "bottom-44" // Moves up when the route bar appears
                 : "bottom-6" // Stays at the bottom when no route is entered
             }`}
@@ -1233,12 +1371,57 @@ export function Map() {
       </div>
 
       {/* Microphone permission popup */}
-      {isPopUpOpen && (
-        <PopUp
-          onClose={() => setIsPopUpOpen(false)}
-          onAllow={async () => {
-            setIsPopUpOpen(false);
-            await startMonitoring();
+      <PopUp
+        isOpen={isPopUpOpen}
+        title="Noise Monitor"
+        buttonText="Allow Microphone"
+        icon={<Mic size={24} />}
+        iconBgColor="bg-[#7DB0A6]/80"
+        description={
+          <>
+            A tool to measure the real time noise level in your surroundings.
+            <br />
+            Please allow microphone access.
+          </>
+        }
+        onClose={() => setIsPopUpOpen(false)}
+        onConfirm={async () => {
+          setIsPopUpOpen(false);
+          await startMonitoring();
+        }}
+      />
+
+      {/* High Noise Alert Popup */}
+      <PopUp
+        isOpen={isHighNoiseAlertOpen}
+        title="High Noise Level"
+        buttonText="Report Noise"
+        icon={<AlertTriangle size={24} className="text-[#C9A882]" />}
+        iconBgColor="bg-[#C9A882]/20"
+        description={
+          <>
+            The noise level in your area is extremely high. <br />
+            Consider finding a quieter location for your comfort and well-being.
+          </>
+        }
+        onClose={() => setIsHighNoiseAlertOpen(false)}
+        onConfirm={() => {
+          incrementNoiseReports(1);
+          setIsHighNoiseAlertOpen(false);
+        }}
+      />
+
+      {newBadgePopup && (
+        <BadgeUnlockedPopup
+          badge={newBadgePopup}
+          onClose={() => {
+            setNewBadgePopup(null);
+            const nextBadge = consumeNextPendingBadgePopup({
+              includeDeferred: false,
+            });
+            if (nextBadge) {
+              setNewBadgePopup(nextBadge);
+            }
           }}
         />
       )}
