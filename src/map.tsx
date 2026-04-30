@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   MapPin,
@@ -293,10 +293,24 @@ const COOLDOWN_DURATION = 5 * 60 * 1000;
 
 // Noise threshold to trigger the alert
 const NOISE_THRESHOLD = 10;
+const FILTER_PREVIEW_STATE_KEY = "hushnav:mapPreviewBeforeFilters";
+
+type FilterPreviewSnapshot = {
+  routeData: PlanRouteResponse | null;
+  startLocation: string;
+  destination: string;
+  selectedStart: LocationSuggestion | null;
+  selectedDestination: LocationSuggestion | null;
+  selectedSafeSpaceStops: SafeSpace[];
+  selectedSafeSpaceFromPanel: SafeSpace | null;
+  isSafeSpacesOpen: boolean;
+  isMobileSearchOpen: boolean;
+};
 
 // Main page component
 export function Map() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Noise monitoring popup + audio state
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
@@ -427,8 +441,51 @@ export function Map() {
 
   // Sends Emily to the filter page from the route preview page
   const handleOpenFilters = () => {
-    navigate("/filter");
+    const previewSnapshot: FilterPreviewSnapshot = {
+      routeData,
+      startLocation,
+      destination,
+      selectedStart,
+      selectedDestination,
+      selectedSafeSpaceStops,
+      selectedSafeSpaceFromPanel,
+      isSafeSpacesOpen,
+      isMobileSearchOpen,
+    };
+
+    sessionStorage.setItem(
+      FILTER_PREVIEW_STATE_KEY,
+      JSON.stringify(previewSnapshot),
+    );
+    navigate("/filter_page");
   };
+
+  useEffect(() => {
+    const state = location.state as { restoreRoutePreview?: boolean } | null;
+    if (!state?.restoreRoutePreview) return;
+
+    const raw = sessionStorage.getItem(FILTER_PREVIEW_STATE_KEY);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as FilterPreviewSnapshot;
+      setRouteData(parsed.routeData);
+      setStartLocation(parsed.startLocation);
+      setDestination(parsed.destination);
+      setSelectedStart(parsed.selectedStart);
+      setSelectedDestination(parsed.selectedDestination);
+      setSelectedSafeSpaceStops(parsed.selectedSafeSpaceStops ?? []);
+      setSelectedSafeSpaceFromPanel(parsed.selectedSafeSpaceFromPanel ?? null);
+      setIsSafeSpacesOpen(Boolean(parsed.isSafeSpacesOpen));
+      setIsMobileSearchOpen(Boolean(parsed.isMobileSearchOpen));
+      setIsNavigationActive(false);
+      setError("");
+    } catch {
+      // Ignore malformed snapshots.
+    } finally {
+      sessionStorage.removeItem(FILTER_PREVIEW_STATE_KEY);
+    }
+  }, [location.state]);
 
   // Opens the map popup for a safe space selected from the list.
   const handleViewSafeSpaceOnMap = (safeSpace: SafeSpace) => {
