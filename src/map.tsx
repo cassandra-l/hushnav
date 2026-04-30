@@ -33,6 +33,7 @@ import {
 } from "./achievements-store";
 import type { BadgeDefinition } from "./achievement-badges";
 import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
+import { ReportSuccess } from "./components/report-success";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -317,10 +318,15 @@ export function Map() {
   const { volume, isMonitoring, startMonitoring, stopMonitoring } =
     useAudioMonitor();
 
+  // Report sucess popup state
+  const [isReportSuccessOpen, setIsReportSuccessOpen] = useState(false);
+
   // Inside Map component
   const [isHighNoiseAlertOpen, setIsHighNoiseAlertOpen] = useState(false);
   const [lastAlertTime, setLastAlertTime] = useState<number>(0);
-  const [newBadgePopup, setNewBadgePopup] = useState<BadgeDefinition | null>(null);
+  const [newBadgePopup, setNewBadgePopup] = useState<BadgeDefinition | null>(
+    null,
+  );
 
   // Mobile panel open/close state
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(true);
@@ -1408,9 +1414,11 @@ export function Map() {
         onConfirm={() => {
           incrementNoiseReports(1);
           setIsHighNoiseAlertOpen(false);
+          setIsReportSuccessOpen(true);
         }}
       />
 
+      {/* New Badge Popup */}
       {newBadgePopup && (
         <BadgeUnlockedPopup
           badge={newBadgePopup}
@@ -1425,6 +1433,16 @@ export function Map() {
           }}
         />
       )}
+
+      {/* Report Successful Popup */}
+      <ReportSuccess
+        isOpen={isReportSuccessOpen}
+        onClose={() => setIsReportSuccessOpen(false)}
+        onViewBadges={() => {
+          setIsReportSuccessOpen(false);
+          navigate("/achievements");
+        }}
+      />
     </main>
   );
 }
