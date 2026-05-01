@@ -19,12 +19,19 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import type { PlanRouteResponse, SafeSpace } from "../types/route";
 import type { CrowdMapFeatureCollection } from "../types/noise-map";
 
+type UserLocation = {
+  lat: number;
+  lng: number;
+  accuracy?: number;
+};
+
 type RouteMapProps = {
   routeData: PlanRouteResponse | null;
   crowdMapData: CrowdMapFeatureCollection | null;
   allSafeSpaces: SafeSpace[];
   isNavigationActive?: boolean;
   selectedSafeSpaceFromPanel?: SafeSpace | null;
+  userLocation?: UserLocation | null;
 };
 
 type SafeSpaceMarkerProps = {
@@ -55,9 +62,25 @@ function SafeSpaceMarker({ safeSpace, onClick }: SafeSpaceMarkerProps) {
       type="button"
       onClick={onClick}
       className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-md"
+      aria-label={safeSpace.name}
     >
       {renderSafeSpaceIcon(safeSpace.type)}
     </button>
+  );
+}
+
+function UserLocationMarker() {
+  return (
+    <div className="relative flex h-6 w-6 items-center justify-center">
+      {/* Outer pulse/radius circle */}
+      <div className="absolute h-12 w-12 rounded-full bg-[#5A9A8E]/20" />
+
+      {/* Inner soft circle */}
+      <div className="absolute h-8 w-8 rounded-full bg-[#5A9A8E]/30" />
+
+      {/* Main live location dot */}
+      <div className="relative h-4 w-4 rounded-full border-2 border-white bg-[#5A9A8E] shadow-md" />
+    </div>
   );
 }
 
@@ -67,6 +90,7 @@ export function RouteMap({
   allSafeSpaces,
   isNavigationActive = false,
   selectedSafeSpaceFromPanel = null,
+  userLocation = null,
 }: RouteMapProps) {
   const mapRef = useRef<MapRef | null>(null);
   const [selectedSafeSpace, setSelectedSafeSpace] =
@@ -123,18 +147,53 @@ export function RouteMap({
     );
   }, [routeData, isNavigationActive]);
 
-  // Navigation mode: zoom into the start location.
+    // When Emily taps "Use Current Location", move the map to her location.
+  // This works in preview/search mode before navigation starts.
   useEffect(() => {
-    if (!mapRef.current || !routeData || !isNavigationActive) return;
+    if (!mapRef.current || !userLocation || isNavigationActive) return;
 
     mapRef.current.flyTo({
-      center: [routeData.start.lng, routeData.start.lat],
-      zoom: 18.5,
-      pitch: 60,
+      center: [userLocation.lng, userLocation.lat],
+      zoom: 17,
+      pitch: 0,
       bearing: 0,
-      duration: 1200,
+      duration: 1000,
     });
-  }, [isNavigationActive, routeData]);
+  }, [userLocation, isNavigationActive]);
+
+// Navigation mode: always zoom into the route's actual start point.
+// This could be the user's live location OR a manually entered start,
+// depending on what was used when the route was planned.
+useEffect(() => {
+  if (!mapRef.current || !routeData || !isNavigationActive) return;
+
+  mapRef.current.flyTo({
+    center: [routeData.start.lng, routeData.start.lat],
+    zoom: 18.5,
+    pitch: 60,
+    bearing: 0,
+    duration: 1200,
+  });
+}, [isNavigationActive, routeData]);
+
+// Keep following the live location only when the planned route actually starts
+// from the user's current location.
+useEffect(() => {
+  if (!mapRef.current || !userLocation || !routeData || !isNavigationActive) {
+    return;
+  }
+
+  const routeStartIsLiveLocation =
+    Math.abs(routeData.start.lat - userLocation.lat) < 0.0005 &&
+    Math.abs(routeData.start.lng - userLocation.lng) < 0.0005;
+
+  if (!routeStartIsLiveLocation) return;
+
+  mapRef.current.easeTo({
+    center: [userLocation.lng, userLocation.lat],
+    duration: 600,
+  });
+}, [userLocation, routeData, isNavigationActive]);
 
   // When a safe space is selected from the sidebar/bottom sheet,
   // move the map to it and open the same popup used by map markers.
@@ -207,8 +266,23 @@ export function RouteMap({
                 "line-color": "#7DB0A6",
                 "line-width": 6,
               }}
+              layout={{
+                "line-join": "round",
+                "line-cap": "round",
+              }}
             />
           </Source>
+        )}
+
+        {/* Live user location marker */}
+        {userLocation && (
+          <Marker
+            longitude={userLocation.lng}
+            latitude={userLocation.lat}
+            anchor="center"
+          >
+            <UserLocationMarker />
+          </Marker>
         )}
 
         {routeData && (
@@ -259,7 +333,7 @@ export function RouteMap({
             maxWidth="210px"
             className="safe-space-popup"
           >
-            <div className="w-[180px] max-w-[calc(100vw-96px)] rounded-2xl bg-white p-3 text-left text-[#1E2939] sm:w-[220px] sm:p-4">
+            <div className="max-h-[38vh] w-[180px] max-w-[calc(100vw-96px)] overflow-y-auto rounded-2xl bg-white p-3 text-left text-[#1E2939] sm:w-[220px] sm:p-4">
               <div className="mb-2 flex h-7 w-7 items-center justify-center rounded-full border border-white/90 bg-[#E8F4F1] text-[#5A9A8E] shadow-sm sm:h-8 sm:w-8">
                 {renderSafeSpaceIcon(selectedSafeSpace.type)}
               </div>
@@ -275,6 +349,14 @@ export function RouteMap({
               <p className="mt-2 text-xs leading-snug text-[#4A5565] sm:text-sm">
                 {selectedSafeSpace.description}
               </p>
+
+              <button
+                type="button"
+                onClick={() => setSelectedSafeSpace(null)}
+                className="mt-3 w-full rounded-xl border border-[#DCE7E3] bg-white py-2 text-xs font-medium text-[#5A9A8E]"
+              >
+                Close
+              </button>
             </div>
           </Popup>
         )}

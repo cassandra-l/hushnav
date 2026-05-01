@@ -83,5 +83,6 @@ a {
 @media (max-width: 640px) {
   .safe-space-popup .mapboxgl-popup-content {
     max-width: 190px;
+    max-height: 42vh;
   }
 }
