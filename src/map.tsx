@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   MapPin,
@@ -24,6 +24,16 @@ import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
 import type { CrowdMapFeatureCollection } from "./types/noise-map";
 import { AnimatePresence, motion } from "framer-motion";
+import {
+  consumeNextPendingBadgePopup,
+  incrementNoiseReports,
+  incrementRoutesPlanned,
+  incrementSafeSpacesVisited,
+  subscribeToAchievementsUpdates,
+} from "./achievements-store";
+import type { BadgeDefinition } from "./achievement-badges";
+import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
+import { ReportSuccess } from "./components/report-success";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -284,19 +294,39 @@ const COOLDOWN_DURATION = 5 * 60 * 1000;
 
 // Noise threshold to trigger the alert
 const NOISE_THRESHOLD = 10;
+const FILTER_PREVIEW_STATE_KEY = "hushnav:mapPreviewBeforeFilters";
+
+type FilterPreviewSnapshot = {
+  routeData: PlanRouteResponse | null;
+  startLocation: string;
+  destination: string;
+  selectedStart: LocationSuggestion | null;
+  selectedDestination: LocationSuggestion | null;
+  selectedSafeSpaceStops: SafeSpace[];
+  selectedSafeSpaceFromPanel: SafeSpace | null;
+  isSafeSpacesOpen: boolean;
+  isMobileSearchOpen: boolean;
+};
 
 // Main page component
 export function Map() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Noise monitoring popup + audio state
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
   const { volume, isMonitoring, startMonitoring, stopMonitoring } =
     useAudioMonitor();
 
+  // Report sucess popup state
+  const [isReportSuccessOpen, setIsReportSuccessOpen] = useState(false);
+
   // Inside Map component
   const [isHighNoiseAlertOpen, setIsHighNoiseAlertOpen] = useState(false);
   const [lastAlertTime, setLastAlertTime] = useState<number>(0);
+  const [newBadgePopup, setNewBadgePopup] = useState<BadgeDefinition | null>(
+    null,
+  );
 
   // Mobile panel open/close state
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(true);
@@ -417,8 +447,51 @@ export function Map() {
 
   // Sends Emily to the filter page from the route preview page
   const handleOpenFilters = () => {
-    navigate("/filter");
+    const previewSnapshot: FilterPreviewSnapshot = {
+      routeData,
+      startLocation,
+      destination,
+      selectedStart,
+      selectedDestination,
+      selectedSafeSpaceStops,
+      selectedSafeSpaceFromPanel,
+      isSafeSpacesOpen,
+      isMobileSearchOpen,
+    };
+
+    sessionStorage.setItem(
+      FILTER_PREVIEW_STATE_KEY,
+      JSON.stringify(previewSnapshot),
+    );
+    navigate("/filter_page");
   };
+
+  useEffect(() => {
+    const state = location.state as { restoreRoutePreview?: boolean } | null;
+    if (!state?.restoreRoutePreview) return;
+
+    const raw = sessionStorage.getItem(FILTER_PREVIEW_STATE_KEY);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as FilterPreviewSnapshot;
+      setRouteData(parsed.routeData);
+      setStartLocation(parsed.startLocation);
+      setDestination(parsed.destination);
+      setSelectedStart(parsed.selectedStart);
+      setSelectedDestination(parsed.selectedDestination);
+      setSelectedSafeSpaceStops(parsed.selectedSafeSpaceStops ?? []);
+      setSelectedSafeSpaceFromPanel(parsed.selectedSafeSpaceFromPanel ?? null);
+      setIsSafeSpacesOpen(Boolean(parsed.isSafeSpacesOpen));
+      setIsMobileSearchOpen(Boolean(parsed.isMobileSearchOpen));
+      setIsNavigationActive(false);
+      setError("");
+    } catch {
+      // Ignore malformed snapshots.
+    } finally {
+      sessionStorage.removeItem(FILTER_PREVIEW_STATE_KEY);
+    }
+  }, [location.state]);
 
   // Opens the map popup for a safe space selected from the list.
   const handleViewSafeSpaceOnMap = (safeSpace: SafeSpace) => {
@@ -465,6 +538,7 @@ export function Map() {
 
     const updatedStops = [...selectedSafeSpaceStops, safeSpace];
     setSelectedSafeSpaceStops(updatedStops);
+    incrementSafeSpacesVisited(1);
     setIsSafeSpacesOpen(false);
     setIsNavigationActive(false);
 
@@ -482,6 +556,18 @@ export function Map() {
 
     await handlePlanRoute(updatedStops);
   };
+
+  useEffect(() => {
+    const tryShowNewBadge = () => {
+      setNewBadgePopup((current) => {
+        if (current) return current;
+        return consumeNextPendingBadgePopup({ includeDeferred: false });
+      });
+    };
+
+    tryShowNewBadge();
+    return subscribeToAchievementsUpdates(tryShowNewBadge);
+  }, []);
 
   useEffect(() => {
     // Get exact time of this specific check
@@ -794,8 +880,9 @@ export function Map() {
       }
 
       setRouteData(data as PlanRouteResponse);
-      setIsNavigationActive(false);
       setIsSafeSpacesOpen(false);
+      setIsNavigationActive(false);
+      incrementRoutesPlanned(1);
 
       if (window.innerWidth < 1024) {
         setIsMobileSearchOpen(false);
@@ -1324,7 +1411,37 @@ export function Map() {
           </>
         }
         onClose={() => setIsHighNoiseAlertOpen(false)}
-        onConfirm={() => setIsHighNoiseAlertOpen(false)}
+        onConfirm={() => {
+          incrementNoiseReports(1);
+          setIsHighNoiseAlertOpen(false);
+          setIsReportSuccessOpen(true);
+        }}
+      />
+
+      {/* New Badge Popup */}
+      {newBadgePopup && (
+        <BadgeUnlockedPopup
+          badge={newBadgePopup}
+          onClose={() => {
+            setNewBadgePopup(null);
+            const nextBadge = consumeNextPendingBadgePopup({
+              includeDeferred: false,
+            });
+            if (nextBadge) {
+              setNewBadgePopup(nextBadge);
+            }
+          }}
+        />
+      )}
+
+      {/* Report Successful Popup */}
+      <ReportSuccess
+        isOpen={isReportSuccessOpen}
+        onClose={() => setIsReportSuccessOpen(false)}
+        onViewBadges={() => {
+          setIsReportSuccessOpen(false);
+          navigate("/achievements");
+        }}
       />
     </main>
   );

@@ -55,12 +55,18 @@ export function Home() {
               >
                 Calming Tool
               </a>
+              <a
+                href="/achievements"
+                className="hover:text-[#1E2939] transition-colors"
+              >
+                Achievements
+              </a>
             </div>
           </div>
         </nav>
 
         {/* Hero Section */}
-        <section className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center">
+        <section className="flex flex-1 flex-col items-center justify-center px-6 py-12 pt-28 text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -68,11 +74,11 @@ export function Home() {
             className="max-w-[1200px] w-full flex flex-col items-center"
           >
             <div className="flex flex-col items-center lg:flex-row lg:flex-wrap lg:justify-center lg:gap-x-8">
-              <h1 className="text-[72px] sm:text-[100px] lg:text-[180px] font-bold leading-[0.85] tracking-tight">
+              <h1 className="text-[72px] md:text-[100px] lg:text-[180px] font-bold leading-[0.85] tracking-tight">
                 Find <span className="lg:hidden">Your</span>
               </h1>
 
-              <div className="my-6 lg:my-0 w-[280px] h-[160px] sm:w-[350px] sm:h-[200px] lg:w-[320px] lg:h-[180px] rounded-full overflow-hidden shadow-xl rotate-[-2deg] lg:rotate-0 border-[10px] border-white z-10">
+              <div className="-my-2 lg:my-0 w-[280px] h-[160px] sm:w-[350px] sm:h-[200px] lg:w-[320px] lg:h-[180px] rounded-full overflow-hidden shadow-xl rotate-[-2deg] lg:rotate-0 border-[10px] border-white z-10">
                 <img
                   src={hero_image}
                   alt="Navigating"
@@ -85,7 +91,7 @@ export function Home() {
               </h1>
             </div>
 
-            <h1 className="text-[72px] sm:text-[100px] lg:text-[180px] font-bold leading-[0.85] tracking-tight mt-2 lg:mt-[-40px]">
+            <h1 className="text-[72px] sm:text-[100px] lg:text-[180px] font-bold leading-[0.85] tracking-tight lg:mt-[-40px]">
               Quiet Path
             </h1>
 
