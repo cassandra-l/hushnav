@@ -34,6 +34,7 @@ import {
 import type { BadgeDefinition } from "./achievement-badges";
 import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
 import { ReportSuccess } from "./components/report-success";
+import { Navbar } from "./components/nav-bar";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -1222,6 +1223,10 @@ export function Map() {
 
         {/* Main map area */}
         <div className="relative h-full w-full">
+          <Navbar
+            className="absolute left-1/2 -translate-x-1/2 top-8 w-auto hidden lg:flex"
+            showLogo={false}
+          />
           <RouteMap
             key={
               routeData
@@ -1292,13 +1297,13 @@ export function Map() {
                       suggestions={startSuggestions}
                       isOpen={isStartSuggestionsOpen}
                       loading={isStartSuggestionsLoading}
-                     onChange={(value) => {
-  setStartLocation(value);
-  setSelectedStart(null);
-  setUserLocation(null);
-  setLocationError("");
-  setIsStartSuggestionsOpen(value.trim().length >= 2);
-}}
+                      onChange={(value) => {
+                        setStartLocation(value);
+                        setSelectedStart(null);
+                        setUserLocation(null);
+                        setLocationError("");
+                        setIsStartSuggestionsOpen(value.trim().length >= 2);
+                      }}
                       onSelect={handleStartSelect}
                       onFocus={() => {
                         if (startLocation.trim().length >= 2) {
@@ -1339,12 +1344,12 @@ export function Map() {
                       isOpen={isDestinationSuggestionsOpen}
                       loading={isDestinationSuggestionsLoading}
                       onChange={(value) => {
-  setStartLocation(value);
-  setSelectedStart(null);
-  setUserLocation(null);
-  setLocationError("");
-  setIsStartSuggestionsOpen(value.trim().length >= 2);
-}}
+                        setStartLocation(value);
+                        setSelectedStart(null);
+                        setUserLocation(null);
+                        setLocationError("");
+                        setIsStartSuggestionsOpen(value.trim().length >= 2);
+                      }}
                       onSelect={handleDestinationSelect}
                       onFocus={() => {
                         if (destination.trim().length >= 2) {
