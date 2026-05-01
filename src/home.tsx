@@ -67,7 +67,7 @@ export function Home() {
               </a>
             </div>
           </div>
-          {/* Mobile Toggle - ONLY visible on small screens */}
+          {/* Mobile Toggle */}
           <button
             className="lg:hidden p-2 text-[#1E2939]"
             onClick={() => setIsMenuOpen(true)}
@@ -107,21 +107,28 @@ export function Home() {
             </h1>
 
             <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-6">
+              {/* Left Button */}
               <button
                 onClick={() => navigate("/map")}
-                className="w-fit px-8 py-4 bg-[#7DB0A6] text-white rounded-full font-bold text-xs uppercase tracking-widest hover:scale-105 transition-all duration-300 shadow-lg cursor-pointer"
+                className="w-full sm:w-fit px-8 py-4 bg-[#7DB0A6] text-white rounded-full font-bold text-xs uppercase tracking-widest hover:scale-105 transition-all duration-300 shadow-lg cursor-pointer"
               >
                 Find Quiet Route
               </button>
-              <button
-                onClick={() => navigate("/support")}
-                className="group flex items-center gap-3 text-xs font-bold uppercase tracking-widest"
-              >
-                Just Breathe
-                <span className="p-2 border border-[#1E2939] rounded-full group-hover:bg-[#1E2939] group-hover:text-white transition-all duration-300">
-                  <ArrowUpRight size={18} />
-                </span>
-              </button>
+
+              {/* Right Button */}
+              <div className="w-full sm:w-fit group border border-[#1E2939] rounded-full relative flex items-center justify-center">
+                <button
+                  onClick={() => navigate("/support")}
+                  className="relative pl-6 pr-12 py-4 flex items-center justify-center text-xs font-bold uppercase tracking-widest cursor-pointer whitespace-nowrap"
+                >
+                  <span>Calming Tool</span>
+
+                  {/* Arrow Icon */}
+                  <span className="absolute right-2 p-2 rounded-full group-hover:bg-[#1E2939] group-hover:text-white transition-all duration-300">
+                    <ArrowUpRight size={18} />
+                  </span>
+                </button>
+              </div>
             </div>
           </motion.div>
         </section>
