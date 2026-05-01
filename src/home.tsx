@@ -1,9 +1,11 @@
 import { motion, Variants } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpRight, ArrowDown, Shield, Mic, Wind } from "lucide-react";
+import { ArrowUpRight, ArrowDown, Shield, Mic, Wind, Menu } from "lucide-react";
 import { Logo } from "./components/logo";
 import { FeatureCard } from "./components/feature-card";
 import hero_image from "./assets/hero_image.png";
+import { useState } from "react";
+import { MobileMenu } from "./components/hamburger-menu";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -31,11 +33,13 @@ const itemVariants: Variants = {
 
 export function Home() {
   const navigate = useNavigate();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
     <main className="min-h-screen font-sans text-[#1E2939] flex flex-col">
+      <MobileMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
       <div className="h-screen flex flex-col">
-        {/* Navigation Bar */}
+        {/* Navigation Bar (Desktop) */}
         <nav className="fixed top-0 flex items-center justify-between bg-white px-6 py-6 lg:px-8 mx-auto w-full z-20">
           <div className="flex items-center gap-2">
             <Logo />
@@ -63,6 +67,13 @@ export function Home() {
               </a>
             </div>
           </div>
+          {/* Mobile Toggle - ONLY visible on small screens */}
+          <button
+            className="lg:hidden p-2 text-[#1E2939]"
+            onClick={() => setIsMenuOpen(true)}
+          >
+            <Menu size={24} />
+          </button>
         </nav>
 
         {/* Hero Section */}
@@ -119,10 +130,10 @@ export function Home() {
         <div className="w-full h-px bg-[#E8EEEC]" />
 
         {/* Bottom Bar  */}
-        <footer className="w-full py-8 shrink-0">
-          <div className="max-w-[1440px] mx-auto px-6 lg:px-8 flex items-center justify-between overflow-hidden">
+        <footer className="w-full py-8 shrink-0 border-t border-[#E8EEEC] relative">
+          <div className="max-w-[1440px] mx-auto px-6 lg:px-8 flex items-center overflow-hidden">
             {/* Conveyor Belt */}
-            <div className="flex-1 overflow-hidden relative mr-8">
+            <div className="flex-1 overflow-hidden relative">
               <motion.div
                 className="flex gap-16 lg:gap-32 whitespace-nowrap"
                 animate={{ x: [0, -800] }}
@@ -154,7 +165,7 @@ export function Home() {
             </div>
 
             {/* Scroll Down Indicator */}
-            <div className="hidden sm:flex items-center gap-3 shrink-0 text-[10px] font-bold uppercase tracking-[0.2em] opacity-40">
+            <div className="hidden sm:flex sm:static sm:ml-10 absolute right-6 items-center gap-3 shrink-0 text-[10px] font-bold uppercase tracking-[0.2em] opacity-40">
               <span>Scroll</span>
               <div className="w-9 h-9 rounded-full border border-[#E8EEEC] flex items-center justify-center">
                 <motion.div
