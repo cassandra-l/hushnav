@@ -55,6 +55,13 @@ type LocationSuggestion = {
   center?: [number, number];
 };
 
+// Live user location shape from the browser Geolocation API
+type UserLocation = {
+  lat: number;
+  lng: number;
+  accuracy?: number;
+};
+
 // Photon API feature shape
 type PhotonFeature = {
   geometry?: {
@@ -306,6 +313,7 @@ type FilterPreviewSnapshot = {
   selectedSafeSpaceFromPanel: SafeSpace | null;
   isSafeSpacesOpen: boolean;
   isMobileSearchOpen: boolean;
+  userLocation: UserLocation | null;
 };
 
 // Main page component
@@ -371,6 +379,11 @@ export function Map() {
   // Route API loading + error state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Live user location from browser Geolocation API
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [isLocatingUser, setIsLocatingUser] = useState(false);
+  const [locationError, setLocationError] = useState("");
 
   // Final route response shown on the map
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
@@ -457,6 +470,7 @@ export function Map() {
       selectedSafeSpaceFromPanel,
       isSafeSpacesOpen,
       isMobileSearchOpen,
+      userLocation,
     };
 
     sessionStorage.setItem(
@@ -484,6 +498,7 @@ export function Map() {
       setSelectedSafeSpaceFromPanel(parsed.selectedSafeSpaceFromPanel ?? null);
       setIsSafeSpacesOpen(Boolean(parsed.isSafeSpacesOpen));
       setIsMobileSearchOpen(Boolean(parsed.isMobileSearchOpen));
+      setUserLocation(parsed.userLocation ?? null);
       setIsNavigationActive(false);
       setError("");
     } catch {
@@ -492,6 +507,65 @@ export function Map() {
       sessionStorage.removeItem(FILTER_PREVIEW_STATE_KEY);
     }
   }, [location.state]);
+
+  // Gets Emily's current live location and uses it as the route start.
+  const handleUseCurrentLocation = () => {
+    setLocationError("");
+
+    if (!navigator.geolocation) {
+      setLocationError("Live location is not supported by this browser.");
+      return;
+    }
+
+    setIsLocatingUser(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const currentLocation: UserLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        };
+
+        setUserLocation(currentLocation);
+
+        // Store the current location as the selected start point.
+        // The backend receives the real lat/lng through selectedStart.center.
+        setSelectedStart({
+          id: "current-location",
+          place_name: "Current Location",
+          center: [currentLocation.lng, currentLocation.lat],
+        });
+
+        setStartLocation("Current Location");
+        setIsStartSuggestionsOpen(false);
+        setStartSuggestions([]);
+        setIsLocatingUser(false);
+      },
+      (geolocationError) => {
+        console.error("Failed to get current location:", geolocationError);
+
+        if (geolocationError.code === geolocationError.PERMISSION_DENIED) {
+          setLocationError("Location permission was denied.");
+        } else if (
+          geolocationError.code === geolocationError.POSITION_UNAVAILABLE
+        ) {
+          setLocationError("Your location is currently unavailable.");
+        } else if (geolocationError.code === geolocationError.TIMEOUT) {
+          setLocationError("Location request timed out.");
+        } else {
+          setLocationError("Could not get your current location.");
+        }
+
+        setIsLocatingUser(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000,
+      },
+    );
+  };
 
   // Opens the map popup for a safe space selected from the list.
   const handleViewSafeSpaceOnMap = (safeSpace: SafeSpace) => {
@@ -511,6 +585,7 @@ export function Map() {
     // Remove the line from the map
     setRouteData(null);
     setError("");
+    setLocationError("");
     setIsSafeSpacesOpen(false);
     setSelectedSafeSpaceStops([]);
     setSelectedSafeSpaceFromPanel(null);
@@ -596,6 +671,34 @@ export function Map() {
       setIsHighNoiseAlertOpen(false);
     }
   }, [volume, isMonitoring, isHighNoiseAlertOpen, lastAlertTime]);
+
+  // While navigation is active, keep the live location marker updated.
+  // This moves the user marker, but it does not automatically recalculate the route.
+  useEffect(() => {
+    if (!navigator.geolocation || !isNavigationActive) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        setUserLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        });
+      },
+      (geolocationError) => {
+        console.error("Live location tracking failed:", geolocationError);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5000,
+      },
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [isNavigationActive]);
 
   // Close suggestion dropdowns when user clicks outside both panels
   useEffect(() => {
@@ -955,6 +1058,24 @@ export function Map() {
               }}
             />
 
+            <button
+              type="button"
+              onClick={handleUseCurrentLocation}
+              disabled={isLocatingUser}
+              className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#DCE7E3] bg-[#F8FBFA] px-4 py-2 text-sm font-medium text-[#5A9A8E] shadow-sm disabled:opacity-60"
+            >
+              <MapPin size={16} />
+              {isLocatingUser
+                ? "Finding your location..."
+                : "Use Current Location"}
+            </button>
+
+            {locationError && (
+              <p className="mb-3 text-xs font-medium text-red-600">
+                {locationError}
+              </p>
+            )}
+
             <AutocompleteInput
               id="desktopDestination"
               label="Destination"
@@ -1112,6 +1233,7 @@ export function Map() {
             allSafeSpaces={allSafeSpaces}
             isNavigationActive={isNavigationActive}
             selectedSafeSpaceFromPanel={selectedSafeSpaceFromPanel}
+            userLocation={userLocation}
           />
 
           {/* Mobile collapsed top card */}
@@ -1170,11 +1292,13 @@ export function Map() {
                       suggestions={startSuggestions}
                       isOpen={isStartSuggestionsOpen}
                       loading={isStartSuggestionsLoading}
-                      onChange={(value) => {
-                        setStartLocation(value);
-                        setSelectedStart(null);
-                        setIsStartSuggestionsOpen(value.trim().length >= 2);
-                      }}
+                     onChange={(value) => {
+  setStartLocation(value);
+  setSelectedStart(null);
+  setUserLocation(null);
+  setLocationError("");
+  setIsStartSuggestionsOpen(value.trim().length >= 2);
+}}
                       onSelect={handleStartSelect}
                       onFocus={() => {
                         if (startLocation.trim().length >= 2) {
@@ -1183,6 +1307,24 @@ export function Map() {
                         setIsDestinationSuggestionsOpen(false);
                       }}
                     />
+
+                    <button
+                      type="button"
+                      onClick={handleUseCurrentLocation}
+                      disabled={isLocatingUser}
+                      className="mx-4 mb-3 flex items-center justify-center gap-2 rounded-2xl border border-[#DCE7E3] bg-white/80 px-4 py-2 text-sm font-medium text-[#5A9A8E] shadow-sm disabled:opacity-60"
+                    >
+                      <MapPin size={16} />
+                      {isLocatingUser
+                        ? "Finding your location..."
+                        : "Use Current Location"}
+                    </button>
+
+                    {locationError && (
+                      <p className="mx-4 mb-3 text-xs font-medium text-red-600">
+                        {locationError}
+                      </p>
+                    )}
 
                     {/* Divider Line */}
                     <div className="mx-4 h-px bg-[#E8EEEC]" />
@@ -1197,12 +1339,12 @@ export function Map() {
                       isOpen={isDestinationSuggestionsOpen}
                       loading={isDestinationSuggestionsLoading}
                       onChange={(value) => {
-                        setDestination(value);
-                        setSelectedDestination(null);
-                        setIsDestinationSuggestionsOpen(
-                          value.trim().length >= 2,
-                        );
-                      }}
+  setStartLocation(value);
+  setSelectedStart(null);
+  setUserLocation(null);
+  setLocationError("");
+  setIsStartSuggestionsOpen(value.trim().length >= 2);
+}}
                       onSelect={handleDestinationSelect}
                       onFocus={() => {
                         if (destination.trim().length >= 2) {
