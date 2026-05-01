@@ -13,7 +13,9 @@ import {
 export function SupportPage() {
   const navigate = useNavigate();
   const [showExercise, setShowExercise] = useState(false);
-  const [newBadgePopup, setNewBadgePopup] = useState<BadgeDefinition | null>(null);
+  const [newBadgePopup, setNewBadgePopup] = useState<BadgeDefinition | null>(
+    null,
+  );
 
   useEffect(() => {
     const tryShowNewBadge = () => {
@@ -85,7 +87,7 @@ export function SupportPage() {
               incrementBreathingUses(1);
               setShowExercise(true);
             }}
-            className="mt-4 w-full rounded-2xl bg-[#5A9A8E] py-4 text-lg font-medium text-[#FFFFFF] shadow-lg shadow-[#5A9A8E]/20 transition-all hover:bg-[#4d857a] active:scale-95"
+            className="mt-4 w-full rounded-full bg-[#7DB0A6] py-4 text-lg font-medium text-[#FFFFFF] shadow-lg shadow-[#7DB0A6]/20 transition hover:opacity-90 cursor-pointer"
           >
             Start Breathing Exercise
           </button>
