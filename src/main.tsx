@@ -9,6 +9,7 @@ import { AchievementSummaryPage } from "./achievement-summary-page.tsx";
 import { AchievementsBadgesPage } from "./achievements-badges-page.tsx";
 import "./index.css";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
+// import AnimatedLayout from "./animated-layout";
 
 const router = createBrowserRouter([
   {

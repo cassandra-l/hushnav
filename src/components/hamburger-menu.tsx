@@ -30,7 +30,7 @@ export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[40]"
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-60"
           />
 
           {/* Menu Panel */}
@@ -39,7 +39,7 @@ export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 h-full w-[85%] max-w-[320px] bg-white z-[50] shadow-2xl flex flex-col"
+            className="fixed right-0 top-0 h-full w-[85%] max-w-[320px] bg-white z-70 shadow-2xl flex flex-col"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
