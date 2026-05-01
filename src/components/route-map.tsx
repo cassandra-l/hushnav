@@ -249,35 +249,43 @@ export function RouteMap({
         ))}
 
         {selectedSafeSpace && (
-          <Popup
-            longitude={selectedSafeSpace.lng}
-            latitude={selectedSafeSpace.lat}
-            anchor="top"
-            closeOnClick={false}
-            onClose={() => setSelectedSafeSpace(null)}
-            offset={10}
-            maxWidth="210px"
-            className="safe-space-popup"
-          >
-            <div className="w-[180px] max-w-[calc(100vw-96px)] rounded-2xl bg-white p-3 text-left text-[#1E2939] sm:w-[220px] sm:p-4">
-              <div className="mb-2 flex h-7 w-7 items-center justify-center rounded-full border border-white/90 bg-[#E8F4F1] text-[#5A9A8E] shadow-sm sm:h-8 sm:w-8">
-                {renderSafeSpaceIcon(selectedSafeSpace.type)}
-              </div>
+  <Popup
+    longitude={selectedSafeSpace.lng}
+    latitude={selectedSafeSpace.lat}
+    anchor="top"
+    closeOnClick={false}
+    onClose={() => setSelectedSafeSpace(null)}
+    offset={10}
+    maxWidth="210px"
+    className="safe-space-popup"
+  >
+    <div className="max-h-[38vh] w-[180px] max-w-[calc(100vw-96px)] overflow-y-auto rounded-2xl bg-white p-3 text-left text-[#1E2939] sm:w-[220px] sm:p-4">
+      <div className="mb-2 flex h-7 w-7 items-center justify-center rounded-full border border-white/90 bg-[#E8F4F1] text-[#5A9A8E] shadow-sm sm:h-8 sm:w-8">
+        {renderSafeSpaceIcon(selectedSafeSpace.type)}
+      </div>
 
-              <h3 className="text-sm font-semibold leading-tight text-[#1E2939] sm:text-base">
-                {selectedSafeSpace.name}
-              </h3>
+      <h3 className="text-sm font-semibold leading-tight text-[#1E2939] sm:text-base">
+        {selectedSafeSpace.name}
+      </h3>
 
-              <p className="mt-1 text-[11px] font-medium text-[#5A9A8E] sm:text-xs">
-                {selectedSafeSpace.subTheme}
-              </p>
+      <p className="mt-1 text-[11px] font-medium text-[#5A9A8E] sm:text-xs">
+        {selectedSafeSpace.subTheme}
+      </p>
 
-              <p className="mt-2 text-xs leading-snug text-[#4A5565] sm:text-sm">
-                {selectedSafeSpace.description}
-              </p>
-            </div>
-          </Popup>
-        )}
+      <p className="mt-2 text-xs leading-snug text-[#4A5565] sm:text-sm">
+        {selectedSafeSpace.description}
+      </p>
+
+      <button
+        type="button"
+        onClick={() => setSelectedSafeSpace(null)}
+        className="mt-3 w-full rounded-xl border border-[#DCE7E3] bg-white py-2 text-xs font-medium text-[#5A9A8E]"
+      >
+        Close
+      </button>
+    </div>
+  </Popup>
+)}
       </Map>
     </div>
   );

@@ -145,7 +145,7 @@ function AutocompleteInput({
 
         {/* Suggestion dropdown */}
         {isOpen && (
-          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 max-h-80 overflow-hidden overflow-y-auto rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">
+          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 max-h-72 overflow-y-auto rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">
             {loading ? (
               <div className="px-4 py-3 text-sm text-[#6A7282]">
                 Searching...
@@ -1056,7 +1056,7 @@ export function Map() {
 
           {/* Mobile search panel */}
           {isMobileSearchOpen && !routeData && (
-            <section className="absolute left-3 right-3 top-4 z-20 max-w-[calc(100vw-24px)] overflow-hidden lg:hidden">
+            <section className="absolute left-3 right-3 top-4 z-30 max-w-[calc(100vw-24px)] overflow-visible lg:hidden">
               <div
                 ref={mobileSearchPanelRef}
                 className="flex w-full items-start gap-2"
@@ -1073,7 +1073,7 @@ export function Map() {
                 </div>
 
                 <div className="min-w-0 flex-1 flex-col">
-                  <div className="min-w-0 flex-1 overflow-hidden rounded-3xl border border-white bg-white/85 shadow-md backdrop-blur-sm">
+                  <div className="min-w-0 flex-1 overflow-visible rounded-3xl border border-white bg-white/85 shadow-md backdrop-blur-sm">
                     <AutocompleteInput
                       id="mobileStartLocation"
                       label=""
