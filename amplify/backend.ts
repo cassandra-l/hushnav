@@ -7,6 +7,7 @@ import { data } from "./data/resource";
 import { planRouteFunction } from "./functions/plan-route/resource";
 import { noiseMapFunction } from "./functions/noise-map/resource";
 import { safeSpacesFunction } from "./functions/safe-spaces/resource";
+import { verifyPasswordFunction } from "./functions/password/resource";
 
 const backend = defineBackend({
   auth,
@@ -14,6 +15,7 @@ const backend = defineBackend({
   planRouteFunction,
   noiseMapFunction,
   safeSpacesFunction,
+  verifyPasswordFunction,
 });
 
 const apiStack = backend.createStack("api-stack");
@@ -43,6 +45,10 @@ const safeSpacesIntegration = new LambdaIntegration(
   backend.safeSpacesFunction.resources.lambda
 );
 
+const verifyPasswordIntegration = new LambdaIntegration(
+  backend.verifyPasswordFunction.resources.lambda
+);
+
 const planRoutePath = myRestApi.root.addResource("plan-route");
 planRoutePath.addMethod("POST", planRouteIntegration);
 
@@ -51,6 +57,9 @@ noiseMapPath.addMethod("GET", noiseMapIntegration);
 
 const safeSpacesPath = myRestApi.root.addResource("safe-spaces");
 safeSpacesPath.addMethod("GET", safeSpacesIntegration);
+
+const verifyPasswordPath = myRestApi.root.addResource("verify-password");
+verifyPasswordPath.addMethod("POST", verifyPasswordIntegration);
 
 backend.addOutput({
   custom: {
