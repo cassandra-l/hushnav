@@ -25,7 +25,7 @@ type SafeSpaceStopoverPanelProps = {
   onRemoveStop: (safeSpaceId: number) => void;
   onMoveStopUp: (safeSpaceId: number) => void;
   onMoveStopDown: (safeSpaceId: number) => void;
-  onViewSafeSpace?: (safeSpace: SafeSpace) => void;
+  
 };
 
 function renderSafeSpaceIcon(type: SafeSpace["type"]) {
@@ -54,7 +54,6 @@ export function SafeSpaceStopoverPanel({
   onRemoveStop,
   onMoveStopUp,
   onMoveStopDown,
-  onViewSafeSpace,
 }: SafeSpaceStopoverPanelProps) {
   // Stores the safe space Emily clicked so she can view details before adding it.
   const [selectedSafeSpace, setSelectedSafeSpace] =
@@ -85,9 +84,8 @@ export function SafeSpaceStopoverPanel({
                     <button
                       type="button"
                       onClick={() => {
-                        setSelectedSafeSpace(stop);
-                        onViewSafeSpace?.(stop);
-                      }}
+  setSelectedSafeSpace(stop);
+}}
                       className="flex min-w-0 flex-1 items-start gap-3 text-left"
                       aria-label={`View details for ${stop.name}`}
                     >
@@ -177,9 +175,8 @@ export function SafeSpaceStopoverPanel({
                   key={safeSpace.id}
                   type="button"
                   onClick={() => {
-                    setSelectedSafeSpace(safeSpace);
-                    onViewSafeSpace?.(safeSpace);
-                  }}
+  setSelectedSafeSpace(safeSpace);
+}}
                   className={`flex w-full items-start gap-3 rounded-2xl border p-2 text-left transition ${
                     isAlreadySelected
                       ? "border-[#5A9A8E]/40 bg-[#5A9A8E]/10"
@@ -213,75 +210,75 @@ export function SafeSpaceStopoverPanel({
       </div>
 
       {selectedSafeSpace && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-5">
-          <div className="relative max-h-[82vh] w-full max-w-[340px] overflow-y-auto rounded-[28px] border border-white bg-white p-5 shadow-2xl">
-            <button
-              type="button"
-              onClick={() => setSelectedSafeSpace(null)}
-              className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F7F6] text-[#6A7282]"
-              aria-label="Close safe space details"
-            >
-              <X size={16} />
-            </button>
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 px-4 sm:px-5">
+    <div className="relative max-h-[68vh] w-full max-w-[300px] overflow-y-auto rounded-[24px] border border-white bg-white p-4 shadow-2xl sm:max-h-[82vh] sm:max-w-[340px] sm:rounded-[28px] sm:p-5">
+      <button
+        type="button"
+        onClick={() => setSelectedSafeSpace(null)}
+        className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-[#F4F7F6] text-[#6A7282] sm:right-4 sm:top-4 sm:h-8 sm:w-8"
+        aria-label="Close safe space details"
+      >
+        <X size={15} />
+      </button>
 
-            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm">
-              {renderSafeSpaceIcon(selectedSafeSpace.type)}
-            </div>
+      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm sm:mb-4 sm:h-10 sm:w-10">
+        {renderSafeSpaceIcon(selectedSafeSpace.type)}
+      </div>
 
-            <h3 className="pr-10 text-lg font-semibold text-[#1E2939]">
-              {selectedSafeSpace.name}
-            </h3>
+      <h3 className="pr-8 text-base font-semibold text-[#1E2939] sm:pr-10 sm:text-lg">
+        {selectedSafeSpace.name}
+      </h3>
 
-            <p className="mt-2 text-sm leading-6 text-[#4A5565]">
-              {selectedSafeSpace.description}
-            </p>
+      <p className="mt-2 text-sm leading-5 text-[#4A5565] sm:leading-6">
+        {selectedSafeSpace.description}
+      </p>
 
-            <div className="mt-4 rounded-2xl bg-[#F8FBFA] p-4">
-              <p className="text-xs text-[#6A7282]">Noise Level</p>
-              <p className="mt-1 text-base font-medium text-[#5A9A8E]">
-                Quiet
-              </p>
-              <p className="mt-1 text-xs text-[#6A7282]">
-                Very peaceful environment
-              </p>
-            </div>
+      <div className="mt-4 rounded-2xl bg-[#F8FBFA] p-3 sm:p-4">
+        <p className="text-xs text-[#6A7282]">Noise Level</p>
+        <p className="mt-1 text-sm font-medium text-[#5A9A8E] sm:text-base">
+          Quiet
+        </p>
+        <p className="mt-1 text-xs text-[#6A7282]">
+          Very peaceful environment
+        </p>
+      </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              {selectedStopIds.has(selectedSafeSpace.id) ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onRemoveStop(selectedSafeSpace.id);
-                    setSelectedSafeSpace(null);
-                  }}
-                  className="rounded-2xl bg-white py-3 text-sm font-medium text-[#1E2939] shadow-sm ring-1 ring-[#E8EEEC]"
-                >
-                  Remove Stop
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onAddStop(selectedSafeSpace);
-                    setSelectedSafeSpace(null);
-                  }}
-                  className="rounded-2xl bg-[#7DB0A6] py-3 text-sm font-medium text-white shadow-sm"
-                >
-                  Add Stop
-                </button>
-              )}
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3">
+        {selectedStopIds.has(selectedSafeSpace.id) ? (
+          <button
+            type="button"
+            onClick={() => {
+              onRemoveStop(selectedSafeSpace.id);
+              setSelectedSafeSpace(null);
+            }}
+            className="rounded-2xl bg-white py-2.5 text-sm font-medium text-[#1E2939] shadow-sm ring-1 ring-[#E8EEEC] sm:py-3"
+          >
+            Remove Stop
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              onAddStop(selectedSafeSpace);
+              setSelectedSafeSpace(null);
+            }}
+            className="rounded-2xl bg-[#7DB0A6] py-2.5 text-sm font-medium text-white shadow-sm sm:py-3"
+          >
+            Add Stop
+          </button>
+        )}
 
-              <button
-                type="button"
-                onClick={() => setSelectedSafeSpace(null)}
-                className="rounded-2xl bg-white py-3 text-sm font-medium text-[#1E2939] shadow-sm ring-1 ring-[#E8EEEC]"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        <button
+          type="button"
+          onClick={() => setSelectedSafeSpace(null)}
+          className="rounded-2xl bg-white py-2.5 text-sm font-medium text-[#1E2939] shadow-sm ring-1 ring-[#E8EEEC] sm:py-3"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </>
   );
 }
