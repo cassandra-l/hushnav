@@ -5,7 +5,8 @@ import { useNavigate } from "react-router-dom";
 import type { BadgeDefinition } from "./achievement-badges";
 import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
 import {
-  consumeNextPendingBadgePopup,
+  peekNextPendingBadgePopup,
+  shiftPendingBadgePopupQueue,
   incrementBreathingUses,
   subscribeToAchievementsUpdates,
 } from "./achievements-store";
@@ -21,7 +22,7 @@ export function SupportPage() {
 
       setNewBadgePopup((current) => {
         if (current) return current;
-        return consumeNextPendingBadgePopup({ includeDeferred: true });
+        return peekNextPendingBadgePopup();
       });
     };
 
@@ -93,15 +94,11 @@ export function SupportPage() {
       </div>
       {newBadgePopup && (
         <BadgeUnlockedPopup
+          key={newBadgePopup.id}
           badge={newBadgePopup}
           onClose={() => {
-            setNewBadgePopup(null);
-            const nextBadge = consumeNextPendingBadgePopup({
-              includeDeferred: true,
-            });
-            if (nextBadge) {
-              setNewBadgePopup(nextBadge);
-            }
+            shiftPendingBadgePopupQueue();
+            setNewBadgePopup(peekNextPendingBadgePopup());
           }}
         />
       )}
