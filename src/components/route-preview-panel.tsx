@@ -8,8 +8,6 @@ type RoutePreviewPanelProps = {
   selectedStops: SafeSpace[];
   isSafeSpacesOpen: boolean;
   isNavigationActive: boolean;
-  startName: string;
-  endName: string;
   formatRouteLength: (meters: number) => string;
   estimateWalkingMinutes: (meters: number) => number;
   onOpenFilters: () => void;
@@ -18,7 +16,12 @@ type RoutePreviewPanelProps = {
   onToggleSafeSpaces: () => void;
   onAddStop: (safeSpace: SafeSpace) => void;
   onRemoveStop: (safeSpaceId: number) => void;
-  onViewSafeSpace: (safeSpace: SafeSpace) => void;
+
+  // New reorder handlers
+  onMoveStopUp: (safeSpaceId: number) => void;
+  onMoveStopDown: (safeSpaceId: number) => void;
+
+  
 };
 
 // Google Maps-style route preview bottom sheet.
@@ -30,8 +33,6 @@ export function RoutePreviewPanel({
   selectedStops,
   isSafeSpacesOpen,
   isNavigationActive,
-  startName,
-  endName,
   formatRouteLength,
   estimateWalkingMinutes,
   onOpenFilters,
@@ -40,14 +41,16 @@ export function RoutePreviewPanel({
   onToggleSafeSpaces,
   onAddStop,
   onRemoveStop,
-  onViewSafeSpace,
+  onMoveStopUp,
+  onMoveStopDown,
+  
 }: RoutePreviewPanelProps) {
   const totalLength = routeData.route.totalLength;
 
   return (
-    <section className="absolute bottom-4 left-4 right-4 z-10 lg:hidden">
+    <section className="absolute bottom-3 left-3 right-3 z-10 lg:hidden">
       <div className="overflow-hidden rounded-[28px] border border-white/80 bg-white/95 shadow-xl backdrop-blur-sm">
-        <div className="max-h-[48vh] overflow-y-auto overscroll-contain">
+        <div className="max-h-[36vh] overflow-y-auto overscroll-contain">
           <div className="px-5 pb-3 pt-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
@@ -92,15 +95,6 @@ export function RoutePreviewPanel({
               </div>
             </div>
 
-            <div className="mt-3 rounded-2xl border border-[#E8EEEC] bg-white px-4 py-3">
-              <p className="text-[11px] font-medium text-[#6A7282]">
-                Route Summary
-              </p>
-              <p className="mt-1 text-sm text-[#1E2939]">
-                {startName} to {endName}
-              </p>
-            </div>
-
             {!isNavigationActive ? (
               <button
                 type="button"
@@ -128,7 +122,9 @@ export function RoutePreviewPanel({
             onToggleOpen={onToggleSafeSpaces}
             onAddStop={onAddStop}
             onRemoveStop={onRemoveStop}
-            onViewSafeSpace={onViewSafeSpace}
+            onMoveStopUp={onMoveStopUp}
+            onMoveStopDown={onMoveStopDown}
+            
           />
         </div>
       </div>

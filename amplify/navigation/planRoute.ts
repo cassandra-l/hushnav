@@ -1,6 +1,8 @@
 import { geocodePlace } from "./geocode";
 import {
+  findQuietestRoute,
   getQuietestRouteFromCoordinates,
+  snapToNearestNode,
   type AvoidMode,
   type RouteResult,
 } from "./route";
@@ -25,7 +27,14 @@ export type PlanRouteRequest = {
   endQuery?: string;
   avoidMode?: AvoidMode;
   safeSpaceTypes?: SafeSpaceType[];
+
+  // Old single-stop field.
+  // Keep this so older frontend code does not break.
   stopSafeSpaceId?: number;
+
+  // New multi-stop field.
+  // The frontend should send selected safe spaces in the order the user selects them.
+  stopSafeSpaceIds?: number[];
 };
 
 // Full response returned to the frontend
@@ -52,6 +61,9 @@ export type PlanRouteResponse = {
     geojson: LineString;
   };
   safeSpaces: SafeSpace[];
+
+  // Old single-stop response field.
+  // Kept for compatibility.
   stopover?: {
     id: number;
     name: string;
@@ -59,6 +71,15 @@ export type PlanRouteResponse = {
     lat: number;
     lng: number;
   };
+
+  // New multi-stop response field.
+  stopovers?: {
+    id: number;
+    name: string;
+    type: SafeSpaceType;
+    lat: number;
+    lng: number;
+  }[];
 };
 
 // Checks whether a value is a valid coordinate object
@@ -78,11 +99,13 @@ function mergeRouteResults(first: RouteResult, second: RouteResult): RouteResult
     const firstLastCoordinate = mergedCoordinates[mergedCoordinates.length - 1];
     const secondFirstCoordinate = second.geojson.coordinates[0];
 
+    // Use tolerance instead of exact comparison.
+    // This avoids tiny coordinate differences creating a strange straight-line join.
     const sameCoordinate =
       firstLastCoordinate &&
       secondFirstCoordinate &&
-      firstLastCoordinate[0] === secondFirstCoordinate[0] &&
-      firstLastCoordinate[1] === secondFirstCoordinate[1];
+      Math.abs(firstLastCoordinate[0] - secondFirstCoordinate[0]) < 0.0000001 &&
+      Math.abs(firstLastCoordinate[1] - secondFirstCoordinate[1]) < 0.0000001;
 
     mergedCoordinates.push(
       ...(sameCoordinate
@@ -92,6 +115,7 @@ function mergeRouteResults(first: RouteResult, second: RouteResult): RouteResult
   }
 
   const mergedNodeIds = [...first.nodeIds];
+
   if (second.nodeIds.length > 0) {
     const sameNode =
       mergedNodeIds.length > 0 &&
@@ -114,6 +138,17 @@ function mergeRouteResults(first: RouteResult, second: RouteResult): RouteResult
   };
 }
 
+// Merges any number of route legs into one final route.
+function mergeMultipleRouteResults(routeLegs: RouteResult[]): RouteResult {
+  if (routeLegs.length === 0) {
+    throw new Error("Cannot merge route because no route legs were created.");
+  }
+
+  return routeLegs.slice(1).reduce((mergedRoute, nextRoute) => {
+    return mergeRouteResults(mergedRoute, nextRoute);
+  }, routeLegs[0]);
+}
+
 export async function planRoute(
   body: PlanRouteRequest
 ): Promise<PlanRouteResponse> {
@@ -125,6 +160,7 @@ export async function planRoute(
     avoidMode = "both",
     safeSpaceTypes,
     stopSafeSpaceId,
+    stopSafeSpaceIds,
   } = body;
 
   let startCoordinate: Coordinate;
@@ -132,7 +168,7 @@ export async function planRoute(
   let resolvedStartName: string | null = null;
   let resolvedEndName: string | null = null;
 
-  // Use provided start coordinates if available, otherwise geocode the start query
+  // Use provided start coordinates if available, otherwise geocode the start query.
   if (isValidCoordinate(start)) {
     startCoordinate = start;
   } else if (typeof startQuery === "string" && startQuery.trim()) {
@@ -150,7 +186,7 @@ export async function planRoute(
     );
   }
 
-  // Use provided end coordinates if available, otherwise geocode the end query
+  // Use provided end coordinates if available, otherwise geocode the end query.
   if (isValidCoordinate(end)) {
     endCoordinate = end;
   } else if (typeof endQuery === "string" && endQuery.trim()) {
@@ -168,8 +204,21 @@ export async function planRoute(
     );
   }
 
-  // Original route logic: start -> end
-  if (stopSafeSpaceId === undefined) {
+  // Support both the old single-stop field and the new multi-stop field.
+  // If stopSafeSpaceIds is sent by the frontend, use that.
+  // Otherwise, fall back to stopSafeSpaceId.
+  const selectedStopIds =
+    Array.isArray(stopSafeSpaceIds) && stopSafeSpaceIds.length > 0
+      ? stopSafeSpaceIds
+      : stopSafeSpaceId !== undefined
+        ? [stopSafeSpaceId]
+        : [];
+
+  // Remove duplicate stop IDs while keeping the user's selected order.
+  const orderedUniqueStopIds = Array.from(new Set(selectedStopIds));
+
+  // No stopovers selected: normal start -> destination route.
+  if (orderedUniqueStopIds.length === 0) {
     const result = await getQuietestRouteFromCoordinates(
       startCoordinate,
       endCoordinate,
@@ -211,36 +260,69 @@ export async function planRoute(
     };
   }
 
-  // Stopover route logic: start -> safe space -> end
-  const stopSafeSpace = await getSafeSpaceById(stopSafeSpaceId);
+  // Load the selected safe spaces in the exact order the user selected them.
+  const selectedSafeSpaces = await Promise.all(
+    orderedUniqueStopIds.map(async (safeSpaceId) => {
+      const safeSpace = await getSafeSpaceById(safeSpaceId);
 
-  if (!stopSafeSpace) {
-    throw new Error(`Safe space ${stopSafeSpaceId} not found.`);
+      if (!safeSpace) {
+        throw new Error(`Safe space ${safeSpaceId} not found.`);
+      }
+
+      return safeSpace;
+    })
+  );
+
+  // Build ordered waypoints:
+  // Start -> Stop 1 -> Stop 2 -> ... -> Destination
+  const waypointCoordinates: Coordinate[] = [
+    startCoordinate,
+    ...selectedSafeSpaces.map((safeSpace) => ({
+      lat: safeSpace.lat,
+      lng: safeSpace.lng,
+    })),
+    endCoordinate,
+  ];
+
+  // Snap every waypoint once.
+  // This prevents weird straight-line joins caused by the same stop being
+  // snapped slightly differently across separate route legs.
+  const waypointNodes = await Promise.all(
+    waypointCoordinates.map((coordinate) => snapToNearestNode(coordinate))
+  );
+
+  // Calculate each leg using snapped node IDs:
+  // start node -> stop 1 node -> stop 2 node -> end node.
+  const routeLegs: RouteResult[] = [];
+
+  for (let i = 0; i < waypointNodes.length - 1; i++) {
+    const legStartNode = waypointNodes[i];
+    const legEndNode = waypointNodes[i + 1];
+
+    const legRoute = await findQuietestRoute(
+      legStartNode.node_id,
+      legEndNode.node_id,
+      avoidMode
+    );
+
+    routeLegs.push(legRoute);
   }
 
-  const stopCoordinate: Coordinate = {
-    lat: stopSafeSpace.lat,
-    lng: stopSafeSpace.lng,
-  };
-
-  const firstLeg = await getQuietestRouteFromCoordinates(
-    startCoordinate,
-    stopCoordinate,
-    avoidMode
-  );
-
-  const secondLeg = await getQuietestRouteFromCoordinates(
-    stopCoordinate,
-    endCoordinate,
-    avoidMode
-  );
-
-  const mergedRoute = mergeRouteResults(firstLeg.route, secondLeg.route);
+  // Merge every leg into one final route line.
+  const mergedRoute = mergeMultipleRouteResults(routeLegs);
 
   const safeSpaces = await getSafeSpacesNearRoute(
     mergedRoute.geojson,
     safeSpaceTypes
   );
+
+  const stopovers = selectedSafeSpaces.map((safeSpace) => ({
+    id: safeSpace.id,
+    name: safeSpace.name,
+    type: safeSpace.type,
+    lat: safeSpace.lat,
+    lng: safeSpace.lng,
+  }));
 
   return {
     start: {
@@ -250,7 +332,7 @@ export async function planRoute(
       resolvedName: resolvedStartName,
       lat: startCoordinate.lat,
       lng: startCoordinate.lng,
-      snappedNodeId: firstLeg.startNode.node_id,
+      snappedNodeId: waypointNodes[0].node_id,
     },
     end: {
       input: isValidCoordinate(end)
@@ -259,7 +341,7 @@ export async function planRoute(
       resolvedName: resolvedEndName,
       lat: endCoordinate.lat,
       lng: endCoordinate.lng,
-      snappedNodeId: secondLeg.endNode.node_id,
+      snappedNodeId: waypointNodes[waypointNodes.length - 1].node_id,
     },
     route: {
       totalCost: mergedRoute.totalCost,
@@ -269,12 +351,7 @@ export async function planRoute(
       geojson: mergedRoute.geojson,
     },
     safeSpaces,
-    stopover: {
-    id: stopSafeSpace.id,
-    name: stopSafeSpace.name,
-    type: stopSafeSpace.type,
-    lat: stopSafeSpace.lat,
-    lng: stopSafeSpace.lng,
-    },
+    stopover: stopovers[0],
+    stopovers,
   };
 }
