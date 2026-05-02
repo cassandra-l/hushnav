@@ -563,7 +563,8 @@ export function Map() {
 
   setShouldReplanAfterFilter(false);
   void handlePlanRoute(selectedSafeSpaceStops);
-  }, [shouldReplanAfterFilter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldReplanAfterFilter, selectedSafeSpaceStops]);
 
   // Gets Emily's current live location and uses it as the route start.
   const handleUseCurrentLocation = () => {
