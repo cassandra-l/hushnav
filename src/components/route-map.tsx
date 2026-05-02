@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import Map, {
+import ReactMap, {
   Marker,
   Popup,
   Source,
@@ -37,6 +37,8 @@ type RouteMapProps = {
 type SafeSpaceMarkerProps = {
   safeSpace: SafeSpace;
   onClick: () => void;
+  stopNumber?: number;
+  isSelectedStop?: boolean;
 };
 
 function renderSafeSpaceIcon(type: SafeSpace["type"]) {
@@ -56,7 +58,31 @@ function renderSafeSpaceIcon(type: SafeSpace["type"]) {
   }
 }
 
-function SafeSpaceMarker({ safeSpace, onClick }: SafeSpaceMarkerProps) {
+function SafeSpaceMarker({
+  safeSpace,
+  onClick,
+  stopNumber,
+  isSelectedStop = false,
+}: SafeSpaceMarkerProps) {
+  // Selected stopovers are shown as numbered markers.
+  // This makes the route order clearer: Stop 1 -> Stop 2 -> Stop 3.
+  if (isSelectedStop && stopNumber !== undefined) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="relative flex h-12 w-12 items-center justify-center rounded-full border-4 border-white bg-[#5A9A8E] text-white shadow-lg"
+        aria-label={`Stop ${stopNumber}: ${safeSpace.name}`}
+      >
+        <span className="text-base font-bold">{stopNumber}</span>
+
+        <span className="absolute -bottom-6 whitespace-nowrap rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-semibold text-[#1E2939] shadow-sm">
+          Stop {stopNumber}
+        </span>
+      </button>
+    );
+  }
+
   return (
     <button
       type="button"
@@ -117,6 +143,25 @@ export function RouteMap({
     };
   }, [routeData]);
 
+  // Selected stopovers returned by the backend.
+// These are the stops the user has added to the route.
+// useMemo prevents a new empty array being created on every render.
+const selectedStopovers = useMemo(() => {
+  return routeData?.stopovers ?? [];
+}, [routeData?.stopovers]);
+
+// Map each selected safe space id to its stop number.
+// Example: { 12 -> 1, 19 -> 2 }
+const selectedStopNumberById = useMemo(() => {
+  const stopMap = new Map<number, number>();
+
+  selectedStopovers.forEach((stopover, index) => {
+    stopMap.set(stopover.id, index + 1);
+  });
+
+  return stopMap;
+}, [selectedStopovers]);
+
   const safeSpaces = routeData ? routeData.safeSpaces : allSafeSpaces;
 
   // Fit full route in preview mode.
@@ -138,16 +183,22 @@ export function RouteMap({
       if (lat > maxLat) maxLat = lat;
     }
 
+    const hasMultipleStops = selectedStopovers.length > 1;
+
     mapRef.current.fitBounds(
       [
         [minLng, minLat],
         [maxLng, maxLat],
       ],
-      { padding: 80, duration: 1200 },
+      {
+        // Extra padding helps stop labels stay visible.
+        padding: hasMultipleStops ? 120 : 80,
+        duration: 1200,
+      },
     );
-  }, [routeData, isNavigationActive]);
+  }, [routeData, isNavigationActive, selectedStopovers.length]);
 
-    // When Emily taps "Use Current Location", move the map to her location.
+  // When Emily taps "Use Current Location", move the map to her location.
   // This works in preview/search mode before navigation starts.
   useEffect(() => {
     if (!mapRef.current || !userLocation || isNavigationActive) return;
@@ -161,39 +212,39 @@ export function RouteMap({
     });
   }, [userLocation, isNavigationActive]);
 
-// Navigation mode: always zoom into the route's actual start point.
-// This could be the user's live location OR a manually entered start,
-// depending on what was used when the route was planned.
-useEffect(() => {
-  if (!mapRef.current || !routeData || !isNavigationActive) return;
+  // Navigation mode: always zoom into the route's actual start point.
+  // This could be the user's live location OR a manually entered start,
+  // depending on what was used when the route was planned.
+  useEffect(() => {
+    if (!mapRef.current || !routeData || !isNavigationActive) return;
 
-  mapRef.current.flyTo({
-    center: [routeData.start.lng, routeData.start.lat],
-    zoom: 18.5,
-    pitch: 60,
-    bearing: 0,
-    duration: 1200,
-  });
-}, [isNavigationActive, routeData]);
+    mapRef.current.flyTo({
+      center: [routeData.start.lng, routeData.start.lat],
+      zoom: 18.5,
+      pitch: 60,
+      bearing: 0,
+      duration: 1200,
+    });
+  }, [isNavigationActive, routeData]);
 
-// Keep following the live location only when the planned route actually starts
-// from the user's current location.
-useEffect(() => {
-  if (!mapRef.current || !userLocation || !routeData || !isNavigationActive) {
-    return;
-  }
+  // Keep following the live location only when the planned route actually starts
+  // from the user's current location.
+  useEffect(() => {
+    if (!mapRef.current || !userLocation || !routeData || !isNavigationActive) {
+      return;
+    }
 
-  const routeStartIsLiveLocation =
-    Math.abs(routeData.start.lat - userLocation.lat) < 0.0005 &&
-    Math.abs(routeData.start.lng - userLocation.lng) < 0.0005;
+    const routeStartIsLiveLocation =
+      Math.abs(routeData.start.lat - userLocation.lat) < 0.0005 &&
+      Math.abs(routeData.start.lng - userLocation.lng) < 0.0005;
 
-  if (!routeStartIsLiveLocation) return;
+    if (!routeStartIsLiveLocation) return;
 
-  mapRef.current.easeTo({
-    center: [userLocation.lng, userLocation.lat],
-    duration: 600,
-  });
-}, [userLocation, routeData, isNavigationActive]);
+    mapRef.current.easeTo({
+      center: [userLocation.lng, userLocation.lat],
+      duration: 600,
+    });
+  }, [userLocation, routeData, isNavigationActive]);
 
   // When a safe space is selected from the sidebar/bottom sheet,
   // move the map to it and open the same popup used by map markers.
@@ -222,7 +273,7 @@ useEffect(() => {
 
   return (
     <div className="h-full w-full">
-      <Map
+      <ReactMap
         ref={mapRef}
         initialViewState={melbourneCBD}
         mapboxAccessToken={mapboxToken}
@@ -259,16 +310,39 @@ useEffect(() => {
 
         {routeGeoJson && (
           <Source id="route" type="geojson" data={routeGeoJson}>
+            {/* Main route line */}
             <Layer
               id="route-line"
               type="line"
               paint={{
                 "line-color": "#7DB0A6",
                 "line-width": 6,
+                "line-opacity": 0.95,
               }}
               layout={{
                 "line-join": "round",
                 "line-cap": "round",
+              }}
+            />
+
+            {/* Direction arrows on the route line */}
+            <Layer
+              id="route-direction-arrows"
+              type="symbol"
+              layout={{
+                "symbol-placement": "line",
+                "symbol-spacing": 80,
+                "text-field": "➜",
+                "text-size": 18,
+                "text-keep-upright": false,
+                "text-rotation-alignment": "map",
+                "text-pitch-alignment": "map",
+                "symbol-z-order": "source",
+              }}
+              paint={{
+                "text-color": "#1F6F64",
+                "text-halo-color": "#FFFFFF",
+                "text-halo-width": 1.5,
               }}
             />
           </Source>
@@ -309,18 +383,26 @@ useEffect(() => {
           </>
         )}
 
-        {safeSpaces.map((safeSpace) => (
-          <Marker
-            key={safeSpace.id}
-            longitude={safeSpace.lng}
-            latitude={safeSpace.lat}
-          >
-            <SafeSpaceMarker
-              safeSpace={safeSpace}
-              onClick={() => setSelectedSafeSpace(safeSpace)}
-            />
-          </Marker>
-        ))}
+        {safeSpaces.map((safeSpace) => {
+          const stopNumber = selectedStopNumberById.get(safeSpace.id);
+          const isSelectedStop = stopNumber !== undefined;
+
+          return (
+            <Marker
+              key={safeSpace.id}
+              longitude={safeSpace.lng}
+              latitude={safeSpace.lat}
+              anchor="center"
+            >
+              <SafeSpaceMarker
+                safeSpace={safeSpace}
+                stopNumber={stopNumber}
+                isSelectedStop={isSelectedStop}
+                onClick={() => setSelectedSafeSpace(safeSpace)}
+              />
+            </Marker>
+          );
+        })}
 
         {selectedSafeSpace && (
           <Popup
@@ -360,7 +442,7 @@ useEffect(() => {
             </div>
           </Popup>
         )}
-      </Map>
+      </ReactMap>
     </div>
   );
 }

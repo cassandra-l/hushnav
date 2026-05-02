@@ -9,11 +9,13 @@ import {
   ChevronUp,
   ChevronDown,
   X,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import type { SafeSpace } from "../types/route";
 
 // Props for the safe space stopover panel.
-// This version supports multiple ordered stopovers.
+// This version supports multiple ordered stopovers and reordering.
 type SafeSpaceStopoverPanelProps = {
   safeSpaces: SafeSpace[];
   selectedStops: SafeSpace[];
@@ -21,6 +23,8 @@ type SafeSpaceStopoverPanelProps = {
   onToggleOpen: () => void;
   onAddStop: (safeSpace: SafeSpace) => void;
   onRemoveStop: (safeSpaceId: number) => void;
+  onMoveStopUp: (safeSpaceId: number) => void;
+  onMoveStopDown: (safeSpaceId: number) => void;
   onViewSafeSpace?: (safeSpace: SafeSpace) => void;
 };
 
@@ -48,6 +52,8 @@ export function SafeSpaceStopoverPanel({
   onToggleOpen,
   onAddStop,
   onRemoveStop,
+  onMoveStopUp,
+  onMoveStopDown,
   onViewSafeSpace,
 }: SafeSpaceStopoverPanelProps) {
   // Stores the safe space Emily clicked so she can view details before adding it.
@@ -66,51 +72,81 @@ export function SafeSpaceStopoverPanel({
         {/* Ordered stopover list shown after Emily adds one or more safe spaces. */}
         {selectedStops.length > 0 && (
           <div className="mb-4 space-y-3">
-            {selectedStops.map((stop, index) => (
-              <div
-                key={stop.id}
-                className="rounded-2xl border border-[#5A9A8E]/40 bg-[#5A9A8E]/10 p-3"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSafeSpace(stop);
-                      onViewSafeSpace?.(stop);
-                    }}
-                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
-                    aria-label={`View details for ${stop.name}`}
-                  >
-                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm">
-                      {renderSafeSpaceIcon(stop.type)}
+            {selectedStops.map((stop, index) => {
+              const isFirstStop = index === 0;
+              const isLastStop = index === selectedStops.length - 1;
+
+              return (
+                <div
+                  key={stop.id}
+                  className="rounded-2xl border border-[#5A9A8E]/40 bg-[#5A9A8E]/10 p-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSafeSpace(stop);
+                        onViewSafeSpace?.(stop);
+                      }}
+                      className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                      aria-label={`View details for ${stop.name}`}
+                    >
+                      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm">
+                        {renderSafeSpaceIcon(stop.type)}
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-[#5A9A8E]">
+                          Stop {index + 1}
+                        </p>
+
+                        <p className="mt-1 text-sm font-semibold text-[#1E2939]">
+                          {stop.name}
+                        </p>
+
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#6A7282]">
+                          {stop.description}
+                        </p>
+                      </div>
+                    </button>
+
+                    <div className="flex shrink-0 flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onMoveStopUp(stop.id)}
+                        disabled={isFirstStop}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#5A9A8E] shadow-sm hover:bg-[#F4F7F6] disabled:cursor-not-allowed disabled:opacity-35"
+                        aria-label={`Move ${stop.name} up`}
+                        title="Move stop up"
+                      >
+                        <ArrowUp size={14} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onMoveStopDown(stop.id)}
+                        disabled={isLastStop}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#5A9A8E] shadow-sm hover:bg-[#F4F7F6] disabled:cursor-not-allowed disabled:opacity-35"
+                        aria-label={`Move ${stop.name} down`}
+                        title="Move stop down"
+                      >
+                        <ArrowDown size={14} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onRemoveStop(stop.id)}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#6A7282] shadow-sm hover:bg-[#F4F7F6]"
+                        aria-label={`Remove ${stop.name} from route`}
+                        title="Remove stop"
+                      >
+                        <X size={15} />
+                      </button>
                     </div>
-
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-[#5A9A8E]">
-                        Stop {index + 1}
-                      </p>
-
-                      <p className="mt-1 text-sm font-semibold text-[#1E2939]">
-                        {stop.name}
-                      </p>
-
-                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#6A7282]">
-                        {stop.description}
-                      </p>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => onRemoveStop(stop.id)}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[#6A7282] shadow-sm hover:bg-[#F4F7F6]"
-                    aria-label={`Remove ${stop.name} from route`}
-                  >
-                    <X size={15} />
-                  </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -147,7 +183,7 @@ export function SafeSpaceStopoverPanel({
                   className={`flex w-full items-start gap-3 rounded-2xl border p-2 text-left transition ${
                     isAlreadySelected
                       ? "border-[#5A9A8E]/40 bg-[#5A9A8E]/10"
-                      : "border-transparent hover:border-[#5A9A8E]/40 hover:bg-[#5A9A8E]/10 hover:scale-[1.01]"
+                      : "border-transparent hover:scale-[1.01] hover:border-[#5A9A8E]/40 hover:bg-[#5A9A8E]/10"
                   }`}
                 >
                   <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-sm">
@@ -178,7 +214,7 @@ export function SafeSpaceStopoverPanel({
 
       {selectedSafeSpace && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-5">
-          <div className="relative w-full max-w-[340px] rounded-[28px] border border-white bg-white p-5 shadow-2xl">
+          <div className="relative max-h-[82vh] w-full max-w-[340px] overflow-y-auto rounded-[28px] border border-white bg-white p-5 shadow-2xl">
             <button
               type="button"
               onClick={() => setSelectedSafeSpace(null)}

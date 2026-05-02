@@ -689,6 +689,54 @@ export function Map() {
 
     await handlePlanRoute(updatedStops);
   };
+  // Moves a selected safe-space stop one position earlier in the route order.
+// Then replans the route so the backend uses the new order.
+const handleMoveSafeSpaceStopUp = async (safeSpaceId: number) => {
+  const currentIndex = selectedSafeSpaceStops.findIndex(
+    (stop) => stop.id === safeSpaceId,
+  );
+
+  // Already first, so it cannot move up.
+  if (currentIndex <= 0) return;
+
+  const updatedStops = [...selectedSafeSpaceStops];
+  const previousStop = updatedStops[currentIndex - 1];
+
+  updatedStops[currentIndex - 1] = updatedStops[currentIndex];
+  updatedStops[currentIndex] = previousStop;
+
+  setSelectedSafeSpaceStops(updatedStops);
+  setIsNavigationActive(false);
+
+  await handlePlanRoute(updatedStops);
+};
+
+// Moves a selected safe-space stop one position later in the route order.
+// Then replans the route so the backend uses the new order.
+const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
+  const currentIndex = selectedSafeSpaceStops.findIndex(
+    (stop) => stop.id === safeSpaceId,
+  );
+
+  // Not found or already last, so it cannot move down.
+  if (
+    currentIndex === -1 ||
+    currentIndex >= selectedSafeSpaceStops.length - 1
+  ) {
+    return;
+  }
+
+  const updatedStops = [...selectedSafeSpaceStops];
+  const nextStop = updatedStops[currentIndex + 1];
+
+  updatedStops[currentIndex + 1] = updatedStops[currentIndex];
+  updatedStops[currentIndex] = nextStop;
+
+  setSelectedSafeSpaceStops(updatedStops);
+  setIsNavigationActive(false);
+
+  await handlePlanRoute(updatedStops);
+};
 
   useEffect(() => {
     const tryShowNewBadge = () => {
@@ -1106,10 +1154,12 @@ export function Map() {
               isOpen={isStartSuggestionsOpen}
               loading={isStartSuggestionsLoading}
               onChange={(value) => {
-                setStartLocation(value);
-                setSelectedStart(null);
-                setIsStartSuggestionsOpen(value.trim().length >= 2);
-              }}
+  setStartLocation(value);
+  setSelectedStart(null);
+  setUserLocation(null);
+  setLocationError("");
+  setIsStartSuggestionsOpen(value.trim().length >= 2);
+}}
               onSelect={handleStartSelect}
               onFocus={() => {
                 if (startLocation.trim().length >= 2) {
@@ -1239,24 +1289,14 @@ export function Map() {
                       </span>
                     </div>
 
-                    <div className="flex justify-between gap-4">
-                      <span className="text-[#6A7282]">From</span>
-                      <span className="text-right font-medium">
-                        {getStartDisplayName()}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between gap-4">
-                      <span className="text-[#6A7282]">To</span>
-                      <span className="text-right font-medium">
-                        {getEndDisplayName()}
-                      </span>
-                    </div>
+                    
                   </div>
 
                   <div ref={safeSpacesRef} className="mt-5">
                     <SafeSpaceStopoverPanel
                       safeSpaces={routeSafeSpaces}
+                      onMoveStopUp={handleMoveSafeSpaceStopUp}
+                      onMoveStopDown={handleMoveSafeSpaceStopDown}
                       selectedStops={selectedSafeSpaceStops}
                       isOpen={isSafeSpacesOpen}
                       onToggleOpen={() => setIsSafeSpacesOpen((prev) => !prev)}
@@ -1394,30 +1434,28 @@ export function Map() {
                     {/* Divider Line */}
                     <div className="mx-4 h-px bg-[#E8EEEC]" />
 
-                    <AutocompleteInput
-                      id="mobileDestination"
-                      label=""
-                      value={destination}
-                      placeholder="Enter destination"
-                      iconType="destination"
-                      suggestions={destinationSuggestions}
-                      isOpen={isDestinationSuggestionsOpen}
-                      loading={isDestinationSuggestionsLoading}
-                      onChange={(value) => {
-                        setStartLocation(value);
-                        setSelectedStart(null);
-                        setUserLocation(null);
-                        setLocationError("");
-                        setIsStartSuggestionsOpen(value.trim().length >= 2);
-                      }}
-                      onSelect={handleDestinationSelect}
-                      onFocus={() => {
-                        if (destination.trim().length >= 2) {
-                          setIsDestinationSuggestionsOpen(true);
-                        }
-                        setIsStartSuggestionsOpen(false);
-                      }}
-                    />
+                  <AutocompleteInput
+  id="mobileDestination"
+  label=""
+  value={destination}
+  placeholder="Enter destination"
+  iconType="destination"
+  suggestions={destinationSuggestions}
+  isOpen={isDestinationSuggestionsOpen}
+  loading={isDestinationSuggestionsLoading}
+  onChange={(value) => {
+    setDestination(value);
+    setSelectedDestination(null);
+    setIsDestinationSuggestionsOpen(value.trim().length >= 2);
+  }}
+  onSelect={handleDestinationSelect}
+  onFocus={() => {
+    if (destination.trim().length >= 2) {
+      setIsDestinationSuggestionsOpen(true);
+    }
+    setIsStartSuggestionsOpen(false);
+  }}
+/>
                   </div>
 
                   <AnimatePresence>
@@ -1495,6 +1533,8 @@ export function Map() {
             <RoutePreviewPanel
               routeData={routeData}
               safeSpaces={routeSafeSpaces}
+              onMoveStopUp={handleMoveSafeSpaceStopUp}
+              onMoveStopDown={handleMoveSafeSpaceStopDown}
               selectedStops={selectedSafeSpaceStops}
               isSafeSpacesOpen={isSafeSpacesOpen}
               isNavigationActive={isNavigationActive}
@@ -1519,44 +1559,43 @@ export function Map() {
             </button>
           )}
 
-          {/* Mobile mic button + live noise bar */}
-          <div
-            className={`absolute left-4 z-10 transition-all duration-300 lg:hidden ${
-              routeData
-                ? isSafeSpacesOpen
-                  ? "bottom-78 pointer-events-none opacity-0"
-                  : "bottom-44" // Moves up when the route bar appears
-                : "bottom-6" // Stays at the bottom when no route is entered
-            }`}
-          >
-            {isMonitoring && <VolumeBar volume={volume} />}
-            <MicButton
-              onClick={
-                isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)
-              }
-              isActive={isMonitoring}
-            />
-          </div>
+       
+{/* Mobile mic button + live noise bar */}
+<div
+  className={`absolute left-4 z-20 transition-all duration-300 lg:hidden ${
+    routeData
+      ? isSafeSpacesOpen
+        ? "pointer-events-none bottom-44 opacity-0"
+        : "bottom-[calc(36vh+8px)]"
+      : "bottom-6"
+  }`}
+>
+  {isMonitoring && <VolumeBar volume={volume} />}
+  <MicButton
+    onClick={isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)}
+    isActive={isMonitoring}
+  />
+</div>
 
-          {/* Mobile find calm button */}
-          <div
-            className={`absolute right-4 z-10 transition-all duration-300 lg:hidden ${
-              routeData
-                ? isSafeSpacesOpen
-                  ? "bottom-78 pointer-events-none opacity-0"
-                  : "bottom-44" // Moves up when the route bar appears
-                : "bottom-6" // Stays at the bottom when no route is entered
-            }`}
-          >
-            <button
-              type="button"
-              onClick={() => navigate("/support")}
-              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
-              aria-label="Go to Find Calm page"
-            >
-              <Wind size={22} />
-            </button>
-          </div>
+{/* Mobile find calm button */}
+<div
+  className={`absolute right-4 z-20 transition-all duration-300 lg:hidden ${
+    routeData
+      ? isSafeSpacesOpen
+        ? "pointer-events-none bottom-44 opacity-0"
+        : "bottom-[calc(36vh+8px)]"
+      : "bottom-6"
+  }`}
+>
+  <button
+    type="button"
+    onClick={() => navigate("/support")}
+    className="flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
+    aria-label="Go to Find Calm page"
+  >
+    <Wind size={22} />
+  </button>
+</div>
 
           {/* Desktop mic button + live noise bar */}
           <div className="absolute bottom-6 left-6 z-10 hidden lg:block">
