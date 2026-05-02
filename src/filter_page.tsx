@@ -103,14 +103,14 @@ export default function FilterScreen() {
 
   const safeSpaces: FilterOption[] = [
     {
-      id: "parks",
+      id: "park",
       title: "Park",
       description: "Outdoor green spaces",
       icon: <TreePine />,
       theme: "sage",
     },
     {
-      id: "libraries",
+      id: "library",
       title: "Library",
       description: "Quiet reading spaces",
       icon: <Book />,
@@ -164,8 +164,8 @@ export default function FilterScreen() {
   ];
 
   const defaultSafeSpaceIds = [
-    "parks",
-    "libraries",
+    "park",
+    "library",
     "museum",
     "church",
     "synagogue",

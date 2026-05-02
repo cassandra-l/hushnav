@@ -19,6 +19,7 @@ import type {
   PlanRouteRequest,
   PlanRouteResponse,
   SafeSpace,
+  SafeSpaceType,
 } from "./types/route";
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
@@ -304,6 +305,38 @@ const COOLDOWN_DURATION = 5 * 60 * 1000;
 const NOISE_THRESHOLD = 10;
 const FILTER_PREVIEW_STATE_KEY = "hushnav:mapPreviewBeforeFilters";
 
+const SAFE_SPACES_STORAGE_KEY = "hushnav:selectedSafeSpaces";
+
+const DEFAULT_SAFE_SPACE_TYPES: SafeSpaceType[] = [
+  "park",
+  "library",
+  "museum",
+  "church",
+  "synagogue",
+];
+
+function readSelectedSafeSpaceTypes(): SafeSpaceType[] {
+  const raw = localStorage.getItem(SAFE_SPACES_STORAGE_KEY);
+
+  if (!raw) {
+    return DEFAULT_SAFE_SPACE_TYPES;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      return DEFAULT_SAFE_SPACE_TYPES;
+    }
+
+    return parsed.filter((item): item is SafeSpaceType =>
+      DEFAULT_SAFE_SPACE_TYPES.includes(item as SafeSpaceType),
+    );
+  } catch {
+    return DEFAULT_SAFE_SPACE_TYPES;
+  }
+}
+
 type FilterPreviewSnapshot = {
   routeData: PlanRouteResponse | null;
   startLocation: string;
@@ -389,6 +422,12 @@ export function Map() {
   // Final route response shown on the map
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
 
+
+  const [selectedSafeSpaceTypes, setSelectedSafeSpaceTypes] =
+  useState<SafeSpaceType[]>(() => readSelectedSafeSpaceTypes());
+
+  const [shouldReplanAfterFilter, setShouldReplanAfterFilter] = useState(false);
+
   // Ordered safe-space stopovers selected by Emily.
   // The array order controls the route order:
   // start → first stop → second stop → destination.
@@ -407,6 +446,13 @@ export function Map() {
 
   // All safe spaces shown before a route is selected
   const [allSafeSpaces, setAllSafeSpaces] = useState<SafeSpace[]>([]);
+
+  const visibleAllSafeSpaces =
+  selectedSafeSpaceTypes.length === 0
+    ? []
+    : allSafeSpaces.filter((safeSpace) =>
+        selectedSafeSpaceTypes.includes(safeSpace.type),
+      );
 
   // Refs for click-outside handling
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
@@ -502,12 +548,22 @@ export function Map() {
       setUserLocation(parsed.userLocation ?? null);
       setIsNavigationActive(false);
       setError("");
+      setSelectedSafeSpaceTypes(readSelectedSafeSpaceTypes());
+      setShouldReplanAfterFilter(true);
     } catch {
       // Ignore malformed snapshots.
     } finally {
       sessionStorage.removeItem(FILTER_PREVIEW_STATE_KEY);
     }
   }, [location.state]);
+
+
+  useEffect(() => {
+  if (!shouldReplanAfterFilter) return;
+
+  setShouldReplanAfterFilter(false);
+  void handlePlanRoute(selectedSafeSpaceStops);
+  }, [shouldReplanAfterFilter]);
 
   // Gets Emily's current live location and uses it as the route start.
   const handleUseCurrentLocation = () => {
@@ -943,7 +999,10 @@ export function Map() {
         // Backend will calculate:
         // start -> stop 1 -> stop 2 -> ... -> destination
         stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
+        safeSpaceTypes: selectedSafeSpaceTypes,
       };
+
+      console.log("Plan route request body:", requestBody);
 
       const response = await fetch(`${API_BASE_URL}/plan-route`, {
         method: "POST",
@@ -1235,7 +1294,7 @@ export function Map() {
             }
             routeData={routeData}
             crowdMapData={crowdMapData}
-            allSafeSpaces={allSafeSpaces}
+            allSafeSpaces={visibleAllSafeSpaces}
             isNavigationActive={isNavigationActive}
             selectedSafeSpaceFromPanel={selectedSafeSpaceFromPanel}
             userLocation={userLocation}
