@@ -1559,44 +1559,43 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
             </button>
           )}
 
-          {/* Mobile mic button + live noise bar */}
-          <div
-            className={`absolute left-4 z-10 transition-all duration-300 lg:hidden ${
-              routeData
-                ? isSafeSpacesOpen
-                  ? "bottom-78 pointer-events-none opacity-0"
-                  : "bottom-44" // Moves up when the route bar appears
-                : "bottom-6" // Stays at the bottom when no route is entered
-            }`}
-          >
-            {isMonitoring && <VolumeBar volume={volume} />}
-            <MicButton
-              onClick={
-                isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)
-              }
-              isActive={isMonitoring}
-            />
-          </div>
+       
+{/* Mobile mic button + live noise bar */}
+<div
+  className={`absolute left-4 z-20 transition-all duration-300 lg:hidden ${
+    routeData
+      ? isSafeSpacesOpen
+        ? "pointer-events-none bottom-44 opacity-0"
+        : "bottom-[calc(36vh+8px)]"
+      : "bottom-6"
+  }`}
+>
+  {isMonitoring && <VolumeBar volume={volume} />}
+  <MicButton
+    onClick={isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)}
+    isActive={isMonitoring}
+  />
+</div>
 
-          {/* Mobile find calm button */}
-          <div
-            className={`absolute right-4 z-10 transition-all duration-300 lg:hidden ${
-              routeData
-                ? isSafeSpacesOpen
-                  ? "bottom-78 pointer-events-none opacity-0"
-                  : "bottom-44" // Moves up when the route bar appears
-                : "bottom-6" // Stays at the bottom when no route is entered
-            }`}
-          >
-            <button
-              type="button"
-              onClick={() => navigate("/support")}
-              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
-              aria-label="Go to Find Calm page"
-            >
-              <Wind size={22} />
-            </button>
-          </div>
+{/* Mobile find calm button */}
+<div
+  className={`absolute right-4 z-20 transition-all duration-300 lg:hidden ${
+    routeData
+      ? isSafeSpacesOpen
+        ? "pointer-events-none bottom-44 opacity-0"
+        : "bottom-[calc(36vh+8px)]"
+      : "bottom-6"
+  }`}
+>
+  <button
+    type="button"
+    onClick={() => navigate("/support")}
+    className="flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
+    aria-label="Go to Find Calm page"
+  >
+    <Wind size={22} />
+  </button>
+</div>
 
           {/* Desktop mic button + live noise bar */}
           <div className="absolute bottom-6 left-6 z-10 hidden lg:block">
