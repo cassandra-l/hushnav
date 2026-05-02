@@ -6,7 +6,8 @@ import type { BadgeDefinition } from "./achievement-badges";
 import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
 import { motion } from "framer-motion";
 import {
-  consumeNextPendingBadgePopup,
+  peekNextPendingBadgePopup,
+  shiftPendingBadgePopupQueue,
   incrementBreathingUses,
   subscribeToAchievementsUpdates,
 } from "./achievements-store";
@@ -25,7 +26,7 @@ export function SupportPage() {
 
       setNewBadgePopup((current) => {
         if (current) return current;
-        return consumeNextPendingBadgePopup({ includeDeferred: true });
+        return peekNextPendingBadgePopup();
       });
     };
 
@@ -106,21 +107,17 @@ export function SupportPage() {
             </button>
           </div>
         </div>
-        {newBadgePopup && (
-          <BadgeUnlockedPopup
-            badge={newBadgePopup}
-            onClose={() => {
-              setNewBadgePopup(null);
-              const nextBadge = consumeNextPendingBadgePopup({
-                includeDeferred: true,
-              });
-              if (nextBadge) {
-                setNewBadgePopup(nextBadge);
-              }
-            }}
-          />
-        )}
       </motion.div>
+      {newBadgePopup && (
+        <BadgeUnlockedPopup
+          key={newBadgePopup.id}
+          badge={newBadgePopup}
+          onClose={() => {
+            shiftPendingBadgePopupQueue();
+            setNewBadgePopup(peekNextPendingBadgePopup());
+          }}
+        />
+      )}
     </div>
   );
 }

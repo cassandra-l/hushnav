@@ -27,7 +27,8 @@ import { VolumeBar } from "./components/noise-volume-bar";
 import type { CrowdMapFeatureCollection } from "./types/noise-map";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  consumeNextPendingBadgePopup,
+  peekNextPendingBadgePopup,
+  shiftPendingBadgePopupQueue,
   incrementNoiseReports,
   incrementRoutesPlanned,
   incrementSafeSpacesVisited,
@@ -768,7 +769,7 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
     const tryShowNewBadge = () => {
       setNewBadgePopup((current) => {
         if (current) return current;
-        return consumeNextPendingBadgePopup({ includeDeferred: false });
+        return peekNextPendingBadgePopup();
       });
     };
 
@@ -1698,15 +1699,11 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
       {/* New Badge Popup */}
       {newBadgePopup && (
         <BadgeUnlockedPopup
+          key={newBadgePopup.id}
           badge={newBadgePopup}
           onClose={() => {
-            setNewBadgePopup(null);
-            const nextBadge = consumeNextPendingBadgePopup({
-              includeDeferred: false,
-            });
-            if (nextBadge) {
-              setNewBadgePopup(nextBadge);
-            }
+            shiftPendingBadgePopupQueue();
+            setNewBadgePopup(peekNextPendingBadgePopup());
           }}
         />
       )}
