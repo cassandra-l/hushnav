@@ -654,10 +654,7 @@ export function Map() {
     );
   };
 
-  // Opens the map popup for a safe space selected from the list.
-  const handleViewSafeSpaceOnMap = (safeSpace: SafeSpace) => {
-    setSelectedSafeSpaceFromPanel({ ...safeSpace });
-  };
+
 
   // Starts navigation from the route preview page.
   // Map zoom/follow can be wired inside RouteMap when that nav feature is ready.
@@ -1336,7 +1333,7 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
                       onToggleOpen={() => setIsSafeSpacesOpen((prev) => !prev)}
                       onAddStop={handleAddSafeSpaceStop}
                       onRemoveStop={handleRemoveSafeSpaceStop}
-                      onViewSafeSpace={handleViewSafeSpaceOnMap}
+                      
                     />
                   </div>
                 </div>
@@ -1580,7 +1577,7 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
               onToggleSafeSpaces={() => setIsSafeSpacesOpen((prev) => !prev)}
               onAddStop={handleAddSafeSpaceStop}
               onRemoveStop={handleRemoveSafeSpaceStop}
-              onViewSafeSpace={handleViewSafeSpaceOnMap}
+              
             />
           )}
 
