@@ -1,7 +1,6 @@
 import {
   getBadgeById,
   getNewlyUnlockedBadges,
-  type BadgeCategory,
   type BadgeDefinition,
 } from "./achievement-badges";
 
@@ -38,7 +37,6 @@ function parseMaybeNumber(value: unknown): number {
 
 type PendingBadgePopup = {
   badgeId: string;
-  deferred: boolean;
   createdAt: number;
 };
 
@@ -77,7 +75,6 @@ function loadPendingBadgePopups(): PendingBadgePopup[] {
     return parsed.filter(
       (item) =>
         typeof item?.badgeId === "string" &&
-        typeof item?.deferred === "boolean" &&
         typeof item?.createdAt === "number",
     );
   } catch {
@@ -96,7 +93,6 @@ function savePendingBadgePopups(popups: PendingBadgePopup[]) {
 function enqueueNewBadgePopups(
   previousState: AchievementsState,
   nextState: AchievementsState,
-  triggerCategory: BadgeCategory,
 ) {
   const newlyUnlocked = getNewlyUnlockedBadges(previousState, nextState);
   if (newlyUnlocked.length === 0) return;
@@ -108,7 +104,6 @@ function enqueueNewBadgePopups(
     .filter((badge) => !existingIds.has(badge.id))
     .map((badge) => ({
       badgeId: badge.id,
-      deferred: badge.category === "breathing" && triggerCategory === "breathing",
       createdAt: now,
     }));
 
@@ -118,38 +113,37 @@ function enqueueNewBadgePopups(
 }
 
 function updateAchievements(
-  triggerCategory: BadgeCategory,
   updater: (current: AchievementsState) => AchievementsState,
 ) {
   const current = loadAchievementsState();
   const next = updater(current);
-  enqueueNewBadgePopups(current, next, triggerCategory);
+  enqueueNewBadgePopups(current, next);
   saveAchievementsState(next);
 }
 
 export function incrementRoutesPlanned(delta = 1) {
-  updateAchievements("routes", (current) => ({
+  updateAchievements((current) => ({
     ...current,
     routesPlanned: current.routesPlanned + delta,
   }));
 }
 
 export function incrementSafeSpacesVisited(delta = 1) {
-  updateAchievements("safe-spaces", (current) => ({
+  updateAchievements((current) => ({
     ...current,
     safeSpacesVisited: current.safeSpacesVisited + delta,
   }));
 }
 
 export function incrementNoiseReports(delta = 1) {
-  updateAchievements("reports", (current) => ({
+  updateAchievements((current) => ({
     ...current,
     noiseReports: current.noiseReports + delta,
   }));
 }
 
 export function incrementBreathingUses(delta = 1) {
-  updateAchievements("breathing", (current) => ({
+  updateAchievements((current) => ({
     ...current,
     breathingUses: current.breathingUses + delta,
   }));
@@ -162,23 +156,24 @@ export function subscribeToAchievementsUpdates(handler: () => void) {
   return () => window.removeEventListener(UPDATED_EVENT, listener);
 }
 
-export function consumeNextPendingBadgePopup(options?: {
-  includeDeferred?: boolean;
-}): BadgeDefinition | null {
+/** Read the next pending badge without mutating the queue (safe inside setState). */
+export function peekNextPendingBadgePopup(): BadgeDefinition | null {
   if (!isBrowser()) return null;
-  const includeDeferred = options?.includeDeferred ?? false;
 
   const pending = loadPendingBadgePopups();
   if (pending.length === 0) return null;
 
-  const nextIndex = pending.findIndex(
-    (item) => includeDeferred || !item.deferred,
-  );
-  if (nextIndex < 0) return null;
+  return getBadgeById(pending[0].badgeId) ?? null;
+}
 
-  const [selected] = pending.splice(nextIndex, 1);
+/** Remove the front of the queue after the user dismisses the current toast. */
+export function shiftPendingBadgePopupQueue(): void {
+  if (!isBrowser()) return;
+
+  const pending = loadPendingBadgePopups();
+  if (pending.length === 0) return;
+
+  pending.shift();
   savePendingBadgePopups(pending);
-
-  return getBadgeById(selected.badgeId) ?? null;
 }
 
