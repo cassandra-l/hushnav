@@ -23,7 +23,7 @@ export function XButton({ className = "", onClose }: XButtonProps) {
       onClick={handleClick}
       type="button"
       className={`
-        fixed top-6 right-6 z-50 
+        cursor-pointer fixed top-6 right-6 z-50 
         flex h-12 w-12 items-center justify-center 
         rounded-full shadow-sm backdrop-blur-sm transition-all 
         bg-white/60 border border-white/50 
