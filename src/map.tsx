@@ -689,6 +689,54 @@ export function Map() {
 
     await handlePlanRoute(updatedStops);
   };
+  // Moves a selected safe-space stop one position earlier in the route order.
+// Then replans the route so the backend uses the new order.
+const handleMoveSafeSpaceStopUp = async (safeSpaceId: number) => {
+  const currentIndex = selectedSafeSpaceStops.findIndex(
+    (stop) => stop.id === safeSpaceId,
+  );
+
+  // Already first, so it cannot move up.
+  if (currentIndex <= 0) return;
+
+  const updatedStops = [...selectedSafeSpaceStops];
+  const previousStop = updatedStops[currentIndex - 1];
+
+  updatedStops[currentIndex - 1] = updatedStops[currentIndex];
+  updatedStops[currentIndex] = previousStop;
+
+  setSelectedSafeSpaceStops(updatedStops);
+  setIsNavigationActive(false);
+
+  await handlePlanRoute(updatedStops);
+};
+
+// Moves a selected safe-space stop one position later in the route order.
+// Then replans the route so the backend uses the new order.
+const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
+  const currentIndex = selectedSafeSpaceStops.findIndex(
+    (stop) => stop.id === safeSpaceId,
+  );
+
+  // Not found or already last, so it cannot move down.
+  if (
+    currentIndex === -1 ||
+    currentIndex >= selectedSafeSpaceStops.length - 1
+  ) {
+    return;
+  }
+
+  const updatedStops = [...selectedSafeSpaceStops];
+  const nextStop = updatedStops[currentIndex + 1];
+
+  updatedStops[currentIndex + 1] = updatedStops[currentIndex];
+  updatedStops[currentIndex] = nextStop;
+
+  setSelectedSafeSpaceStops(updatedStops);
+  setIsNavigationActive(false);
+
+  await handlePlanRoute(updatedStops);
+};
 
   useEffect(() => {
     const tryShowNewBadge = () => {
@@ -1247,6 +1295,8 @@ export function Map() {
                   <div ref={safeSpacesRef} className="mt-5">
                     <SafeSpaceStopoverPanel
                       safeSpaces={routeSafeSpaces}
+                      onMoveStopUp={handleMoveSafeSpaceStopUp}
+                      onMoveStopDown={handleMoveSafeSpaceStopDown}
                       selectedStops={selectedSafeSpaceStops}
                       isOpen={isSafeSpacesOpen}
                       onToggleOpen={() => setIsSafeSpacesOpen((prev) => !prev)}
@@ -1483,6 +1533,8 @@ export function Map() {
             <RoutePreviewPanel
               routeData={routeData}
               safeSpaces={routeSafeSpaces}
+              onMoveStopUp={handleMoveSafeSpaceStopUp}
+              onMoveStopDown={handleMoveSafeSpaceStopDown}
               selectedStops={selectedSafeSpaceStops}
               isSafeSpacesOpen={isSafeSpacesOpen}
               isNavigationActive={isNavigationActive}

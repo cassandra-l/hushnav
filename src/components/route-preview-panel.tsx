@@ -16,6 +16,11 @@ type RoutePreviewPanelProps = {
   onToggleSafeSpaces: () => void;
   onAddStop: (safeSpace: SafeSpace) => void;
   onRemoveStop: (safeSpaceId: number) => void;
+
+  // New reorder handlers
+  onMoveStopUp: (safeSpaceId: number) => void;
+  onMoveStopDown: (safeSpaceId: number) => void;
+
   onViewSafeSpace: (safeSpace: SafeSpace) => void;
 };
 
@@ -36,6 +41,8 @@ export function RoutePreviewPanel({
   onToggleSafeSpaces,
   onAddStop,
   onRemoveStop,
+  onMoveStopUp,
+  onMoveStopDown,
   onViewSafeSpace,
 }: RoutePreviewPanelProps) {
   const totalLength = routeData.route.totalLength;
@@ -115,6 +122,8 @@ export function RoutePreviewPanel({
             onToggleOpen={onToggleSafeSpaces}
             onAddStop={onAddStop}
             onRemoveStop={onRemoveStop}
+            onMoveStopUp={onMoveStopUp}
+            onMoveStopDown={onMoveStopDown}
             onViewSafeSpace={onViewSafeSpace}
           />
         </div>
