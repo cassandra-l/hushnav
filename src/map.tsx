@@ -16,6 +16,7 @@ import { RouteMap } from "./components/route-map";
 import { SafeSpaceStopoverPanel } from "./components/safe-space-stopover-panel";
 import { RoutePreviewPanel } from "./components/route-preview-panel";
 import type {
+  AvoidMode,
   PlanRouteRequest,
   PlanRouteResponse,
   SafeSpace,
@@ -307,6 +308,8 @@ const FILTER_PREVIEW_STATE_KEY = "hushnav:mapPreviewBeforeFilters";
 
 const SAFE_SPACES_STORAGE_KEY = "hushnav:selectedSafeSpaces";
 
+const SENSITIVITY_STORAGE_KEY = "hushnav:selectedSensitivity";
+
 const DEFAULT_SAFE_SPACE_TYPES: SafeSpaceType[] = [
   "park",
   "library",
@@ -334,6 +337,20 @@ function readSelectedSafeSpaceTypes(): SafeSpaceType[] {
     );
   } catch {
     return DEFAULT_SAFE_SPACE_TYPES;
+  }
+}
+
+function readSelectedAvoidMode(): AvoidMode {
+  const selectedSensitivity = localStorage.getItem(SENSITIVITY_STORAGE_KEY);
+
+  switch (selectedSensitivity) {
+    case "mechanical":
+      return "construction";
+    case "social":
+      return "crowd";
+    case "standard":
+    default:
+      return "both";
   }
 }
 
@@ -425,6 +442,10 @@ export function Map() {
 
   const [selectedSafeSpaceTypes, setSelectedSafeSpaceTypes] =
   useState<SafeSpaceType[]>(() => readSelectedSafeSpaceTypes());
+
+
+  const [selectedAvoidMode, setSelectedAvoidMode] =
+  useState<AvoidMode>(() => readSelectedAvoidMode());
 
   const [shouldReplanAfterFilter, setShouldReplanAfterFilter] = useState(false);
 
@@ -549,6 +570,7 @@ export function Map() {
       setIsNavigationActive(false);
       setError("");
       setSelectedSafeSpaceTypes(readSelectedSafeSpaceTypes());
+      setSelectedAvoidMode(readSelectedAvoidMode());
       setShouldReplanAfterFilter(true);
     } catch {
       // Ignore malformed snapshots.
@@ -562,9 +584,16 @@ export function Map() {
   if (!shouldReplanAfterFilter) return;
 
   setShouldReplanAfterFilter(false);
-  void handlePlanRoute(selectedSafeSpaceStops);
+  const updatedSafeSpaceTypes = readSelectedSafeSpaceTypes();
+  const updatedAvoidMode = readSelectedAvoidMode();
+
+  void handlePlanRoute(
+    selectedSafeSpaceStops,
+    updatedSafeSpaceTypes,
+    updatedAvoidMode,
+  );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shouldReplanAfterFilter, selectedSafeSpaceStops]);
+  }, [shouldReplanAfterFilter]);
 
   // Gets Emily's current live location and uses it as the route start.
   const handleUseCurrentLocation = () => {
@@ -991,7 +1020,10 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
   };
 
   // Sends route request to backend
-  const handlePlanRoute = async (safeSpaceStops = selectedSafeSpaceStops) => {
+  const handlePlanRoute = async (
+    safeSpaceStops = selectedSafeSpaceStops, 
+    safeSpaceTypes = selectedSafeSpaceTypes, 
+    avoidMode = selectedAvoidMode,) => {
     console.log("DEBUG - Start Selection:", selectedStart);
     console.log("DEBUG - Destination Selection:", selectedDestination);
 
@@ -1044,11 +1076,13 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
         startQuery: startLocation,
         endQuery: destination,
 
+        avoidMode,
+        safeSpaceTypes,
+
         // Send selected safe spaces to the backend in the exact order Emily selected them.
         // Backend will calculate:
         // start -> stop 1 -> stop 2 -> ... -> destination
         stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
-        safeSpaceTypes: selectedSafeSpaceTypes,
       };
 
       console.log("Plan route request body:", requestBody);
