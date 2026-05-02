@@ -17,16 +17,20 @@ export function BadgeUnlockedPopup({ badge, onClose }: BadgeUnlockedPopupProps) 
   const onCloseRef = useRef(onClose);
   const exitStartedRef = useRef(false);
   const pendingCloseRef = useRef(false);
-  const beginDismissRef = useRef<() => void>(() => {
-    if (exitStartedRef.current) return;
-    exitStartedRef.current = true;
-    pendingCloseRef.current = true;
-    setIsExiting(true)});
+  const beginDismissRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    beginDismissRef.current = () => {
+      if (exitStartedRef.current) return;
+      exitStartedRef.current = true;
+      pendingCloseRef.current = true;
+      setIsExiting(true);
+    };
+  }, []);
 
   useEffect(() => {
     exitStartedRef.current = false;
     pendingCloseRef.current = false;
-    setIsExiting(false);
   }, [badge.id]);
 
   useEffect(() => {
