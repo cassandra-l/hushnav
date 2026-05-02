@@ -1106,10 +1106,12 @@ export function Map() {
               isOpen={isStartSuggestionsOpen}
               loading={isStartSuggestionsLoading}
               onChange={(value) => {
-                setStartLocation(value);
-                setSelectedStart(null);
-                setIsStartSuggestionsOpen(value.trim().length >= 2);
-              }}
+  setStartLocation(value);
+  setSelectedStart(null);
+  setUserLocation(null);
+  setLocationError("");
+  setIsStartSuggestionsOpen(value.trim().length >= 2);
+}}
               onSelect={handleStartSelect}
               onFocus={() => {
                 if (startLocation.trim().length >= 2) {
@@ -1239,19 +1241,7 @@ export function Map() {
                       </span>
                     </div>
 
-                    <div className="flex justify-between gap-4">
-                      <span className="text-[#6A7282]">From</span>
-                      <span className="text-right font-medium">
-                        {getStartDisplayName()}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between gap-4">
-                      <span className="text-[#6A7282]">To</span>
-                      <span className="text-right font-medium">
-                        {getEndDisplayName()}
-                      </span>
-                    </div>
+                    
                   </div>
 
                   <div ref={safeSpacesRef} className="mt-5">
@@ -1394,30 +1384,28 @@ export function Map() {
                     {/* Divider Line */}
                     <div className="mx-4 h-px bg-[#E8EEEC]" />
 
-                    <AutocompleteInput
-                      id="mobileDestination"
-                      label=""
-                      value={destination}
-                      placeholder="Enter destination"
-                      iconType="destination"
-                      suggestions={destinationSuggestions}
-                      isOpen={isDestinationSuggestionsOpen}
-                      loading={isDestinationSuggestionsLoading}
-                      onChange={(value) => {
-                        setStartLocation(value);
-                        setSelectedStart(null);
-                        setUserLocation(null);
-                        setLocationError("");
-                        setIsStartSuggestionsOpen(value.trim().length >= 2);
-                      }}
-                      onSelect={handleDestinationSelect}
-                      onFocus={() => {
-                        if (destination.trim().length >= 2) {
-                          setIsDestinationSuggestionsOpen(true);
-                        }
-                        setIsStartSuggestionsOpen(false);
-                      }}
-                    />
+                  <AutocompleteInput
+  id="mobileDestination"
+  label=""
+  value={destination}
+  placeholder="Enter destination"
+  iconType="destination"
+  suggestions={destinationSuggestions}
+  isOpen={isDestinationSuggestionsOpen}
+  loading={isDestinationSuggestionsLoading}
+  onChange={(value) => {
+    setDestination(value);
+    setSelectedDestination(null);
+    setIsDestinationSuggestionsOpen(value.trim().length >= 2);
+  }}
+  onSelect={handleDestinationSelect}
+  onFocus={() => {
+    if (destination.trim().length >= 2) {
+      setIsDestinationSuggestionsOpen(true);
+    }
+    setIsStartSuggestionsOpen(false);
+  }}
+/>
                   </div>
 
                   <AnimatePresence>
