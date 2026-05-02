@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   MapPin,
@@ -15,7 +15,13 @@ import { PopUp } from "./components/pop-up";
 import { RouteMap } from "./components/route-map";
 import { SafeSpaceStopoverPanel } from "./components/safe-space-stopover-panel";
 import { RoutePreviewPanel } from "./components/route-preview-panel";
-import type { PlanRouteResponse, SafeSpace } from "./types/route";
+import type {
+  AvoidMode,
+  PlanRouteRequest,
+  PlanRouteResponse,
+  SafeSpace,
+  SafeSpaceType,
+} from "./types/route";
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
 import type { CrowdMapFeatureCollection } from "./types/noise-map";
@@ -30,6 +36,8 @@ import {
 } from "./achievements-store";
 import type { BadgeDefinition } from "./achievement-badges";
 import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
+import { ReportSuccess } from "./components/report-success";
+import { Navbar } from "./components/nav-bar";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -39,6 +47,7 @@ const CBD_CENTER = {
   lng: 144.9631,
   lat: -37.8136,
 };
+
 // A wider Melbourne inner bounding box so nearby areas like Docklands,
 // Southbank, and East Melbourne can still appear in suggestions
 const MELBOURNE_INNER_BBOX = "144.88,-37.86,145.05,-37.77";
@@ -48,6 +57,13 @@ type LocationSuggestion = {
   id: string;
   place_name: string;
   center?: [number, number];
+};
+
+// Live user location shape from the browser Geolocation API
+type UserLocation = {
+  lat: number;
+  lng: number;
+  accuracy?: number;
 };
 
 // Photon API feature shape
@@ -144,13 +160,13 @@ function AutocompleteInput({
             onFocus={onFocus}
             placeholder={placeholder}
             autoComplete="off"
-            className="w-full bg-transparent text-[14px] text-[#1E2939] outline-none placeholder:text-[#8B98A5]"
+            className="min-w-0 w-full bg-transparent text-[14px] text-[#1E2939] outline-none placeholder:text-[#8B98A5]"
           />
         </div>
 
         {/* Suggestion dropdown */}
         {isOpen && (
-          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 max-h-80 overflow-hidden overflow-y-auto rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">
+          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 max-h-72 overflow-y-auto rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">
             {loading ? (
               <div className="px-4 py-3 text-sm text-[#6A7282]">
                 Searching...
@@ -286,22 +302,91 @@ async function fetchPhotonSuggestions(
 // Noise monitoring configuration
 // Time interval between every triggers
 const COOLDOWN_DURATION = 5 * 60 * 1000;
+
 // Noise threshold to trigger the alert
 const NOISE_THRESHOLD = 10;
+const FILTER_PREVIEW_STATE_KEY = "hushnav:mapPreviewBeforeFilters";
+
+const SAFE_SPACES_STORAGE_KEY = "hushnav:selectedSafeSpaces";
+
+const SENSITIVITY_STORAGE_KEY = "hushnav:selectedSensitivity";
+
+const DEFAULT_SAFE_SPACE_TYPES: SafeSpaceType[] = [
+  "park",
+  "library",
+  "museum",
+  "church",
+  "synagogue",
+];
+
+function readSelectedSafeSpaceTypes(): SafeSpaceType[] {
+  const raw = localStorage.getItem(SAFE_SPACES_STORAGE_KEY);
+
+  if (!raw) {
+    return DEFAULT_SAFE_SPACE_TYPES;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      return DEFAULT_SAFE_SPACE_TYPES;
+    }
+
+    return parsed.filter((item): item is SafeSpaceType =>
+      DEFAULT_SAFE_SPACE_TYPES.includes(item as SafeSpaceType),
+    );
+  } catch {
+    return DEFAULT_SAFE_SPACE_TYPES;
+  }
+}
+
+function readSelectedAvoidMode(): AvoidMode {
+  const selectedSensitivity = localStorage.getItem(SENSITIVITY_STORAGE_KEY);
+
+  switch (selectedSensitivity) {
+    case "mechanical":
+      return "construction";
+    case "social":
+      return "crowd";
+    case "standard":
+    default:
+      return "both";
+  }
+}
+
+type FilterPreviewSnapshot = {
+  routeData: PlanRouteResponse | null;
+  startLocation: string;
+  destination: string;
+  selectedStart: LocationSuggestion | null;
+  selectedDestination: LocationSuggestion | null;
+  selectedSafeSpaceStops: SafeSpace[];
+  selectedSafeSpaceFromPanel: SafeSpace | null;
+  isSafeSpacesOpen: boolean;
+  isMobileSearchOpen: boolean;
+  userLocation: UserLocation | null;
+};
 
 // Main page component
 export function Map() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Noise monitoring popup + audio state
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
   const { volume, isMonitoring, startMonitoring, stopMonitoring } =
     useAudioMonitor();
 
+  // Report sucess popup state
+  const [isReportSuccessOpen, setIsReportSuccessOpen] = useState(false);
+
   // Inside Map component
   const [isHighNoiseAlertOpen, setIsHighNoiseAlertOpen] = useState(false);
   const [lastAlertTime, setLastAlertTime] = useState<number>(0);
-  const [newBadgePopup, setNewBadgePopup] = useState<BadgeDefinition | null>(null);
+  const [newBadgePopup, setNewBadgePopup] = useState<BadgeDefinition | null>(
+    null,
+  );
 
   // Mobile panel open/close state
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(true);
@@ -347,8 +432,23 @@ export function Map() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Live user location from browser Geolocation API
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [isLocatingUser, setIsLocatingUser] = useState(false);
+  const [locationError, setLocationError] = useState("");
+
   // Final route response shown on the map
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
+
+
+  const [selectedSafeSpaceTypes, setSelectedSafeSpaceTypes] =
+  useState<SafeSpaceType[]>(() => readSelectedSafeSpaceTypes());
+
+
+  const [selectedAvoidMode, setSelectedAvoidMode] =
+  useState<AvoidMode>(() => readSelectedAvoidMode());
+
+  const [shouldReplanAfterFilter, setShouldReplanAfterFilter] = useState(false);
 
   // Ordered safe-space stopovers selected by Emily.
   // The array order controls the route order:
@@ -368,6 +468,13 @@ export function Map() {
 
   // All safe spaces shown before a route is selected
   const [allSafeSpaces, setAllSafeSpaces] = useState<SafeSpace[]>([]);
+
+  const visibleAllSafeSpaces =
+  selectedSafeSpaceTypes.length === 0
+    ? []
+    : allSafeSpaces.filter((safeSpace) =>
+        selectedSafeSpaceTypes.includes(safeSpace.type),
+      );
 
   // Refs for click-outside handling
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
@@ -422,13 +529,133 @@ export function Map() {
 
   // Sends Emily to the filter page from the route preview page
   const handleOpenFilters = () => {
-    navigate("/filter");
+    const previewSnapshot: FilterPreviewSnapshot = {
+      routeData,
+      startLocation,
+      destination,
+      selectedStart,
+      selectedDestination,
+      selectedSafeSpaceStops,
+      selectedSafeSpaceFromPanel,
+      isSafeSpacesOpen,
+      isMobileSearchOpen,
+      userLocation,
+    };
+
+    sessionStorage.setItem(
+      FILTER_PREVIEW_STATE_KEY,
+      JSON.stringify(previewSnapshot),
+    );
+    navigate("/filter_page");
   };
 
-  // Opens the map popup for a safe space selected from the list.
-  const handleViewSafeSpaceOnMap = (safeSpace: SafeSpace) => {
-    setSelectedSafeSpaceFromPanel({ ...safeSpace });
+  useEffect(() => {
+    const state = location.state as { restoreRoutePreview?: boolean } | null;
+    if (!state?.restoreRoutePreview) return;
+
+    const raw = sessionStorage.getItem(FILTER_PREVIEW_STATE_KEY);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as FilterPreviewSnapshot;
+      setRouteData(parsed.routeData);
+      setStartLocation(parsed.startLocation);
+      setDestination(parsed.destination);
+      setSelectedStart(parsed.selectedStart);
+      setSelectedDestination(parsed.selectedDestination);
+      setSelectedSafeSpaceStops(parsed.selectedSafeSpaceStops ?? []);
+      setSelectedSafeSpaceFromPanel(parsed.selectedSafeSpaceFromPanel ?? null);
+      setIsSafeSpacesOpen(Boolean(parsed.isSafeSpacesOpen));
+      setIsMobileSearchOpen(Boolean(parsed.isMobileSearchOpen));
+      setUserLocation(parsed.userLocation ?? null);
+      setIsNavigationActive(false);
+      setError("");
+      setSelectedSafeSpaceTypes(readSelectedSafeSpaceTypes());
+      setSelectedAvoidMode(readSelectedAvoidMode());
+      setShouldReplanAfterFilter(true);
+    } catch {
+      // Ignore malformed snapshots.
+    } finally {
+      sessionStorage.removeItem(FILTER_PREVIEW_STATE_KEY);
+    }
+  }, [location.state]);
+
+
+  useEffect(() => {
+  if (!shouldReplanAfterFilter) return;
+
+  setShouldReplanAfterFilter(false);
+  const updatedSafeSpaceTypes = readSelectedSafeSpaceTypes();
+  const updatedAvoidMode = readSelectedAvoidMode();
+
+  void handlePlanRoute(
+    selectedSafeSpaceStops,
+    updatedSafeSpaceTypes,
+    updatedAvoidMode,
+  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldReplanAfterFilter]);
+
+  // Gets Emily's current live location and uses it as the route start.
+  const handleUseCurrentLocation = () => {
+    setLocationError("");
+
+    if (!navigator.geolocation) {
+      setLocationError("Live location is not supported by this browser.");
+      return;
+    }
+
+    setIsLocatingUser(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const currentLocation: UserLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        };
+
+        setUserLocation(currentLocation);
+
+        // Store the current location as the selected start point.
+        // The backend receives the real lat/lng through selectedStart.center.
+        setSelectedStart({
+          id: "current-location",
+          place_name: "Current Location",
+          center: [currentLocation.lng, currentLocation.lat],
+        });
+
+        setStartLocation("Current Location");
+        setIsStartSuggestionsOpen(false);
+        setStartSuggestions([]);
+        setIsLocatingUser(false);
+      },
+      (geolocationError) => {
+        console.error("Failed to get current location:", geolocationError);
+
+        if (geolocationError.code === geolocationError.PERMISSION_DENIED) {
+          setLocationError("Location permission was denied.");
+        } else if (
+          geolocationError.code === geolocationError.POSITION_UNAVAILABLE
+        ) {
+          setLocationError("Your location is currently unavailable.");
+        } else if (geolocationError.code === geolocationError.TIMEOUT) {
+          setLocationError("Location request timed out.");
+        } else {
+          setLocationError("Could not get your current location.");
+        }
+
+        setIsLocatingUser(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000,
+      },
+    );
   };
+
+
 
   // Starts navigation from the route preview page.
   // Map zoom/follow can be wired inside RouteMap when that nav feature is ready.
@@ -443,6 +670,7 @@ export function Map() {
     // Remove the line from the map
     setRouteData(null);
     setError("");
+    setLocationError("");
     setIsSafeSpacesOpen(false);
     setSelectedSafeSpaceStops([]);
     setSelectedSafeSpaceFromPanel(null);
@@ -488,6 +716,55 @@ export function Map() {
 
     await handlePlanRoute(updatedStops);
   };
+  // Moves a selected safe-space stop one position earlier in the route order.
+// Then replans the route so the backend uses the new order.
+const handleMoveSafeSpaceStopUp = async (safeSpaceId: number) => {
+  const currentIndex = selectedSafeSpaceStops.findIndex(
+    (stop) => stop.id === safeSpaceId,
+  );
+
+  // Already first, so it cannot move up.
+  if (currentIndex <= 0) return;
+
+  const updatedStops = [...selectedSafeSpaceStops];
+  const previousStop = updatedStops[currentIndex - 1];
+
+  updatedStops[currentIndex - 1] = updatedStops[currentIndex];
+  updatedStops[currentIndex] = previousStop;
+
+  setSelectedSafeSpaceStops(updatedStops);
+  setIsNavigationActive(false);
+
+  await handlePlanRoute(updatedStops);
+};
+
+// Moves a selected safe-space stop one position later in the route order.
+// Then replans the route so the backend uses the new order.
+const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
+  const currentIndex = selectedSafeSpaceStops.findIndex(
+    (stop) => stop.id === safeSpaceId,
+  );
+
+  // Not found or already last, so it cannot move down.
+  if (
+    currentIndex === -1 ||
+    currentIndex >= selectedSafeSpaceStops.length - 1
+  ) {
+    return;
+  }
+
+  const updatedStops = [...selectedSafeSpaceStops];
+  const nextStop = updatedStops[currentIndex + 1];
+
+  updatedStops[currentIndex + 1] = updatedStops[currentIndex];
+  updatedStops[currentIndex] = nextStop;
+
+  setSelectedSafeSpaceStops(updatedStops);
+  setIsNavigationActive(false);
+
+  await handlePlanRoute(updatedStops);
+};
+
   useEffect(() => {
     const tryShowNewBadge = () => {
       setNewBadgePopup((current) => {
@@ -503,6 +780,7 @@ export function Map() {
   useEffect(() => {
     // Get exact time of this specific check
     const currentTime = Date.now();
+
     // Only show the popup if ALL of these are true:
     if (
       // User has noise monitor turned on
@@ -515,6 +793,7 @@ export function Map() {
       currentTime - lastAlertTime > COOLDOWN_DURATION
     ) {
       setIsHighNoiseAlertOpen(true);
+
       // Start the 5-minute timer
       setLastAlertTime(currentTime);
     }
@@ -525,6 +804,34 @@ export function Map() {
       setIsHighNoiseAlertOpen(false);
     }
   }, [volume, isMonitoring, isHighNoiseAlertOpen, lastAlertTime]);
+
+  // While navigation is active, keep the live location marker updated.
+  // This moves the user marker, but it does not automatically recalculate the route.
+  useEffect(() => {
+    if (!navigator.geolocation || !isNavigationActive) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        setUserLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        });
+      },
+      (geolocationError) => {
+        console.error("Live location tracking failed:", geolocationError);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5000,
+      },
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [isNavigationActive]);
 
   // Close suggestion dropdowns when user clicks outside both panels
   useEffect(() => {
@@ -711,9 +1018,13 @@ export function Map() {
   };
 
   // Sends route request to backend
-  const handlePlanRoute = async (safeSpaceStops = selectedSafeSpaceStops) => {
+  const handlePlanRoute = async (
+    safeSpaceStops = selectedSafeSpaceStops, 
+    safeSpaceTypes = selectedSafeSpaceTypes, 
+    avoidMode = selectedAvoidMode,) => {
     console.log("DEBUG - Start Selection:", selectedStart);
     console.log("DEBUG - Destination Selection:", selectedDestination);
+
     setError("");
     setIsStartSuggestionsOpen(false);
     setIsDestinationSuggestionsOpen(false);
@@ -743,7 +1054,7 @@ export function Map() {
     setLoading(true);
 
     try {
-      const requestBody = {
+      const requestBody: PlanRouteRequest = {
         start:
           selectedStart?.center && selectedStart.center.length >= 2
             ? {
@@ -751,6 +1062,7 @@ export function Map() {
                 lat: selectedStart.center[1],
               }
             : undefined,
+
         end:
           selectedDestination?.center && selectedDestination.center.length >= 2
             ? {
@@ -758,16 +1070,20 @@ export function Map() {
                 lat: selectedDestination.center[1],
               }
             : undefined,
+
         startQuery: startLocation,
         endQuery: destination,
-        // Ordered stopovers. Backend should route through these in array order.
-        stopovers: safeSpaceStops.map((stop) => ({
-          id: stop.id,
-          name: stop.name,
-          lng: stop.lng,
-          lat: stop.lat,
-        })),
+
+        avoidMode,
+        safeSpaceTypes,
+
+        // Send selected safe spaces to the backend in the exact order Emily selected them.
+        // Backend will calculate:
+        // start -> stop 1 -> stop 2 -> ... -> destination
+        stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
       };
+
+      console.log("Plan route request body:", requestBody);
 
       const response = await fetch(`${API_BASE_URL}/plan-route`, {
         method: "POST",
@@ -833,10 +1149,10 @@ export function Map() {
   };
 
   return (
-    <main className="h-[100dvh] fixed inset-0 w-full overflow-hidden bg-[#D5E8E5]">
+    <main className="fixed inset-0 h-[100dvh] w-full overflow-hidden bg-[#D5E8E5]">
       <div className="h-full w-full lg:grid lg:grid-cols-[380px_1fr]">
         {/* Desktop left sidebar */}
-        <aside className="z-20 hidden max-h-screen h-full flex-col border-r border-[#E8EEEC] bg-white lg:flex">
+        <aside className="z-20 hidden h-full max-h-screen flex-col border-r border-[#E8EEEC] bg-white lg:flex">
           <div
             ref={desktopSearchPanelRef}
             className="border-b border-[#E8EEEC] px-5 pb-4 pt-5"
@@ -870,10 +1186,12 @@ export function Map() {
               isOpen={isStartSuggestionsOpen}
               loading={isStartSuggestionsLoading}
               onChange={(value) => {
-                setStartLocation(value);
-                setSelectedStart(null);
-                setIsStartSuggestionsOpen(value.trim().length >= 2);
-              }}
+  setStartLocation(value);
+  setSelectedStart(null);
+  setUserLocation(null);
+  setLocationError("");
+  setIsStartSuggestionsOpen(value.trim().length >= 2);
+}}
               onSelect={handleStartSelect}
               onFocus={() => {
                 if (startLocation.trim().length >= 2) {
@@ -882,6 +1200,24 @@ export function Map() {
                 setIsDestinationSuggestionsOpen(false);
               }}
             />
+
+            <button
+              type="button"
+              onClick={handleUseCurrentLocation}
+              disabled={isLocatingUser}
+              className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#DCE7E3] bg-[#F8FBFA] px-4 py-2 text-sm font-medium text-[#5A9A8E] shadow-sm disabled:opacity-60"
+            >
+              <MapPin size={16} />
+              {isLocatingUser
+                ? "Finding your location..."
+                : "Use Current Location"}
+            </button>
+
+            {locationError && (
+              <p className="mb-3 text-xs font-medium text-red-600">
+                {locationError}
+              </p>
+            )}
 
             <AutocompleteInput
               id="desktopDestination"
@@ -922,25 +1258,47 @@ export function Map() {
           {/* Desktop route summary */}
           <div
             ref={sidebarScrollRef}
-            className="flex-1 overflow-y-auto px-5 py-4 custom-scrollbar min-h-0"
+            className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-4"
           >
             {routeData ? (
               <div className="space-y-4">
-                <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
-                  <h2 className="mb-3 text-base font-semibold text-[#1E2939]">
-                    Quiet Route Preview
-                  </h2>
+                {/* Desktop Start / Exit button is now above the summary card */}
+                {isNavigationActive ? (
+                  <button
+                    onClick={handleExitRoute}
+                    className="w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm"
+                  >
+                    Exit
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleStartNavigation}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm"
+                  >
+                    <Navigation size={16} />
+                    Start
+                  </button>
+                )}
 
-                  {!isNavigationActive && (
-                    <button
-                      type="button"
-                      onClick={handleOpenFilters}
-                      className="mb-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#7DB0A6] px-4 py-3 text-sm font-medium text-white shadow-sm"
-                    >
-                      <SlidersVertical size={16} className="text-white" />
-                      Filter route
-                    </button>
-                  )}
+                <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
+                  {/* Route Summary heading with small filter button on the right */}
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h2 className="text-base font-semibold text-[#1E2939]">
+                      Route Summary
+                    </h2>
+
+                    {!isNavigationActive && (
+                      <button
+                        type="button"
+                        onClick={handleOpenFilters}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#DCE7E3] bg-[#E8F4F1] text-[#5A9A8E] shadow-sm transition-transform hover:scale-105 active:scale-95"
+                        aria-label="Filter route"
+                        title="Filter route"
+                      >
+                        <SlidersVertical size={17} className="text-[#5A9A8E]" />
+                      </button>
+                    )}
+                  </div>
 
                   <div className="space-y-3 text-sm text-[#1E2939]">
                     <div className="flex justify-between gap-4">
@@ -963,49 +1321,23 @@ export function Map() {
                       </span>
                     </div>
 
-                    <div className="flex justify-between gap-4">
-                      <span className="text-[#6A7282]">From</span>
-                      <span className="text-right font-medium">
-                        {getStartDisplayName()}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between gap-4">
-                      <span className="text-[#6A7282]">To</span>
-                      <span className="text-right font-medium">
-                        {getEndDisplayName()}
-                      </span>
-                    </div>
+                    
                   </div>
 
                   <div ref={safeSpacesRef} className="mt-5">
                     <SafeSpaceStopoverPanel
                       safeSpaces={routeSafeSpaces}
+                      onMoveStopUp={handleMoveSafeSpaceStopUp}
+                      onMoveStopDown={handleMoveSafeSpaceStopDown}
                       selectedStops={selectedSafeSpaceStops}
                       isOpen={isSafeSpacesOpen}
                       onToggleOpen={() => setIsSafeSpacesOpen((prev) => !prev)}
                       onAddStop={handleAddSafeSpaceStop}
                       onRemoveStop={handleRemoveSafeSpaceStop}
-                      onViewSafeSpace={handleViewSafeSpaceOnMap}
+                      
                     />
                   </div>
                 </div>
-                {isNavigationActive ? (
-                  <button
-                    onClick={handleExitRoute}
-                    className="w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm"
-                  >
-                    Exit
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleStartNavigation}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm"
-                  >
-                    <Navigation size={16} />
-                    Start
-                  </button>
-                )}
               </div>
             ) : (
               <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
@@ -1023,6 +1355,10 @@ export function Map() {
 
         {/* Main map area */}
         <div className="relative h-full w-full">
+          <Navbar
+            className="absolute left-1/2 -translate-x-1/2 top-8 w-auto hidden lg:flex"
+            showLogo={false}
+          />
           <RouteMap
             key={
               routeData
@@ -1031,55 +1367,59 @@ export function Map() {
             }
             routeData={routeData}
             crowdMapData={crowdMapData}
-            allSafeSpaces={allSafeSpaces}
+            allSafeSpaces={visibleAllSafeSpaces}
             isNavigationActive={isNavigationActive}
             selectedSafeSpaceFromPanel={selectedSafeSpaceFromPanel}
+            userLocation={userLocation}
           />
 
           {/* Mobile collapsed top card */}
           {!isMobileSearchOpen && !routeData && (
-            <div className="absolute left-4 right-4 top-4 z-10 lg:hidden">
+            <div className="absolute left-3 right-3 top-4 z-10 max-w-[calc(100vw-24px)] overflow-hidden lg:hidden">
               <button
                 type="button"
                 onClick={() => setIsMobileSearchOpen(true)}
-                className="flex w-full items-center justify-between rounded-2xl border border-white/70 bg-white/92 px-4 py-3 shadow-lg backdrop-blur-sm"
+                className="flex w-full min-w-0 items-center justify-between rounded-2xl border border-white/70 bg-white/92 px-4 py-3 shadow-lg backdrop-blur-sm"
               >
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-[#1E2939]">
+                <div className="min-w-0 flex-1 text-left">
+                  <p className="truncate text-sm font-semibold text-[#1E2939]">
                     Quiet Route
                   </p>
-                  <p className="text-xs text-[#6A7282]">
+                  <p className="truncate text-xs text-[#6A7282]">
                     {startLocation && destination
                       ? `${startLocation} → ${destination}`
                       : "Open search"}
                   </p>
                 </div>
 
-                <ChevronDown size={18} className="text-[#1E2939]" />
+                <ChevronDown
+                  size={18}
+                  className="ml-2 shrink-0 text-[#1E2939]"
+                />
               </button>
             </div>
           )}
 
           {/* Mobile search panel */}
           {isMobileSearchOpen && !routeData && (
-            <section className="absolute left-4 right-4 top-5 z-20 lg:hidden">
+            <section className="absolute left-3 right-3 top-4 z-30 max-w-[calc(100vw-24px)] overflow-visible lg:hidden">
               <div
                 ref={mobileSearchPanelRef}
-                className="flex items-start gap-3"
+                className="flex w-full items-start gap-2"
               >
                 {/* Back Button */}
-                <div className="pt-13">
+                <div className="shrink-0 pt-3">
                   <button
                     onClick={() => navigate("/")}
-                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white bg-white/80 text-[#1E2939] shadow-sm"
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-white bg-white/85 text-[#1E2939] shadow-sm"
                     aria-label="Go back"
                   >
-                    <ArrowLeft size={18} />
+                    <ArrowLeft size={17} />
                   </button>
                 </div>
 
-                <div className="flex flex-1 flex-col">
-                  <div className="flex-1 bg-white/80 border border-white rounded-3xl">
+                <div className="min-w-0 flex-1 flex-col">
+                  <div className="min-w-0 flex-1 overflow-visible rounded-3xl border border-white bg-white/85 shadow-md backdrop-blur-sm">
                     <AutocompleteInput
                       id="mobileStartLocation"
                       label=""
@@ -1092,6 +1432,8 @@ export function Map() {
                       onChange={(value) => {
                         setStartLocation(value);
                         setSelectedStart(null);
+                        setUserLocation(null);
+                        setLocationError("");
                         setIsStartSuggestionsOpen(value.trim().length >= 2);
                       }}
                       onSelect={handleStartSelect}
@@ -1102,34 +1444,52 @@ export function Map() {
                         setIsDestinationSuggestionsOpen(false);
                       }}
                     />
+
+                    <button
+                      type="button"
+                      onClick={handleUseCurrentLocation}
+                      disabled={isLocatingUser}
+                      className="mx-4 mb-3 flex items-center justify-center gap-2 rounded-2xl border border-[#DCE7E3] bg-white/80 px-4 py-2 text-sm font-medium text-[#5A9A8E] shadow-sm disabled:opacity-60"
+                    >
+                      <MapPin size={16} />
+                      {isLocatingUser
+                        ? "Finding your location..."
+                        : "Use Current Location"}
+                    </button>
+
+                    {locationError && (
+                      <p className="mx-4 mb-3 text-xs font-medium text-red-600">
+                        {locationError}
+                      </p>
+                    )}
+
                     {/* Divider Line */}
                     <div className="mx-4 h-px bg-[#E8EEEC]" />
 
-                    <AutocompleteInput
-                      id="mobileDestination"
-                      label=""
-                      value={destination}
-                      placeholder="Enter destination"
-                      iconType="destination"
-                      suggestions={destinationSuggestions}
-                      isOpen={isDestinationSuggestionsOpen}
-                      loading={isDestinationSuggestionsLoading}
-                      onChange={(value) => {
-                        setDestination(value);
-                        setSelectedDestination(null);
-                        setIsDestinationSuggestionsOpen(
-                          value.trim().length >= 2,
-                        );
-                      }}
-                      onSelect={handleDestinationSelect}
-                      onFocus={() => {
-                        if (destination.trim().length >= 2) {
-                          setIsDestinationSuggestionsOpen(true);
-                        }
-                        setIsStartSuggestionsOpen(false);
-                      }}
-                    />
+                  <AutocompleteInput
+  id="mobileDestination"
+  label=""
+  value={destination}
+  placeholder="Enter destination"
+  iconType="destination"
+  suggestions={destinationSuggestions}
+  isOpen={isDestinationSuggestionsOpen}
+  loading={isDestinationSuggestionsLoading}
+  onChange={(value) => {
+    setDestination(value);
+    setSelectedDestination(null);
+    setIsDestinationSuggestionsOpen(value.trim().length >= 2);
+  }}
+  onSelect={handleDestinationSelect}
+  onFocus={() => {
+    if (destination.trim().length >= 2) {
+      setIsDestinationSuggestionsOpen(true);
+    }
+    setIsStartSuggestionsOpen(false);
+  }}
+/>
                   </div>
+
                   <AnimatePresence>
                     {startLocation && destination && (
                       <motion.div
@@ -1141,7 +1501,7 @@ export function Map() {
                         <button
                           onClick={() => handlePlanRoute()}
                           disabled={loading}
-                          className="w-full mt-2 rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-md disabled:opacity-70 active:scale-[0.98] transition-transform"
+                          className="mt-2 w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-md transition-transform active:scale-[0.98] disabled:opacity-70"
                         >
                           {loading
                             ? "Finding quiet route..."
@@ -1163,35 +1523,35 @@ export function Map() {
 
           {/* Mobile route preview top card - visible before navigation starts */}
           {routeData && !isNavigationActive && (
-            <section className="absolute left-4 right-4 top-5 z-20 lg:hidden">
-              <div className="flex items-start gap-3">
-                <div className="pt-13">
+            <section className="absolute left-3 right-3 top-4 z-20 max-w-[calc(100vw-24px)] overflow-hidden lg:hidden">
+              <div className="flex w-full items-start gap-2">
+                <div className="shrink-0 pt-3">
                   <button
                     onClick={handleExitRoute}
-                    className="flex h-10 w-10 items-center justify-center rounded-full border border-white bg-white/80 text-[#1E2939] shadow-sm"
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-white bg-white/85 text-[#1E2939] shadow-sm"
                     aria-label="Go back to search"
                   >
-                    <ArrowLeft size={18} />
+                    <ArrowLeft size={17} />
                   </button>
                 </div>
 
-                <div className="flex-1 rounded-3xl border border-white bg-white/80 shadow-md backdrop-blur-sm">
-                  <div className="flex items-center gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1 overflow-hidden rounded-3xl border border-white bg-white/85 shadow-md backdrop-blur-sm">
+                  <div className="flex min-w-0 items-center gap-2 px-3 py-2.5">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#D4B896]">
                       <Navigation size={16} className="text-white" />
                     </div>
-                    <p className="truncate text-[14px] text-[#1E2939]">
+                    <p className="min-w-0 flex-1 truncate text-[13px] text-[#1E2939]">
                       {getStartDisplayName()}
                     </p>
                   </div>
 
                   <div className="mx-4 h-px bg-[#E8EEEC]" />
 
-                  <div className="flex items-center gap-3 px-4 py-3">
+                  <div className="flex min-w-0 items-center gap-2 px-3 py-2.5">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#7DB0A6]">
                       <MapPin size={16} className="text-white" />
                     </div>
-                    <p className="truncate text-[14px] text-[#1E2939]">
+                    <p className="min-w-0 flex-1 truncate text-[13px] text-[#1E2939]">
                       {getEndDisplayName()}
                     </p>
                   </div>
@@ -1205,11 +1565,11 @@ export function Map() {
             <RoutePreviewPanel
               routeData={routeData}
               safeSpaces={routeSafeSpaces}
+              onMoveStopUp={handleMoveSafeSpaceStopUp}
+              onMoveStopDown={handleMoveSafeSpaceStopDown}
               selectedStops={selectedSafeSpaceStops}
               isSafeSpacesOpen={isSafeSpacesOpen}
               isNavigationActive={isNavigationActive}
-              startName={getStartDisplayName()}
-              endName={getEndDisplayName()}
               formatRouteLength={formatRouteLength}
               estimateWalkingMinutes={estimateWalkingMinutes}
               onOpenFilters={handleOpenFilters}
@@ -1218,9 +1578,10 @@ export function Map() {
               onToggleSafeSpaces={() => setIsSafeSpacesOpen((prev) => !prev)}
               onAddStop={handleAddSafeSpaceStop}
               onRemoveStop={handleRemoveSafeSpaceStop}
-              onViewSafeSpace={handleViewSafeSpaceOnMap}
+              
             />
           )}
+
           {routeData && isNavigationActive && (
             <button
               onClick={handleExitRoute}
@@ -1230,44 +1591,43 @@ export function Map() {
             </button>
           )}
 
-          {/* Mobile mic button + live noise bar */}
-          <div
-            className={`absolute left-4 z-10 lg:hidden transition-all duration-300 ${
-              routeData
-                ? isSafeSpacesOpen
-                  ? "bottom-78 opacity-0 pointer-events-none"
-                  : "bottom-44" // Moves up when the route bar appears
-                : "bottom-6" // Stays at the bottom when no route is entered
-            }`}
-          >
-            {isMonitoring && <VolumeBar volume={volume} />}
-            <MicButton
-              onClick={
-                isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)
-              }
-              isActive={isMonitoring}
-            />
-          </div>
+       
+{/* Mobile mic button + live noise bar */}
+<div
+  className={`absolute left-4 z-20 transition-all duration-300 lg:hidden ${
+    routeData
+      ? isSafeSpacesOpen
+        ? "pointer-events-none bottom-44 opacity-0"
+        : "bottom-[calc(36vh+8px)]"
+      : "bottom-6"
+  }`}
+>
+  {isMonitoring && <VolumeBar volume={volume} />}
+  <MicButton
+    onClick={isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)}
+    isActive={isMonitoring}
+  />
+</div>
 
-          {/* Mobile find calm button */}
-          <div
-            className={`absolute right-4 z-10 lg:hidden transition-all duration-300 ${
-              routeData
-                ? isSafeSpacesOpen
-                  ? "bottom-78 opacity-0 pointer-events-none"
-                  : "bottom-44" // Moves up when the route bar appears
-                : "bottom-6" // Stays at the bottom when no route is entered
-            }`}
-          >
-            <button
-              type="button"
-              onClick={() => navigate("/support")}
-              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
-              aria-label="Go to Find Calm page"
-            >
-              <Wind size={22} />
-            </button>
-          </div>
+{/* Mobile find calm button */}
+<div
+  className={`absolute right-4 z-20 transition-all duration-300 lg:hidden ${
+    routeData
+      ? isSafeSpacesOpen
+        ? "pointer-events-none bottom-44 opacity-0"
+        : "bottom-[calc(36vh+8px)]"
+      : "bottom-6"
+  }`}
+>
+  <button
+    type="button"
+    onClick={() => navigate("/support")}
+    className="flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
+    aria-label="Go to Find Calm page"
+  >
+    <Wind size={22} />
+  </button>
+</div>
 
           {/* Desktop mic button + live noise bar */}
           <div className="absolute bottom-6 left-6 z-10 hidden lg:block">
@@ -1314,6 +1674,7 @@ export function Map() {
           await startMonitoring();
         }}
       />
+
       {/* High Noise Alert Popup */}
       <PopUp
         isOpen={isHighNoiseAlertOpen}
@@ -1331,9 +1692,11 @@ export function Map() {
         onConfirm={() => {
           incrementNoiseReports(1);
           setIsHighNoiseAlertOpen(false);
+          setIsReportSuccessOpen(true);
         }}
       />
 
+      {/* New Badge Popup */}
       {newBadgePopup && (
         <BadgeUnlockedPopup
           key={newBadgePopup.id}
@@ -1344,6 +1707,16 @@ export function Map() {
           }}
         />
       )}
+
+      {/* Report Successful Popup */}
+      <ReportSuccess
+        isOpen={isReportSuccessOpen}
+        onClose={() => setIsReportSuccessOpen(false)}
+        onViewBadges={() => {
+          setIsReportSuccessOpen(false);
+          navigate("/achievements");
+        }}
+      />
     </main>
   );
 }
