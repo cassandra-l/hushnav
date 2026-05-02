@@ -2,7 +2,7 @@ import { FormEvent, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { clearAuthentication, setAuthenticatedForOneHour } from "./auth-lock";
 
-const API_BASE_URL = import.meta.env.VITE_AUTH_API_BASE_URL ?? "http://localhost:3001";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
 
 type LockLocationState = {
   from?: {
@@ -36,7 +36,7 @@ export function PasswordLockPage() {
 
     try {
       // verify on server.
-      const response = await fetch(`${API_BASE_URL}/api/verify-password`, {
+      const response = await fetch(`${API_BASE_URL}/verify-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -7,7 +7,7 @@ import { data } from "./data/resource";
 import { planRouteFunction } from "./functions/plan-route/resource";
 import { noiseMapFunction } from "./functions/noise-map/resource";
 import { safeSpacesFunction } from "./functions/safe-spaces/resource";
-import { verifyPasswordFunction } from "./functions/password/resource";
+import { verifyPasswordFunction } from "./functions/verify-password/resource";
 
 const backend = defineBackend({
   auth,
