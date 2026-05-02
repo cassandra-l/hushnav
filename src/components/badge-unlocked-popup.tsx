@@ -15,17 +15,13 @@ export function BadgeUnlockedPopup({ badge, onClose }: BadgeUnlockedPopupProps) 
   const navigate = useNavigate();
   const [isExiting, setIsExiting] = useState(false);
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
   const exitStartedRef = useRef(false);
   const pendingCloseRef = useRef(false);
-  const beginDismissRef = useRef<() => void>(() => {});
-
-  beginDismissRef.current = () => {
+  const beginDismissRef = useRef<() => void>(() => {
     if (exitStartedRef.current) return;
     exitStartedRef.current = true;
     pendingCloseRef.current = true;
-    setIsExiting(true);
-  };
+    setIsExiting(true)});
 
   useEffect(() => {
     exitStartedRef.current = false;
