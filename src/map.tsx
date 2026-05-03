@@ -137,7 +137,7 @@ function AutocompleteInput({
       )}
 
       <div className="relative">
-        <div className="flex items-center gap-3 rounded-2xl px-4 py-2">
+        <div className="flex items-center gap-3 rounded-2xl px-4 py-2 border-0 lg:border lg:border-[#E8EEEC]">
           {/* Circle icon changes depending on whether this is start or destination */}
           <div
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
@@ -440,13 +440,13 @@ export function Map() {
   // Final route response shown on the map
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
 
+  const [selectedSafeSpaceTypes, setSelectedSafeSpaceTypes] = useState<
+    SafeSpaceType[]
+  >(() => readSelectedSafeSpaceTypes());
 
-  const [selectedSafeSpaceTypes, setSelectedSafeSpaceTypes] =
-  useState<SafeSpaceType[]>(() => readSelectedSafeSpaceTypes());
-
-
-  const [selectedAvoidMode, setSelectedAvoidMode] =
-  useState<AvoidMode>(() => readSelectedAvoidMode());
+  const [selectedAvoidMode, setSelectedAvoidMode] = useState<AvoidMode>(() =>
+    readSelectedAvoidMode(),
+  );
 
   const [shouldReplanAfterFilter, setShouldReplanAfterFilter] = useState(false);
 
@@ -470,11 +470,11 @@ export function Map() {
   const [allSafeSpaces, setAllSafeSpaces] = useState<SafeSpace[]>([]);
 
   const visibleAllSafeSpaces =
-  selectedSafeSpaceTypes.length === 0
-    ? []
-    : allSafeSpaces.filter((safeSpace) =>
-        selectedSafeSpaceTypes.includes(safeSpace.type),
-      );
+    selectedSafeSpaceTypes.length === 0
+      ? []
+      : allSafeSpaces.filter((safeSpace) =>
+          selectedSafeSpaceTypes.includes(safeSpace.type),
+        );
 
   // Refs for click-outside handling
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
@@ -580,20 +580,19 @@ export function Map() {
     }
   }, [location.state]);
 
-
   useEffect(() => {
-  if (!shouldReplanAfterFilter) return;
+    if (!shouldReplanAfterFilter) return;
 
-  setShouldReplanAfterFilter(false);
-  const updatedSafeSpaceTypes = readSelectedSafeSpaceTypes();
-  const updatedAvoidMode = readSelectedAvoidMode();
+    setShouldReplanAfterFilter(false);
+    const updatedSafeSpaceTypes = readSelectedSafeSpaceTypes();
+    const updatedAvoidMode = readSelectedAvoidMode();
 
-  void handlePlanRoute(
-    selectedSafeSpaceStops,
-    updatedSafeSpaceTypes,
-    updatedAvoidMode,
-  );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    void handlePlanRoute(
+      selectedSafeSpaceStops,
+      updatedSafeSpaceTypes,
+      updatedAvoidMode,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldReplanAfterFilter]);
 
   // Gets Emily's current live location and uses it as the route start.
@@ -655,8 +654,6 @@ export function Map() {
     );
   };
 
-
-
   // Starts navigation from the route preview page.
   // Map zoom/follow can be wired inside RouteMap when that nav feature is ready.
   const handleStartNavigation = () => {
@@ -717,53 +714,53 @@ export function Map() {
     await handlePlanRoute(updatedStops);
   };
   // Moves a selected safe-space stop one position earlier in the route order.
-// Then replans the route so the backend uses the new order.
-const handleMoveSafeSpaceStopUp = async (safeSpaceId: number) => {
-  const currentIndex = selectedSafeSpaceStops.findIndex(
-    (stop) => stop.id === safeSpaceId,
-  );
+  // Then replans the route so the backend uses the new order.
+  const handleMoveSafeSpaceStopUp = async (safeSpaceId: number) => {
+    const currentIndex = selectedSafeSpaceStops.findIndex(
+      (stop) => stop.id === safeSpaceId,
+    );
 
-  // Already first, so it cannot move up.
-  if (currentIndex <= 0) return;
+    // Already first, so it cannot move up.
+    if (currentIndex <= 0) return;
 
-  const updatedStops = [...selectedSafeSpaceStops];
-  const previousStop = updatedStops[currentIndex - 1];
+    const updatedStops = [...selectedSafeSpaceStops];
+    const previousStop = updatedStops[currentIndex - 1];
 
-  updatedStops[currentIndex - 1] = updatedStops[currentIndex];
-  updatedStops[currentIndex] = previousStop;
+    updatedStops[currentIndex - 1] = updatedStops[currentIndex];
+    updatedStops[currentIndex] = previousStop;
 
-  setSelectedSafeSpaceStops(updatedStops);
-  setIsNavigationActive(false);
+    setSelectedSafeSpaceStops(updatedStops);
+    setIsNavigationActive(false);
 
-  await handlePlanRoute(updatedStops);
-};
+    await handlePlanRoute(updatedStops);
+  };
 
-// Moves a selected safe-space stop one position later in the route order.
-// Then replans the route so the backend uses the new order.
-const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
-  const currentIndex = selectedSafeSpaceStops.findIndex(
-    (stop) => stop.id === safeSpaceId,
-  );
+  // Moves a selected safe-space stop one position later in the route order.
+  // Then replans the route so the backend uses the new order.
+  const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
+    const currentIndex = selectedSafeSpaceStops.findIndex(
+      (stop) => stop.id === safeSpaceId,
+    );
 
-  // Not found or already last, so it cannot move down.
-  if (
-    currentIndex === -1 ||
-    currentIndex >= selectedSafeSpaceStops.length - 1
-  ) {
-    return;
-  }
+    // Not found or already last, so it cannot move down.
+    if (
+      currentIndex === -1 ||
+      currentIndex >= selectedSafeSpaceStops.length - 1
+    ) {
+      return;
+    }
 
-  const updatedStops = [...selectedSafeSpaceStops];
-  const nextStop = updatedStops[currentIndex + 1];
+    const updatedStops = [...selectedSafeSpaceStops];
+    const nextStop = updatedStops[currentIndex + 1];
 
-  updatedStops[currentIndex + 1] = updatedStops[currentIndex];
-  updatedStops[currentIndex] = nextStop;
+    updatedStops[currentIndex + 1] = updatedStops[currentIndex];
+    updatedStops[currentIndex] = nextStop;
 
-  setSelectedSafeSpaceStops(updatedStops);
-  setIsNavigationActive(false);
+    setSelectedSafeSpaceStops(updatedStops);
+    setIsNavigationActive(false);
 
-  await handlePlanRoute(updatedStops);
-};
+    await handlePlanRoute(updatedStops);
+  };
 
   useEffect(() => {
     const tryShowNewBadge = () => {
@@ -1019,9 +1016,10 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
 
   // Sends route request to backend
   const handlePlanRoute = async (
-    safeSpaceStops = selectedSafeSpaceStops, 
-    safeSpaceTypes = selectedSafeSpaceTypes, 
-    avoidMode = selectedAvoidMode,) => {
+    safeSpaceStops = selectedSafeSpaceStops,
+    safeSpaceTypes = selectedSafeSpaceTypes,
+    avoidMode = selectedAvoidMode,
+  ) => {
     console.log("DEBUG - Start Selection:", selectedStart);
     console.log("DEBUG - Destination Selection:", selectedDestination);
 
@@ -1157,23 +1155,23 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
             ref={desktopSearchPanelRef}
             className="border-b border-[#E8EEEC] px-5 pb-4 pt-5"
           >
-            <div className="mb-4 flex items-center gap-3">
-              <button
+            <div className="mb-4">
+              {/* <button
                 onClick={() => navigate("/")}
                 className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E8EEEC] bg-[#F7FAF9] text-[#1E2939]"
                 aria-label="Go back"
               >
                 <ArrowLeft size={18} />
-              </button>
+              </button> */}
 
-              <div>
+              {/* <div>
                 <h1 className="text-xl font-semibold text-[#1E2939]">
                   Quiet Route
                 </h1>
                 <p className="text-sm text-[#6A7282]">
                   Find the calmest path through the city
                 </p>
-              </div>
+              </div> */}
             </div>
 
             <AutocompleteInput
@@ -1186,12 +1184,12 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
               isOpen={isStartSuggestionsOpen}
               loading={isStartSuggestionsLoading}
               onChange={(value) => {
-  setStartLocation(value);
-  setSelectedStart(null);
-  setUserLocation(null);
-  setLocationError("");
-  setIsStartSuggestionsOpen(value.trim().length >= 2);
-}}
+                setStartLocation(value);
+                setSelectedStart(null);
+                setUserLocation(null);
+                setLocationError("");
+                setIsStartSuggestionsOpen(value.trim().length >= 2);
+              }}
               onSelect={handleStartSelect}
               onFocus={() => {
                 if (startLocation.trim().length >= 2) {
@@ -1245,9 +1243,9 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
             <button
               onClick={() => handlePlanRoute()}
               disabled={loading}
-              className="w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm disabled:opacity-70"
+              className="cursor-pointer w-full rounded-2xl bg-[#7DB0A6] hover:bg-[#7DB0A6]/90 py-3 font-medium text-white shadow-sm disabled:opacity-70"
             >
-              {loading ? "Finding quiet route..." : "Find Quiet Route"}
+              {loading ? "Finding Quiet Route..." : "Find Quiet Route"}
             </button>
 
             {error && (
@@ -1320,8 +1318,6 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
                         min
                       </span>
                     </div>
-
-                    
                   </div>
 
                   <div ref={safeSpacesRef} className="mt-5">
@@ -1334,7 +1330,6 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
                       onToggleOpen={() => setIsSafeSpacesOpen((prev) => !prev)}
                       onAddStop={handleAddSafeSpaceStop}
                       onRemoveStop={handleRemoveSafeSpaceStop}
-                      
                     />
                   </div>
                 </div>
@@ -1466,28 +1461,30 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
                     {/* Divider Line */}
                     <div className="mx-4 h-px bg-[#E8EEEC]" />
 
-                  <AutocompleteInput
-  id="mobileDestination"
-  label=""
-  value={destination}
-  placeholder="Enter destination"
-  iconType="destination"
-  suggestions={destinationSuggestions}
-  isOpen={isDestinationSuggestionsOpen}
-  loading={isDestinationSuggestionsLoading}
-  onChange={(value) => {
-    setDestination(value);
-    setSelectedDestination(null);
-    setIsDestinationSuggestionsOpen(value.trim().length >= 2);
-  }}
-  onSelect={handleDestinationSelect}
-  onFocus={() => {
-    if (destination.trim().length >= 2) {
-      setIsDestinationSuggestionsOpen(true);
-    }
-    setIsStartSuggestionsOpen(false);
-  }}
-/>
+                    <AutocompleteInput
+                      id="mobileDestination"
+                      label=""
+                      value={destination}
+                      placeholder="Enter destination"
+                      iconType="destination"
+                      suggestions={destinationSuggestions}
+                      isOpen={isDestinationSuggestionsOpen}
+                      loading={isDestinationSuggestionsLoading}
+                      onChange={(value) => {
+                        setDestination(value);
+                        setSelectedDestination(null);
+                        setIsDestinationSuggestionsOpen(
+                          value.trim().length >= 2,
+                        );
+                      }}
+                      onSelect={handleDestinationSelect}
+                      onFocus={() => {
+                        if (destination.trim().length >= 2) {
+                          setIsDestinationSuggestionsOpen(true);
+                        }
+                        setIsStartSuggestionsOpen(false);
+                      }}
+                    />
                   </div>
 
                   <AnimatePresence>
@@ -1578,7 +1575,6 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
               onToggleSafeSpaces={() => setIsSafeSpacesOpen((prev) => !prev)}
               onAddStop={handleAddSafeSpaceStop}
               onRemoveStop={handleRemoveSafeSpaceStop}
-              
             />
           )}
 
@@ -1591,43 +1587,44 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
             </button>
           )}
 
-       
-{/* Mobile mic button + live noise bar */}
-<div
-  className={`absolute left-4 z-20 transition-all duration-300 lg:hidden ${
-    routeData
-      ? isSafeSpacesOpen
-        ? "pointer-events-none bottom-44 opacity-0"
-        : "bottom-[calc(36vh+8px)]"
-      : "bottom-6"
-  }`}
->
-  {isMonitoring && <VolumeBar volume={volume} />}
-  <MicButton
-    onClick={isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)}
-    isActive={isMonitoring}
-  />
-</div>
+          {/* Mobile mic button + live noise bar */}
+          <div
+            className={`absolute left-4 z-20 transition-all duration-300 lg:hidden ${
+              routeData
+                ? isSafeSpacesOpen
+                  ? "pointer-events-none bottom-44 opacity-0"
+                  : "bottom-[calc(36vh+8px)]"
+                : "bottom-6"
+            }`}
+          >
+            {isMonitoring && <VolumeBar volume={volume} />}
+            <MicButton
+              onClick={
+                isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)
+              }
+              isActive={isMonitoring}
+            />
+          </div>
 
-{/* Mobile find calm button */}
-<div
-  className={`absolute right-4 z-20 transition-all duration-300 lg:hidden ${
-    routeData
-      ? isSafeSpacesOpen
-        ? "pointer-events-none bottom-44 opacity-0"
-        : "bottom-[calc(36vh+8px)]"
-      : "bottom-6"
-  }`}
->
-  <button
-    type="button"
-    onClick={() => navigate("/support")}
-    className="flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
-    aria-label="Go to Find Calm page"
-  >
-    <Wind size={22} />
-  </button>
-</div>
+          {/* Mobile find calm button */}
+          <div
+            className={`absolute right-4 z-20 transition-all duration-300 lg:hidden ${
+              routeData
+                ? isSafeSpacesOpen
+                  ? "pointer-events-none bottom-44 opacity-0"
+                  : "bottom-[calc(36vh+8px)]"
+                : "bottom-6"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => navigate("/support")}
+              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
+              aria-label="Go to Find Calm page"
+            >
+              <Wind size={22} />
+            </button>
+          </div>
 
           {/* Desktop mic button + live noise bar */}
           <div className="absolute bottom-6 left-6 z-10 hidden lg:block">
@@ -1645,7 +1642,7 @@ const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
             <button
               type="button"
               onClick={() => navigate("/support")}
-              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
+              className="cursor-pointer flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
               aria-label="Go to Find Calm page"
             >
               <Wind size={22} />

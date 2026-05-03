@@ -9,7 +9,7 @@ export function MicButton({ onClick, isActive }: Props) {
   return (
     <button
       onClick={onClick}
-      className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg ${
+      className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg cursor-pointer ${
         isActive
           ? "bg-white border border-[#D1D5DC]/90"
           : "bg-[#7DB0A6]/80 border border-white/60"
