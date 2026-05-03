@@ -21,6 +21,7 @@ jobs:
       - run: npm install
       - run: npm run lint
       - run: npm run build
+      - run: npx vitest run
 
   main-checks:
     if: github.event_name == 'push'
@@ -36,6 +37,7 @@ jobs:
       - run: npm install
       - run: npm run lint
       - run: npm run build
+      - run: npx vitest run
 
   sonar-main:
     if: github.event_name == 'push'
@@ -52,6 +54,7 @@ jobs:
           node-version: 20
 
       - run: npm install
+      - run: npx vitest run --coverage
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v7

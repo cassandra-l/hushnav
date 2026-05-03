@@ -7,4 +7,10 @@ export default defineConfig({
   server: {
     host: true, // Listen on all network interfaces for LAN access
   },
+  test: {
+    environment: "jsdom",
+    setupFiles: "./test/setup.ts",
+    globals: true,
+    css: true,
+  },
 });
