@@ -52,4 +52,4 @@ amplifyconfiguration*
 # -------------------------
 coverage
 .tmp
-.cache
+.cache.scannerwork/

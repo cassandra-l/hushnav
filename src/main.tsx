@@ -11,6 +11,7 @@ import { PasswordLockPage } from "./password-lock-page.tsx";
 import { AuthGate } from "./components/auth-gate.tsx";
 import "./index.css";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
+// import AnimatedLayout from "./animated-layout";
 
 const router = createBrowserRouter([
   {

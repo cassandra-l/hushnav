@@ -16,16 +16,19 @@ import { RouteMap } from "./components/route-map";
 import { SafeSpaceStopoverPanel } from "./components/safe-space-stopover-panel";
 import { RoutePreviewPanel } from "./components/route-preview-panel";
 import type {
+  AvoidMode,
   PlanRouteRequest,
   PlanRouteResponse,
   SafeSpace,
+  SafeSpaceType,
 } from "./types/route";
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
 import type { CrowdMapFeatureCollection } from "./types/noise-map";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  consumeNextPendingBadgePopup,
+  peekNextPendingBadgePopup,
+  shiftPendingBadgePopupQueue,
   incrementNoiseReports,
   incrementRoutesPlanned,
   incrementSafeSpacesVisited,
@@ -33,6 +36,8 @@ import {
 } from "./achievements-store";
 import type { BadgeDefinition } from "./achievement-badges";
 import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
+import { ReportSuccess } from "./components/report-success";
+import { Navbar } from "./components/nav-bar";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -52,6 +57,13 @@ type LocationSuggestion = {
   id: string;
   place_name: string;
   center?: [number, number];
+};
+
+// Live user location shape from the browser Geolocation API
+type UserLocation = {
+  lat: number;
+  lng: number;
+  accuracy?: number;
 };
 
 // Photon API feature shape
@@ -125,7 +137,7 @@ function AutocompleteInput({
       )}
 
       <div className="relative">
-        <div className="flex items-center gap-3 rounded-2xl px-4 py-2">
+        <div className="flex items-center gap-3 rounded-2xl px-4 py-2 border-0 lg:border lg:border-[#E8EEEC]">
           {/* Circle icon changes depending on whether this is start or destination */}
           <div
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
@@ -154,7 +166,7 @@ function AutocompleteInput({
 
         {/* Suggestion dropdown */}
         {isOpen && (
-          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-30 max-h-80 overflow-hidden overflow-y-auto rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">
+          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 max-h-72 overflow-y-auto rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">
             {loading ? (
               <div className="px-4 py-3 text-sm text-[#6A7282]">
                 Searching...
@@ -295,6 +307,54 @@ const COOLDOWN_DURATION = 5 * 60 * 1000;
 const NOISE_THRESHOLD = 10;
 const FILTER_PREVIEW_STATE_KEY = "hushnav:mapPreviewBeforeFilters";
 
+const SAFE_SPACES_STORAGE_KEY = "hushnav:selectedSafeSpaces";
+
+const SENSITIVITY_STORAGE_KEY = "hushnav:selectedSensitivity";
+
+const DEFAULT_SAFE_SPACE_TYPES: SafeSpaceType[] = [
+  "park",
+  "library",
+  "museum",
+  "church",
+  "synagogue",
+];
+
+function readSelectedSafeSpaceTypes(): SafeSpaceType[] {
+  const raw = localStorage.getItem(SAFE_SPACES_STORAGE_KEY);
+
+  if (!raw) {
+    return DEFAULT_SAFE_SPACE_TYPES;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      return DEFAULT_SAFE_SPACE_TYPES;
+    }
+
+    return parsed.filter((item): item is SafeSpaceType =>
+      DEFAULT_SAFE_SPACE_TYPES.includes(item as SafeSpaceType),
+    );
+  } catch {
+    return DEFAULT_SAFE_SPACE_TYPES;
+  }
+}
+
+function readSelectedAvoidMode(): AvoidMode {
+  const selectedSensitivity = localStorage.getItem(SENSITIVITY_STORAGE_KEY);
+
+  switch (selectedSensitivity) {
+    case "mechanical":
+      return "construction";
+    case "social":
+      return "crowd";
+    case "standard":
+    default:
+      return "both";
+  }
+}
+
 type FilterPreviewSnapshot = {
   routeData: PlanRouteResponse | null;
   startLocation: string;
@@ -305,6 +365,7 @@ type FilterPreviewSnapshot = {
   selectedSafeSpaceFromPanel: SafeSpace | null;
   isSafeSpacesOpen: boolean;
   isMobileSearchOpen: boolean;
+  userLocation: UserLocation | null;
 };
 
 // Main page component
@@ -317,10 +378,15 @@ export function Map() {
   const { volume, isMonitoring, startMonitoring, stopMonitoring } =
     useAudioMonitor();
 
+  // Report sucess popup state
+  const [isReportSuccessOpen, setIsReportSuccessOpen] = useState(false);
+
   // Inside Map component
   const [isHighNoiseAlertOpen, setIsHighNoiseAlertOpen] = useState(false);
   const [lastAlertTime, setLastAlertTime] = useState<number>(0);
-  const [newBadgePopup, setNewBadgePopup] = useState<BadgeDefinition | null>(null);
+  const [newBadgePopup, setNewBadgePopup] = useState<BadgeDefinition | null>(
+    null,
+  );
 
   // Mobile panel open/close state
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(true);
@@ -366,8 +432,23 @@ export function Map() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Live user location from browser Geolocation API
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [isLocatingUser, setIsLocatingUser] = useState(false);
+  const [locationError, setLocationError] = useState("");
+
   // Final route response shown on the map
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
+
+  const [selectedSafeSpaceTypes, setSelectedSafeSpaceTypes] = useState<
+    SafeSpaceType[]
+  >(() => readSelectedSafeSpaceTypes());
+
+  const [selectedAvoidMode, setSelectedAvoidMode] = useState<AvoidMode>(() =>
+    readSelectedAvoidMode(),
+  );
+
+  const [shouldReplanAfterFilter, setShouldReplanAfterFilter] = useState(false);
 
   // Ordered safe-space stopovers selected by Emily.
   // The array order controls the route order:
@@ -387,6 +468,13 @@ export function Map() {
 
   // All safe spaces shown before a route is selected
   const [allSafeSpaces, setAllSafeSpaces] = useState<SafeSpace[]>([]);
+
+  const visibleAllSafeSpaces =
+    selectedSafeSpaceTypes.length === 0
+      ? []
+      : allSafeSpaces.filter((safeSpace) =>
+          selectedSafeSpaceTypes.includes(safeSpace.type),
+        );
 
   // Refs for click-outside handling
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
@@ -451,6 +539,7 @@ export function Map() {
       selectedSafeSpaceFromPanel,
       isSafeSpacesOpen,
       isMobileSearchOpen,
+      userLocation,
     };
 
     sessionStorage.setItem(
@@ -478,8 +567,12 @@ export function Map() {
       setSelectedSafeSpaceFromPanel(parsed.selectedSafeSpaceFromPanel ?? null);
       setIsSafeSpacesOpen(Boolean(parsed.isSafeSpacesOpen));
       setIsMobileSearchOpen(Boolean(parsed.isMobileSearchOpen));
+      setUserLocation(parsed.userLocation ?? null);
       setIsNavigationActive(false);
       setError("");
+      setSelectedSafeSpaceTypes(readSelectedSafeSpaceTypes());
+      setSelectedAvoidMode(readSelectedAvoidMode());
+      setShouldReplanAfterFilter(true);
     } catch {
       // Ignore malformed snapshots.
     } finally {
@@ -487,9 +580,78 @@ export function Map() {
     }
   }, [location.state]);
 
-  // Opens the map popup for a safe space selected from the list.
-  const handleViewSafeSpaceOnMap = (safeSpace: SafeSpace) => {
-    setSelectedSafeSpaceFromPanel({ ...safeSpace });
+  useEffect(() => {
+    if (!shouldReplanAfterFilter) return;
+
+    setShouldReplanAfterFilter(false);
+    const updatedSafeSpaceTypes = readSelectedSafeSpaceTypes();
+    const updatedAvoidMode = readSelectedAvoidMode();
+
+    void handlePlanRoute(
+      selectedSafeSpaceStops,
+      updatedSafeSpaceTypes,
+      updatedAvoidMode,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldReplanAfterFilter]);
+
+  // Gets Emily's current live location and uses it as the route start.
+  const handleUseCurrentLocation = () => {
+    setLocationError("");
+
+    if (!navigator.geolocation) {
+      setLocationError("Live location is not supported by this browser.");
+      return;
+    }
+
+    setIsLocatingUser(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const currentLocation: UserLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        };
+
+        setUserLocation(currentLocation);
+
+        // Store the current location as the selected start point.
+        // The backend receives the real lat/lng through selectedStart.center.
+        setSelectedStart({
+          id: "current-location",
+          place_name: "Current Location",
+          center: [currentLocation.lng, currentLocation.lat],
+        });
+
+        setStartLocation("Current Location");
+        setIsStartSuggestionsOpen(false);
+        setStartSuggestions([]);
+        setIsLocatingUser(false);
+      },
+      (geolocationError) => {
+        console.error("Failed to get current location:", geolocationError);
+
+        if (geolocationError.code === geolocationError.PERMISSION_DENIED) {
+          setLocationError("Location permission was denied.");
+        } else if (
+          geolocationError.code === geolocationError.POSITION_UNAVAILABLE
+        ) {
+          setLocationError("Your location is currently unavailable.");
+        } else if (geolocationError.code === geolocationError.TIMEOUT) {
+          setLocationError("Location request timed out.");
+        } else {
+          setLocationError("Could not get your current location.");
+        }
+
+        setIsLocatingUser(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000,
+      },
+    );
   };
 
   // Starts navigation from the route preview page.
@@ -505,6 +667,7 @@ export function Map() {
     // Remove the line from the map
     setRouteData(null);
     setError("");
+    setLocationError("");
     setIsSafeSpacesOpen(false);
     setSelectedSafeSpaceStops([]);
     setSelectedSafeSpaceFromPanel(null);
@@ -550,12 +713,60 @@ export function Map() {
 
     await handlePlanRoute(updatedStops);
   };
+  // Moves a selected safe-space stop one position earlier in the route order.
+  // Then replans the route so the backend uses the new order.
+  const handleMoveSafeSpaceStopUp = async (safeSpaceId: number) => {
+    const currentIndex = selectedSafeSpaceStops.findIndex(
+      (stop) => stop.id === safeSpaceId,
+    );
+
+    // Already first, so it cannot move up.
+    if (currentIndex <= 0) return;
+
+    const updatedStops = [...selectedSafeSpaceStops];
+    const previousStop = updatedStops[currentIndex - 1];
+
+    updatedStops[currentIndex - 1] = updatedStops[currentIndex];
+    updatedStops[currentIndex] = previousStop;
+
+    setSelectedSafeSpaceStops(updatedStops);
+    setIsNavigationActive(false);
+
+    await handlePlanRoute(updatedStops);
+  };
+
+  // Moves a selected safe-space stop one position later in the route order.
+  // Then replans the route so the backend uses the new order.
+  const handleMoveSafeSpaceStopDown = async (safeSpaceId: number) => {
+    const currentIndex = selectedSafeSpaceStops.findIndex(
+      (stop) => stop.id === safeSpaceId,
+    );
+
+    // Not found or already last, so it cannot move down.
+    if (
+      currentIndex === -1 ||
+      currentIndex >= selectedSafeSpaceStops.length - 1
+    ) {
+      return;
+    }
+
+    const updatedStops = [...selectedSafeSpaceStops];
+    const nextStop = updatedStops[currentIndex + 1];
+
+    updatedStops[currentIndex + 1] = updatedStops[currentIndex];
+    updatedStops[currentIndex] = nextStop;
+
+    setSelectedSafeSpaceStops(updatedStops);
+    setIsNavigationActive(false);
+
+    await handlePlanRoute(updatedStops);
+  };
 
   useEffect(() => {
     const tryShowNewBadge = () => {
       setNewBadgePopup((current) => {
         if (current) return current;
-        return consumeNextPendingBadgePopup({ includeDeferred: false });
+        return peekNextPendingBadgePopup();
       });
     };
 
@@ -590,6 +801,34 @@ export function Map() {
       setIsHighNoiseAlertOpen(false);
     }
   }, [volume, isMonitoring, isHighNoiseAlertOpen, lastAlertTime]);
+
+  // While navigation is active, keep the live location marker updated.
+  // This moves the user marker, but it does not automatically recalculate the route.
+  useEffect(() => {
+    if (!navigator.geolocation || !isNavigationActive) return;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        setUserLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        });
+      },
+      (geolocationError) => {
+        console.error("Live location tracking failed:", geolocationError);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5000,
+      },
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [isNavigationActive]);
 
   // Close suggestion dropdowns when user clicks outside both panels
   useEffect(() => {
@@ -776,7 +1015,11 @@ export function Map() {
   };
 
   // Sends route request to backend
-  const handlePlanRoute = async (safeSpaceStops = selectedSafeSpaceStops) => {
+  const handlePlanRoute = async (
+    safeSpaceStops = selectedSafeSpaceStops,
+    safeSpaceTypes = selectedSafeSpaceTypes,
+    avoidMode = selectedAvoidMode,
+  ) => {
     console.log("DEBUG - Start Selection:", selectedStart);
     console.log("DEBUG - Destination Selection:", selectedDestination);
 
@@ -829,11 +1072,16 @@ export function Map() {
         startQuery: startLocation,
         endQuery: destination,
 
+        avoidMode,
+        safeSpaceTypes,
+
         // Send selected safe spaces to the backend in the exact order Emily selected them.
         // Backend will calculate:
         // start -> stop 1 -> stop 2 -> ... -> destination
         stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
       };
+
+      console.log("Plan route request body:", requestBody);
 
       const response = await fetch(`${API_BASE_URL}/plan-route`, {
         method: "POST",
@@ -907,23 +1155,23 @@ export function Map() {
             ref={desktopSearchPanelRef}
             className="border-b border-[#E8EEEC] px-5 pb-4 pt-5"
           >
-            <div className="mb-4 flex items-center gap-3">
-              <button
+            <div className="mb-4">
+              {/* <button
                 onClick={() => navigate("/")}
                 className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E8EEEC] bg-[#F7FAF9] text-[#1E2939]"
                 aria-label="Go back"
               >
                 <ArrowLeft size={18} />
-              </button>
+              </button> */}
 
-              <div>
+              {/* <div>
                 <h1 className="text-xl font-semibold text-[#1E2939]">
                   Quiet Route
                 </h1>
                 <p className="text-sm text-[#6A7282]">
                   Find the calmest path through the city
                 </p>
-              </div>
+              </div> */}
             </div>
 
             <AutocompleteInput
@@ -938,6 +1186,8 @@ export function Map() {
               onChange={(value) => {
                 setStartLocation(value);
                 setSelectedStart(null);
+                setUserLocation(null);
+                setLocationError("");
                 setIsStartSuggestionsOpen(value.trim().length >= 2);
               }}
               onSelect={handleStartSelect}
@@ -948,6 +1198,24 @@ export function Map() {
                 setIsDestinationSuggestionsOpen(false);
               }}
             />
+
+            <button
+              type="button"
+              onClick={handleUseCurrentLocation}
+              disabled={isLocatingUser}
+              className="mb-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#DCE7E3] bg-[#F8FBFA] px-4 py-2 text-sm font-medium text-[#5A9A8E] shadow-sm disabled:opacity-60"
+            >
+              <MapPin size={16} />
+              {isLocatingUser
+                ? "Finding your location..."
+                : "Use Current Location"}
+            </button>
+
+            {locationError && (
+              <p className="mb-3 text-xs font-medium text-red-600">
+                {locationError}
+              </p>
+            )}
 
             <AutocompleteInput
               id="desktopDestination"
@@ -975,9 +1243,9 @@ export function Map() {
             <button
               onClick={() => handlePlanRoute()}
               disabled={loading}
-              className="w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm disabled:opacity-70"
+              className="cursor-pointer w-full rounded-2xl bg-[#7DB0A6] hover:bg-[#7DB0A6]/90 py-3 font-medium text-white shadow-sm disabled:opacity-70"
             >
-              {loading ? "Finding quiet route..." : "Find Quiet Route"}
+              {loading ? "Finding Quiet Route..." : "Find Quiet Route"}
             </button>
 
             {error && (
@@ -1050,31 +1318,18 @@ export function Map() {
                         min
                       </span>
                     </div>
-
-                    <div className="flex justify-between gap-4">
-                      <span className="text-[#6A7282]">From</span>
-                      <span className="text-right font-medium">
-                        {getStartDisplayName()}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between gap-4">
-                      <span className="text-[#6A7282]">To</span>
-                      <span className="text-right font-medium">
-                        {getEndDisplayName()}
-                      </span>
-                    </div>
                   </div>
 
                   <div ref={safeSpacesRef} className="mt-5">
                     <SafeSpaceStopoverPanel
                       safeSpaces={routeSafeSpaces}
+                      onMoveStopUp={handleMoveSafeSpaceStopUp}
+                      onMoveStopDown={handleMoveSafeSpaceStopDown}
                       selectedStops={selectedSafeSpaceStops}
                       isOpen={isSafeSpacesOpen}
                       onToggleOpen={() => setIsSafeSpacesOpen((prev) => !prev)}
                       onAddStop={handleAddSafeSpaceStop}
                       onRemoveStop={handleRemoveSafeSpaceStop}
-                      onViewSafeSpace={handleViewSafeSpaceOnMap}
                     />
                   </div>
                 </div>
@@ -1095,6 +1350,10 @@ export function Map() {
 
         {/* Main map area */}
         <div className="relative h-full w-full">
+          <Navbar
+            className="absolute left-1/2 -translate-x-1/2 top-8 w-auto hidden lg:flex"
+            showLogo={false}
+          />
           <RouteMap
             key={
               routeData
@@ -1103,9 +1362,10 @@ export function Map() {
             }
             routeData={routeData}
             crowdMapData={crowdMapData}
-            allSafeSpaces={allSafeSpaces}
+            allSafeSpaces={visibleAllSafeSpaces}
             isNavigationActive={isNavigationActive}
             selectedSafeSpaceFromPanel={selectedSafeSpaceFromPanel}
+            userLocation={userLocation}
           />
 
           {/* Mobile collapsed top card */}
@@ -1137,7 +1397,7 @@ export function Map() {
 
           {/* Mobile search panel */}
           {isMobileSearchOpen && !routeData && (
-            <section className="absolute left-3 right-3 top-4 z-20 max-w-[calc(100vw-24px)] overflow-hidden lg:hidden">
+            <section className="absolute left-3 right-3 top-4 z-30 max-w-[calc(100vw-24px)] overflow-visible lg:hidden">
               <div
                 ref={mobileSearchPanelRef}
                 className="flex w-full items-start gap-2"
@@ -1154,7 +1414,7 @@ export function Map() {
                 </div>
 
                 <div className="min-w-0 flex-1 flex-col">
-                  <div className="min-w-0 flex-1 overflow-hidden rounded-3xl border border-white bg-white/85 shadow-md backdrop-blur-sm">
+                  <div className="min-w-0 flex-1 overflow-visible rounded-3xl border border-white bg-white/85 shadow-md backdrop-blur-sm">
                     <AutocompleteInput
                       id="mobileStartLocation"
                       label=""
@@ -1167,6 +1427,8 @@ export function Map() {
                       onChange={(value) => {
                         setStartLocation(value);
                         setSelectedStart(null);
+                        setUserLocation(null);
+                        setLocationError("");
                         setIsStartSuggestionsOpen(value.trim().length >= 2);
                       }}
                       onSelect={handleStartSelect}
@@ -1177,6 +1439,24 @@ export function Map() {
                         setIsDestinationSuggestionsOpen(false);
                       }}
                     />
+
+                    <button
+                      type="button"
+                      onClick={handleUseCurrentLocation}
+                      disabled={isLocatingUser}
+                      className="mx-4 mb-3 flex items-center justify-center gap-2 rounded-2xl border border-[#DCE7E3] bg-white/80 px-4 py-2 text-sm font-medium text-[#5A9A8E] shadow-sm disabled:opacity-60"
+                    >
+                      <MapPin size={16} />
+                      {isLocatingUser
+                        ? "Finding your location..."
+                        : "Use Current Location"}
+                    </button>
+
+                    {locationError && (
+                      <p className="mx-4 mb-3 text-xs font-medium text-red-600">
+                        {locationError}
+                      </p>
+                    )}
 
                     {/* Divider Line */}
                     <div className="mx-4 h-px bg-[#E8EEEC]" />
@@ -1282,6 +1562,8 @@ export function Map() {
             <RoutePreviewPanel
               routeData={routeData}
               safeSpaces={routeSafeSpaces}
+              onMoveStopUp={handleMoveSafeSpaceStopUp}
+              onMoveStopDown={handleMoveSafeSpaceStopDown}
               selectedStops={selectedSafeSpaceStops}
               isSafeSpacesOpen={isSafeSpacesOpen}
               isNavigationActive={isNavigationActive}
@@ -1293,7 +1575,6 @@ export function Map() {
               onToggleSafeSpaces={() => setIsSafeSpacesOpen((prev) => !prev)}
               onAddStop={handleAddSafeSpaceStop}
               onRemoveStop={handleRemoveSafeSpaceStop}
-              onViewSafeSpace={handleViewSafeSpaceOnMap}
             />
           )}
 
@@ -1308,12 +1589,12 @@ export function Map() {
 
           {/* Mobile mic button + live noise bar */}
           <div
-            className={`absolute left-4 z-10 transition-all duration-300 lg:hidden ${
+            className={`absolute left-4 z-20 transition-all duration-300 lg:hidden ${
               routeData
                 ? isSafeSpacesOpen
-                  ? "bottom-78 pointer-events-none opacity-0"
-                  : "bottom-44" // Moves up when the route bar appears
-                : "bottom-6" // Stays at the bottom when no route is entered
+                  ? "pointer-events-none bottom-44 opacity-0"
+                  : "bottom-[calc(36vh+8px)]"
+                : "bottom-6"
             }`}
           >
             {isMonitoring && <VolumeBar volume={volume} />}
@@ -1327,12 +1608,12 @@ export function Map() {
 
           {/* Mobile find calm button */}
           <div
-            className={`absolute right-4 z-10 transition-all duration-300 lg:hidden ${
+            className={`absolute right-4 z-20 transition-all duration-300 lg:hidden ${
               routeData
                 ? isSafeSpacesOpen
-                  ? "bottom-78 pointer-events-none opacity-0"
-                  : "bottom-44" // Moves up when the route bar appears
-                : "bottom-6" // Stays at the bottom when no route is entered
+                  ? "pointer-events-none bottom-44 opacity-0"
+                  : "bottom-[calc(36vh+8px)]"
+                : "bottom-6"
             }`}
           >
             <button
@@ -1361,7 +1642,7 @@ export function Map() {
             <button
               type="button"
               onClick={() => navigate("/support")}
-              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
+              className="cursor-pointer flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
               aria-label="Go to Find Calm page"
             >
               <Wind size={22} />
@@ -1408,23 +1689,31 @@ export function Map() {
         onConfirm={() => {
           incrementNoiseReports(1);
           setIsHighNoiseAlertOpen(false);
+          setIsReportSuccessOpen(true);
         }}
       />
 
+      {/* New Badge Popup */}
       {newBadgePopup && (
         <BadgeUnlockedPopup
+          key={newBadgePopup.id}
           badge={newBadgePopup}
           onClose={() => {
-            setNewBadgePopup(null);
-            const nextBadge = consumeNextPendingBadgePopup({
-              includeDeferred: false,
-            });
-            if (nextBadge) {
-              setNewBadgePopup(nextBadge);
-            }
+            shiftPendingBadgePopupQueue();
+            setNewBadgePopup(peekNextPendingBadgePopup());
           }}
         />
       )}
+
+      {/* Report Successful Popup */}
+      <ReportSuccess
+        isOpen={isReportSuccessOpen}
+        onClose={() => setIsReportSuccessOpen(false)}
+        onViewBadges={() => {
+          setIsReportSuccessOpen(false);
+          navigate("/achievements");
+        }}
+      />
     </main>
   );
 }
