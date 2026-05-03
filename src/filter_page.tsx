@@ -197,7 +197,7 @@ export default function FilterScreen() {
       animate={{ x: 0 }}
       exit={{ x: "100%" }}
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      className="fixed inset-0 min-h-screen px-6 py-8 flex flex-col items-center lg:overflow-hidden lg:h-screen"
+      className="fixed inset-0 min-h-screen px-6 py-8 flex flex-col items-center overflow-y-auto lg:overflow-hidden lg:h-screen"
     >
       <div className="w-full max-w-5xl">
         {/* Header */}
