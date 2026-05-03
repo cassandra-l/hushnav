@@ -46,6 +46,10 @@ export function SupportPage() {
   return (
     // creating a full screen container that centers the content in the middle.
     <div className="flex min-h-screen items-center justify-center p-4 font-sans">
+      <div
+        className="fixed inset-0 -z-10 bg-linear-to-b from-[#ffffff] via-[#d5e8e5] to-[#cfe3df]"
+        aria-hidden="true"
+      />
       <Navbar
         className="left-1/2 -translate-x-1/2 top-8 w-auto hidden lg:flex"
         showLogo={false}
