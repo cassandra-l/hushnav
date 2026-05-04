@@ -318,3 +318,54 @@ export async function runConstructionIngestion(maxPages?: number): Promise<void>
   console.log(`Total active unique prepared records: ${totalPrepared}`);
   console.log(`Total affected rows: ${totalAffected}`);
 }
+
+export async function refreshConstructionBlockedEdges(): Promise<number> {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    await client.query("TRUNCATE construction_blocked_edge");
+
+    const result = await client.query(
+      `
+      INSERT INTO construction_blocked_edge (edge_id, updated_at)
+      SELECT DISTINCT
+        e.edge_id,
+        NOW()
+      FROM edge e
+      JOIN construction_event c
+        ON (
+          e.geom_edge && ST_Expand(c.geom, 0.0003)
+          AND (
+            ST_Intersects(e.geom_edge, c.geom)
+            OR ST_DWithin(
+              e.geom_edge::geography,
+              c.geom::geography,
+              $1
+            )
+          )
+        )
+      WHERE c.is_active = true
+      ON CONFLICT (edge_id)
+      DO UPDATE SET updated_at = NOW()
+      `,
+      [EDGE_MATCH_BUFFER_METERS],
+    );
+
+    await client.query("COMMIT");
+
+    console.log(
+      `Refreshed construction_blocked_edge. Blocked edges: ${
+        result.rowCount ?? 0
+      }`,
+    );
+
+    return result.rowCount ?? 0;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}

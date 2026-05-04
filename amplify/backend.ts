@@ -8,6 +8,7 @@ import { planRouteFunction } from "./functions/plan-route/resource";
 import { noiseMapFunction } from "./functions/noise-map/resource";
 import { safeSpacesFunction } from "./functions/safe-spaces/resource";
 import { verifyPasswordFunction } from "./functions/verify-password/resource";
+import { constructionPipeline } from "./functions/construction-pipeline/resource";
 
 const backend = defineBackend({
   auth,
@@ -16,6 +17,7 @@ const backend = defineBackend({
   noiseMapFunction,
   safeSpacesFunction,
   verifyPasswordFunction,
+  constructionPipeline,
 });
 
 const apiStack = backend.createStack("api-stack");
