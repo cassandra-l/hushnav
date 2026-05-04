@@ -10,6 +10,7 @@ import {
   Mic,
   AlertTriangle,
   Menu,
+  LocateFixed,
 } from "lucide-react";
 import { MicButton } from "./components/mic-button";
 import { PopUp } from "./components/pop-up";
@@ -109,6 +110,8 @@ type AutocompleteInputProps = {
   onChange: (value: string) => void;
   onSelect: (suggestion: LocationSuggestion) => void;
   onFocus: () => void;
+  onLocationClick?: () => void;
+  isLocating?: boolean;
 };
 
 // Reusable autocomplete field used for both Start and Destination
@@ -124,11 +127,13 @@ function AutocompleteInput({
   onChange,
   onSelect,
   onFocus,
+  onLocationClick,
+  isLocating,
 }: AutocompleteInputProps) {
   const isStart = iconType === "start";
 
   return (
-    <div className="mb-3">
+    <div className="lg:mb-3">
       {label && (
         <label
           htmlFor={id}
@@ -139,7 +144,7 @@ function AutocompleteInput({
       )}
 
       <div className="relative">
-        <div className="flex items-center gap-3 rounded-2xl px-4 py-2 border-0 lg:border lg:border-[#E8EEEC]">
+        <div className="flex items-center gap-3 rounded-2xl px-4 py-3 lg:py-2 border-0 lg:border lg:border-[#E8EEEC]">
           {/* Circle icon changes depending on whether this is start or destination */}
           <div
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
@@ -164,6 +169,18 @@ function AutocompleteInput({
             autoComplete="off"
             className="min-w-0 w-full bg-transparent text-[14px] text-[#1E2939] outline-none placeholder:text-[#8B98A5]"
           />
+
+          {isStart && onLocationClick && (
+            <button
+              type="button"
+              onClick={onLocationClick}
+              disabled={isLocating}
+              className={`shrink-0 text-[#5A9A8E] hover:text-[#7DB0A6] transition-colors p-1 ${isLocating ? "animate-pulse" : ""}`}
+              title="Use current location"
+            >
+              <LocateFixed size={18} />
+            </button>
+          )}
         </div>
 
         {/* Suggestion dropdown */}
@@ -1202,9 +1219,11 @@ export function Map() {
                 }
                 setIsDestinationSuggestionsOpen(false);
               }}
+              onLocationClick={handleUseCurrentLocation}
+              isLocating={isLocatingUser}
             />
 
-            <button
+            {/* <button
               type="button"
               onClick={handleUseCurrentLocation}
               disabled={isLocatingUser}
@@ -1214,7 +1233,7 @@ export function Map() {
               {isLocatingUser
                 ? "Finding your location..."
                 : "Use Current Location"}
-            </button>
+            </button> */}
 
             {locationError && (
               <p className="mb-3 text-xs font-medium text-red-600">
@@ -1453,9 +1472,11 @@ export function Map() {
                         }
                         setIsDestinationSuggestionsOpen(false);
                       }}
+                      onLocationClick={handleUseCurrentLocation}
+                      isLocating={isLocatingUser}
                     />
 
-                    <button
+                    {/* <button
                       type="button"
                       onClick={handleUseCurrentLocation}
                       disabled={isLocatingUser}
@@ -1465,7 +1486,7 @@ export function Map() {
                       {isLocatingUser
                         ? "Finding your location..."
                         : "Use Current Location"}
-                    </button>
+                    </button> */}
 
                     {locationError && (
                       <p className="mx-4 mb-3 text-xs font-medium text-red-600">
