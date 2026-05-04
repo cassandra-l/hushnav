@@ -9,6 +9,7 @@ import {
   SlidersVertical,
   Mic,
   AlertTriangle,
+  Menu,
 } from "lucide-react";
 import { MicButton } from "./components/mic-button";
 import { PopUp } from "./components/pop-up";
@@ -38,6 +39,7 @@ import type { BadgeDefinition } from "./achievement-badges";
 import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
 import { ReportSuccess } from "./components/report-success";
 import { Navbar } from "./components/nav-bar";
+import { MobileMenu } from "./components/hamburger-menu";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -377,6 +379,9 @@ export function Map() {
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
   const { volume, isMonitoring, startMonitoring, stopMonitoring } =
     useAudioMonitor();
+
+  // Hamburger menu state
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Report sucess popup state
   const [isReportSuccessOpen, setIsReportSuccessOpen] = useState(false);
@@ -1403,7 +1408,7 @@ export function Map() {
                 className="flex w-full items-start gap-2"
               >
                 {/* Back Button */}
-                <div className="shrink-0 pt-3">
+                {/* <div className="shrink-0 pt-3">
                   <button
                     onClick={() => navigate("/")}
                     className="flex h-9 w-9 items-center justify-center rounded-full border border-white bg-white/85 text-[#1E2939] shadow-sm"
@@ -1411,7 +1416,17 @@ export function Map() {
                   >
                     <ArrowLeft size={17} />
                   </button>
-                </div>
+                </div> */}
+                <button
+                  className="p-4 bg-white/40 backdrop-blur-md rounded-full border border-white/20 text-[#1E2939] shadow-sm"
+                  onClick={() => setIsMenuOpen(true)}
+                >
+                  <Menu size={20} />
+                </button>
+                <MobileMenu
+                  isOpen={isMenuOpen}
+                  onClose={() => setIsMenuOpen(false)}
+                />
 
                 <div className="min-w-0 flex-1 flex-col">
                   <div className="min-w-0 flex-1 overflow-visible rounded-3xl border border-white bg-white/85 shadow-md backdrop-blur-sm">
@@ -1498,10 +1513,10 @@ export function Map() {
                         <button
                           onClick={() => handlePlanRoute()}
                           disabled={loading}
-                          className="mt-2 w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-md transition-transform active:scale-[0.98] disabled:opacity-70"
+                          className="mt-2 w-full rounded-2xl bg-[#7DB0A6] py-3 font-medium text-white shadow-md transition-transform active:scale-[0.98] disabled:opacity-70"
                         >
                           {loading
-                            ? "Finding quiet route..."
+                            ? "Finding Quiet Route..."
                             : "Find Quiet Route"}
                         </button>
                       </motion.div>

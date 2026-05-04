@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { ChevronRight, Check, ArrowLeft } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ChevronRight, Check, Menu } from "lucide-react";
 import type { AchievementsState } from "./achievements-store";
 import { BADGE_DEFINITIONS } from "./achievement-badges";
 import {
@@ -9,13 +9,14 @@ import {
 } from "./achievements-store";
 import { Navbar } from "./components/nav-bar";
 import { motion } from "framer-motion";
+import { MobileMenu } from "./components/hamburger-menu";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
 export function AchievementSummaryPage() {
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const [state, setState] = useState<AchievementsState>(() =>
     loadAchievementsState(),
   );
@@ -67,8 +68,11 @@ export function AchievementSummaryPage() {
     [],
   );
 
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   return (
     <main className="min-h-screen w-full pb-12 lg:overflow-hidden lg:h-screen">
+      <MobileMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
       <div
         className="fixed inset-0 -z-10 bg-linear-to-b from-[#ffffff] via-[#d5e8e5] to-[#cfe3df]"
         aria-hidden="true"
@@ -81,10 +85,10 @@ export function AchievementSummaryPage() {
       {/* Header - Mobile Only */}
       <header className="lg:hidden sticky top-0 z-20 flex items-center border-b border-slate-200 bg-white px-5 py-4">
         <button
-          onClick={() => navigate(-1)}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200"
+          className="p-4 bg-white/40 backdrop-blur-md rounded-full border border-white/20 text-[#1E2939] shadow-sm"
+          onClick={() => setIsMenuOpen(true)}
         >
-          <ArrowLeft size={18} />
+          <Menu size={20} />
         </button>
         <h1 className="flex-1 text-center text-lg font-semibold text-[#1e293b] mr-10">
           Achievements
