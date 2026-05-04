@@ -175,7 +175,7 @@ function AutocompleteInput({
               type="button"
               onClick={onLocationClick}
               disabled={isLocating}
-              className={`shrink-0 text-[#5A9A8E] hover:text-[#7DB0A6] transition-colors p-1 ${isLocating ? "animate-pulse" : ""}`}
+              className={`cursor-pointer shrink-0 text-[#5A9A8E] hover:text-[#7DB0A6] transition-colors p-1 ${isLocating ? "animate-pulse" : ""}`}
               title="Use current location"
             >
               <LocateFixed size={18} />
@@ -1313,7 +1313,7 @@ export function Map() {
                       <button
                         type="button"
                         onClick={handleOpenFilters}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#DCE7E3] bg-[#E8F4F1] text-[#5A9A8E] shadow-sm transition-transform hover:scale-105 active:scale-95"
+                        className="cursor-pointer flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#DCE7E3] bg-[#E8F4F1] text-[#5A9A8E] shadow-sm transition-transform hover:scale-105 active:scale-95"
                         aria-label="Filter route"
                         title="Filter route"
                       >
@@ -1629,7 +1629,7 @@ export function Map() {
               routeData
                 ? isSafeSpacesOpen
                   ? "pointer-events-none bottom-44 opacity-0"
-                  : "bottom-[calc(36vh+8px)]"
+                  : "bottom-[calc(25vh+8px)]"
                 : "bottom-6"
             }`}
           >
@@ -1648,7 +1648,7 @@ export function Map() {
               routeData
                 ? isSafeSpacesOpen
                   ? "pointer-events-none bottom-44 opacity-0"
-                  : "bottom-[calc(36vh+8px)]"
+                  : "bottom-[calc(25vh+8px)]"
                 : "bottom-6"
             }`}
           >
