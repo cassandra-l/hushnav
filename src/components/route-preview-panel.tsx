@@ -20,13 +20,8 @@ type RoutePreviewPanelProps = {
   // New reorder handlers
   onMoveStopUp: (safeSpaceId: number) => void;
   onMoveStopDown: (safeSpaceId: number) => void;
-
-  
 };
 
-// Google Maps-style route preview bottom sheet.
-// Preview mode shows filters and Start.
-// Navigation mode removes filters and only keeps Exit.
 export function RoutePreviewPanel({
   routeData,
   safeSpaces,
@@ -43,7 +38,6 @@ export function RoutePreviewPanel({
   onRemoveStop,
   onMoveStopUp,
   onMoveStopDown,
-  
 }: RoutePreviewPanelProps) {
   const totalLength = routeData.route.totalLength;
 
@@ -52,46 +46,48 @@ export function RoutePreviewPanel({
       <div className="overflow-hidden rounded-[28px] border border-white/80 bg-white/95 shadow-xl backdrop-blur-sm">
         <div className="max-h-[36vh] overflow-y-auto overscroll-contain">
           <div className="px-5 pb-3 pt-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-semibold text-[#1E2939]">
-                  Quiet Route
-                </h2>
-                <p className="text-xs text-[#6A7282]">
-                  Your route avoids high noise and crowd levels where possible.
+            {/* Stats Row */}
+            <div className="grid grid-cols-4 bg-white text-center items-center">
+              {/* Noise Level */}
+              <div className="border-r border-[#E8EEEC] px-2 py-3">
+                <p className="text-[10px] uppercase font-bold text-[#6A7282]">
+                  Noise
                 </p>
-              </div>
-
-              {!isNavigationActive && (
-                <button
-                  type="button"
-                  onClick={onOpenFilters}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#7DB0A6] text-white shadow-sm"
-                  aria-label="Open route filters"
-                >
-                  <SlidersVertical size={18} className="text-white" />
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-3 rounded-2xl border border-[#E8EEEC] bg-white text-center">
-              <div className="border-r border-[#E8EEEC] px-3 py-3">
-                <p className="text-[11px] text-[#6A7282]">Noise Level</p>
                 <p className="text-sm font-semibold text-[#5A9A8E]">Quiet</p>
               </div>
 
-              <div className="border-r border-[#E8EEEC] px-3 py-3">
-                <p className="text-[11px] text-[#6A7282]">Distance</p>
+              {/* Distance */}
+              <div className="border-r border-[#E8EEEC] px-2 py-3">
+                <p className="text-[10px] uppercase font-bold text-[#6A7282]">
+                  Dist
+                </p>
                 <p className="text-sm font-semibold text-[#1E2939]">
                   {formatRouteLength(totalLength)}
                 </p>
               </div>
 
-              <div className="px-3 py-3">
-                <p className="text-[11px] text-[#6A7282]">Duration</p>
-                <p className="text-sm font-semibold text-[#1E2939]">
-                  {estimateWalkingMinutes(totalLength)} min
+              {/* Duration[cite: 6] */}
+              <div className="border-r border-[#E8EEEC] px-2 py-3">
+                <p className="text-[10px] uppercase font-bold text-[#6A7282]">
+                  Time
                 </p>
+                <p className="text-sm font-semibold text-[#1E2939]">
+                  {estimateWalkingMinutes(totalLength)}m
+                </p>
+              </div>
+
+              {/* Filter Button (Now inside the grid)[cite: 6] */}
+              <div className="flex justify-center items-center">
+                {!isNavigationActive && (
+                  <button
+                    type="button"
+                    onClick={onOpenFilters}
+                    className="flex items-center justify-center text-[#5A9A8E] border border-[#DCE7E3] bg-[#E8F4F1] h-9 w-9 rounded-full"
+                    aria-label="Open route filters"
+                  >
+                    <SlidersVertical size={20} />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -124,7 +120,6 @@ export function RoutePreviewPanel({
             onRemoveStop={onRemoveStop}
             onMoveStopUp={onMoveStopUp}
             onMoveStopDown={onMoveStopDown}
-            
           />
         </div>
       </div>
