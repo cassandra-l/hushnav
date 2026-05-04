@@ -39,6 +39,11 @@ import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
 import { ReportSuccess } from "./components/report-success";
 import { Navbar } from "./components/nav-bar";
 
+import {
+  parseSelectedSafeSpaceTypes,
+  sensitivityToAvoidMode,
+} from "./route-filter-utils";
+
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -311,48 +316,14 @@ const SAFE_SPACES_STORAGE_KEY = "hushnav:selectedSafeSpaces";
 
 const SENSITIVITY_STORAGE_KEY = "hushnav:selectedSensitivity";
 
-const DEFAULT_SAFE_SPACE_TYPES: SafeSpaceType[] = [
-  "park",
-  "library",
-  "museum",
-  "church",
-  "synagogue",
-];
-
 function readSelectedSafeSpaceTypes(): SafeSpaceType[] {
-  const raw = localStorage.getItem(SAFE_SPACES_STORAGE_KEY);
-
-  if (!raw) {
-    return DEFAULT_SAFE_SPACE_TYPES;
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-
-    if (!Array.isArray(parsed)) {
-      return DEFAULT_SAFE_SPACE_TYPES;
-    }
-
-    return parsed.filter((item): item is SafeSpaceType =>
-      DEFAULT_SAFE_SPACE_TYPES.includes(item as SafeSpaceType),
-    );
-  } catch {
-    return DEFAULT_SAFE_SPACE_TYPES;
-  }
+  return parseSelectedSafeSpaceTypes(
+    localStorage.getItem(SAFE_SPACES_STORAGE_KEY),
+  );
 }
 
 function readSelectedAvoidMode(): AvoidMode {
-  const selectedSensitivity = localStorage.getItem(SENSITIVITY_STORAGE_KEY);
-
-  switch (selectedSensitivity) {
-    case "mechanical":
-      return "construction";
-    case "social":
-      return "crowd";
-    case "standard":
-    default:
-      return "both";
-  }
+  return sensitivityToAvoidMode(localStorage.getItem(SENSITIVITY_STORAGE_KEY));
 }
 
 type FilterPreviewSnapshot = {

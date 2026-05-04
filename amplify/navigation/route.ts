@@ -111,7 +111,7 @@ function popLowestFScore(queue: QueueItem[]): QueueItem | undefined {
   return item;
 }
 
-function crowdCountToPenaltyDefault(count: number): number {
+export function crowdCountToPenaltyDefault(count: number): number {
   if (count < 20) return 0;
   if (count < 50) return 0.05;
   if (count < 100) return 0.1;
@@ -119,7 +119,7 @@ function crowdCountToPenaltyDefault(count: number): number {
   return 0.35;
 }
 
-function crowdCountToPenaltyStrong(count: number): number {
+export function crowdCountToPenaltyStrong(count: number): number {
   if (count < 20) return 0;
   if (count < 50) return 0.1;
   if (count < 100) return 0.3;
@@ -127,7 +127,7 @@ function crowdCountToPenaltyStrong(count: number): number {
   return 0.9;
 }
 
-function computeEdgeCost(edge: GraphEdge, avoidMode: AvoidMode): number {
+export function computeEdgeCost(edge: GraphEdge, avoidMode: AvoidMode): number {
   if (edge.noiseDb === null) {
     return edge.defaultCost ?? edge.length;
   }

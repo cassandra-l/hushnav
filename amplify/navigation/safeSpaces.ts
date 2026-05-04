@@ -1,6 +1,8 @@
 import { pool } from "./db";
 import type { LineString } from "geojson";
 
+import { filterSafeSpacesByTypes } from "./safeSpaceUtils";
+
 // Safe space returned to the frontend
 export type SafeSpace = {
   id: number;
@@ -122,13 +124,8 @@ export async function getSafeSpacesNearRoute(
       lng: Number(row.lng),
     }));
 
-    if (!safeSpaceTypes || safeSpaceTypes.length === 0) {
-      return safeSpaces;
-    }
-
-    return safeSpaces.filter((safeSpace) =>
-      safeSpaceTypes.includes(safeSpace.type),
-    );
+    return filterSafeSpacesByTypes(safeSpaces, safeSpaceTypes);
+    
   } finally {
     client.release();
   }

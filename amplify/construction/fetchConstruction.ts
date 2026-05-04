@@ -60,12 +60,12 @@ type FetchPageResult = {
   reachedEnd: boolean;
 };
 
-function isActiveStatus(status?: string): boolean {
+export function isActiveStatus(status?: string): boolean {
   return status === "Active";
 }
 
 // Converts the API geometry object into a GeoJSON string that PostGIS can read.
-function geometryToGeoJsonString(
+export function geometryToGeoJsonString(
   geometry: GeoJsonGeometry | undefined
 ): string | null {
   if (!geometry) return null;

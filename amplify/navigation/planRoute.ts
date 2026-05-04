@@ -1,4 +1,5 @@
 import { geocodePlace } from "./geocode";
+import { getOrderedUniqueStopIds } from "./safeSpaceUtils";
 import {
   findQuietestRoute,
   getQuietestRouteFromCoordinates,
@@ -207,15 +208,11 @@ export async function planRoute(
   // Support both the old single-stop field and the new multi-stop field.
   // If stopSafeSpaceIds is sent by the frontend, use that.
   // Otherwise, fall back to stopSafeSpaceId.
-  const selectedStopIds =
-    Array.isArray(stopSafeSpaceIds) && stopSafeSpaceIds.length > 0
-      ? stopSafeSpaceIds
-      : stopSafeSpaceId !== undefined
-        ? [stopSafeSpaceId]
-        : [];
-
-  // Remove duplicate stop IDs while keeping the user's selected order.
-  const orderedUniqueStopIds = Array.from(new Set(selectedStopIds));
+  
+  const orderedUniqueStopIds = getOrderedUniqueStopIds(
+  stopSafeSpaceIds,
+  stopSafeSpaceId,
+  );
 
   // No stopovers selected: normal start -> destination route.
   if (orderedUniqueStopIds.length === 0) {
