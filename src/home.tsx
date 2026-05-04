@@ -1,7 +1,7 @@
 import { motion, useScroll, useTransform, Variants } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ArrowUpRight, ArrowDown, Shield, Mic, Wind, Menu } from "lucide-react";
-import { Logo } from "./components/logo";
+// import { Logo } from "./components/logo";
 import { FeatureCard } from "./components/feature-card";
 import hero_image from "./assets/hero_image.png";
 import { useState } from "react";
@@ -55,21 +55,23 @@ export function Home() {
         />
 
         <div className="lg:hidden fixed top-6 left-0 w-full z-50 px-6">
-          <div className="flex justify-between items-center">
-            {/* Mobile-only Logo that also fades */}
-            <motion.div
-              style={{ opacity: logoOpacity }}
-              className="flex items-center gap-3"
-            >
-              <Logo />
-            </motion.div>
-
+          <div className="flex gap-3 items-center">
             <button
               className="p-4 bg-white/40 backdrop-blur-md rounded-full border border-white/20 text-[#1E2939] shadow-sm"
               onClick={() => setIsMenuOpen(true)}
             >
               <Menu size={20} />
             </button>
+            {/* Mobile-only Logo that also fades */}
+            <motion.div
+              style={{ opacity: logoOpacity }}
+              className="flex items-center gap-3"
+            >
+              {/* <Logo /> */}
+              <span className="text-sm text-[#5A9A8E] font-bold tracking-[0.3em] uppercase whitespace-nowrap">
+                HushNav
+              </span>
+            </motion.div>
           </div>
         </div>
 

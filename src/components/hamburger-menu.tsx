@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { X, MapPin, Wind, Trophy } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { X, MapPin, Wind, Trophy, Home } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -9,8 +10,11 @@ interface MobileMenuProps {
 
 export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
   const navigate = useNavigate();
+  // Get current location
+  const location = useLocation();
 
   const menuItems = [
+    { label: "Home", icon: <Home size={20} />, path: "/" },
     { label: "Find Quiet Route", icon: <MapPin size={20} />, path: "/map" },
     { label: "Calming Tools", icon: <Wind size={20} />, path: "/support" },
     {
@@ -19,6 +23,22 @@ export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
       path: "/achievements",
     },
   ];
+
+  // Locks background scroll
+  useEffect(() => {
+    if (isOpen) {
+      // Disable scrolling on the body
+      document.body.style.overflow = "hidden";
+    } else {
+      // Re-enable scrolling when menu is closed
+      document.body.style.overflow = "";
+    }
+
+    // Ensures scroll is restored if the component is removed
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
 
   return (
     <AnimatePresence>
@@ -35,11 +55,11 @@ export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
 
           {/* Menu Panel */}
           <motion.div
-            initial={{ x: "100%" }}
+            initial={{ x: "-100%" }}
             animate={{ x: 0 }}
-            exit={{ x: "100%" }}
+            exit={{ x: "-100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 h-full w-[85%] max-w-[320px] bg-white z-70 shadow-2xl flex flex-col"
+            className="fixed left-0 top-0 h-full w-[85%] max-w-[320px] bg-white z-70 shadow-2xl flex flex-col"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
@@ -55,24 +75,34 @@ export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             {/* Links */}
             <nav className="flex-1 px-4 py-8">
               <ul className="space-y-6">
-                {menuItems.map((item) => (
-                  <li key={item.path}>
-                    <button
-                      onClick={() => {
-                        navigate(item.path);
-                        onClose();
-                      }}
-                      className="w-full flex items-center gap-4 px-4 py-2 text-[#1E2939] hover:text-[#5A9A8E] transition-colors group"
-                    >
-                      <span className="text-[#5A9A8E] group-hover:scale-110 transition-transform">
-                        {item.icon}
-                      </span>
-                      <span className="font-semibold text-sm">
-                        {item.label}
-                      </span>
-                    </button>
-                  </li>
-                ))}
+                {menuItems.map((item) => {
+                  // Check if this is the current active path
+                  const isActive = location.pathname === item.path;
+
+                  return (
+                    <li key={item.path}>
+                      <button
+                        onClick={() => {
+                          navigate(item.path);
+                          onClose();
+                        }}
+                        /* Styling for active page */
+                        className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all group ${
+                          isActive
+                            ? "bg-[#5A9A8E]/10 text-[#5A9A8E]"
+                            : "text-[#1E2939] hover:bg-gray-50"
+                        }`}
+                      >
+                        <span
+                          className={`${isActive ? "text-[#5A9A8E]" : "text-[#1E2939]/60"} transition-colors`}
+                        >
+                          {item.icon}
+                        </span>
+                        <span className="font-bold text-sm">{item.label}</span>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             </nav>
 
