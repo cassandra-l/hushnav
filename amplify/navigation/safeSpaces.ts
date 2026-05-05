@@ -122,8 +122,12 @@ export async function getSafeSpacesNearRoute(
       lng: Number(row.lng),
     }));
 
-    if (!safeSpaceTypes || safeSpaceTypes.length === 0) {
+    if (safeSpaceTypes === undefined) {
       return safeSpaces;
+      }
+
+    if (safeSpaceTypes.length === 0) {
+      return [];
     }
 
     return safeSpaces.filter((safeSpace) =>
