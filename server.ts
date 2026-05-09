@@ -17,6 +17,37 @@ app.get("/api/health", (_req, res) => {
   res.status(200).json({ ok: true });
 });
 
+const verifyPasswordHandler = (
+  req: express.Request,
+  res: express.Response,
+) => {
+  // read password from server env.
+  const configuredPassword = process.env.LOCK_PASSWORD;
+
+  if (!configuredPassword) {
+    console.error("LOCK_PASSWORD is not set on the server.");
+    res.status(500).json({ ok: false, error: "Password lock is not configured." });
+    return;
+  }
+
+  const submittedPassword =
+    typeof req.body?.password === "string" ? req.body.password : "";
+
+  // password is required.
+  if (!submittedPassword) {
+    res.status(400).json({ ok: false, error: "Password is required." });
+    return;
+  }
+
+  // reject invalid password.
+  if (submittedPassword !== configuredPassword) {
+    res.status(401).json({ ok: false });
+    return;
+  }
+
+  res.status(200).json({ ok: true });
+};
+
 const planRouteHandler = async (req: express.Request, res: express.Response) => {
   try {
     const result = await handlePlanRoute(req.body);
@@ -70,6 +101,9 @@ const safeSpacesHandler = async (
 
 app.post("/api/plan-route", planRouteHandler);
 app.post("/plan-route", planRouteHandler);
+// Keep both route styles.
+app.post("/api/verify-password", verifyPasswordHandler);
+app.post("/verify-password", verifyPasswordHandler);
 
 app.get("/api/noise-map", noiseMapHandler);
 app.get("/noise-map", noiseMapHandler);

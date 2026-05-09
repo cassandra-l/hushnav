@@ -43,11 +43,11 @@ const FilterCard = ({
   selectionType?: SelectionType;
 }) => {
   const theme = {
-    active: "border-[#F2E8DB] bg-[#F9F4EE]",
+    active: "border-[#5A9A8E]/40 bg-[#5A9A8E]/15",
     inactive: "border-white bg-white",
-    iconBg: "bg-[#EFE3D4]",
-    iconStroke: "#D4A373",
-    indicatorBg: "bg-[#DBBEA1]",
+    iconBg: "bg-[#5A9A8E]/15",
+    iconStroke: "#5A9A8E",
+    indicatorBg: "bg-[#5A9A8E]",
   };
 
   return (
@@ -197,7 +197,7 @@ export default function FilterScreen() {
       animate={{ x: 0 }}
       exit={{ x: "100%" }}
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      className="fixed inset-0 min-h-screen px-6 py-8 flex flex-col items-center lg:overflow-hidden lg:h-screen"
+      className="fixed inset-0 min-h-screen px-6 py-8 flex flex-col items-center overflow-y-auto bg-linear-to-b from-[#F0F4F3] via-[#EDF2F1] to-[#EBF0EE]"
     >
       <div className="w-full max-w-5xl">
         {/* Header */}

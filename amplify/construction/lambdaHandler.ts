@@ -1,15 +1,16 @@
-import { runConstructionIngestion } from "./fetchConstruction";
+import { runConstructionPipeline } from "./runConstructionPipeline";
 
 export const handler = async () => {
   try {
-    await runConstructionIngestion();
+    const result = await runConstructionPipeline();
 
     return {
       ok: true,
-      message: "Construction event update complete.",
+      message: "Construction pipeline update complete.",
+      result,
     };
   } catch (error) {
-    console.error("Failed to update construction events:", error);
+    console.error("Failed to run construction pipeline:", error);
     throw error;
   }
 };
