@@ -1,5 +1,10 @@
-import { MapPin, Navigation } from "lucide-react";
-import type { LocationSuggestion } from "../../utils/photon";
+import { LocateFixed, MapPin, Navigation } from "lucide-react";
+
+type LocationSuggestion = {
+  id: string;
+  place_name: string;
+  center?: [number, number];
+};
 
 type AutocompleteInputProps = {
   id: string;
@@ -13,6 +18,11 @@ type AutocompleteInputProps = {
   onChange: (value: string) => void;
   onSelect: (suggestion: LocationSuggestion) => void;
   onFocus: () => void;
+
+  // Optional current-location button.
+  // Only used for the start input.
+  onLocationClick?: () => void;
+  isLocating?: boolean;
 };
 
 export function AutocompleteInput({
@@ -27,6 +37,8 @@ export function AutocompleteInput({
   onChange,
   onSelect,
   onFocus,
+  onLocationClick,
+  isLocating = false,
 }: AutocompleteInputProps) {
   const isStart = iconType === "start";
 
@@ -43,7 +55,6 @@ export function AutocompleteInput({
 
       <div className="relative">
         <div className="flex items-center gap-3 rounded-2xl px-4 py-2">
-          {/* Circle icon changes depending on whether this is start or destination */}
           <div
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
               isStart ? "bg-[#D4B896]" : "bg-[#7DB0A6]"
@@ -56,7 +67,6 @@ export function AutocompleteInput({
             )}
           </div>
 
-          {/* User text input */}
           <input
             id={id}
             type="text"
@@ -69,7 +79,18 @@ export function AutocompleteInput({
           />
         </div>
 
-        {/* Suggestion dropdown */}
+        {isStart && onLocationClick && (
+          <button
+            type="button"
+            onClick={onLocationClick}
+            disabled={isLocating}
+            className="mx-4 mb-3 flex items-center justify-center gap-2 rounded-2xl border border-[#DCE7E3] bg-white/80 px-4 py-2 text-sm font-medium text-[#5A9A8E] shadow-sm disabled:opacity-60"
+          >
+            <LocateFixed size={16} />
+            {isLocating ? "Finding your location..." : "Use Current Location"}
+          </button>
+        )}
+
         {isOpen && (
           <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 max-h-72 overflow-y-auto rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">
             {loading ? (
