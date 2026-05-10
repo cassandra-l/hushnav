@@ -10,7 +10,6 @@ import {
   Mic,
   AlertTriangle,
   Menu,
-  LocateFixed,
 } from "lucide-react";
 import { MicButton } from "./components/mic-button";
 import { PopUp } from "./components/pop-up";
@@ -26,6 +25,7 @@ import type {
 } from "./types/route";
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
+import { AutocompleteInput } from "./components/map/AutocompleteInput";
 import type { CrowdMapFeatureCollection } from "./types/noise-map";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -97,121 +97,7 @@ type PhotonResponse = {
   features?: PhotonFeature[];
 };
 
-// Reusable props for the start/destination input with suggestions
-type AutocompleteInputProps = {
-  id: string;
-  label: string;
-  value: string;
-  placeholder: string;
-  iconType: "start" | "destination";
-  suggestions: LocationSuggestion[];
-  isOpen: boolean;
-  loading: boolean;
-  onChange: (value: string) => void;
-  onSelect: (suggestion: LocationSuggestion) => void;
-  onFocus: () => void;
-  onLocationClick?: () => void;
-  isLocating?: boolean;
-};
 
-// Reusable autocomplete field used for both Start and Destination
-function AutocompleteInput({
-  id,
-  label,
-  value,
-  placeholder,
-  iconType,
-  suggestions,
-  isOpen,
-  loading,
-  onChange,
-  onSelect,
-  onFocus,
-  onLocationClick,
-  isLocating,
-}: AutocompleteInputProps) {
-  const isStart = iconType === "start";
-
-  return (
-    <div className="lg:mb-3">
-      {label && (
-        <label
-          htmlFor={id}
-          className="mb-2 block text-xs font-medium text-[#4A5565]"
-        >
-          {label}
-        </label>
-      )}
-
-      <div className="relative">
-        <div className="flex items-center gap-3 rounded-2xl px-4 py-3 lg:py-2 border-0 lg:border lg:border-[#E8EEEC]">
-          {/* Circle icon changes depending on whether this is start or destination */}
-          <div
-            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-              isStart ? "bg-[#D4B896]" : "bg-[#7DB0A6]"
-            }`}
-          >
-            {isStart ? (
-              <Navigation size={16} className="text-white" />
-            ) : (
-              <MapPin size={16} className="text-white" />
-            )}
-          </div>
-
-          {/* User text input */}
-          <input
-            id={id}
-            type="text"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onFocus={onFocus}
-            placeholder={placeholder}
-            autoComplete="off"
-            className="min-w-0 w-full bg-transparent text-[14px] text-[#1E2939] outline-none placeholder:text-[#8B98A5]"
-          />
-
-          {isStart && onLocationClick && (
-            <button
-              type="button"
-              onClick={onLocationClick}
-              disabled={isLocating}
-              className={`cursor-pointer shrink-0 text-[#5A9A8E] hover:text-[#7DB0A6] transition-colors p-1 ${isLocating ? "animate-pulse" : ""}`}
-              title="Use current location"
-            >
-              <LocateFixed size={18} />
-            </button>
-          )}
-        </div>
-
-        {/* Suggestion dropdown */}
-        {isOpen && (
-          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 max-h-72 overflow-y-auto rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">
-            {loading ? (
-              <div className="px-4 py-3 text-sm text-[#6A7282]">
-                Searching...
-              </div>
-            ) : suggestions.length > 0 ? (
-              suggestions.map((suggestion) => (
-                <button
-                  key={suggestion.id}
-                  type="button"
-                  onClick={() => onSelect(suggestion)}
-                  className="w-full border-b border-[#EEF4F2] px-4 py-3 text-left text-sm text-[#1E2939] hover:bg-[#F7FAF9] last:border-b-0"
-                >
-                  {suggestion.place_name}
-                </button>
-              ))
-            ) : value.trim().length >= 2 ? (
-              <div className="px-4 py-3 text-sm text-[#6A7282]">
-                No matching results found
-              </div>
-            ) : null}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // Builds a readable label from Photon feature properties
 function buildPhotonLabel(feature: PhotonFeature): string {
