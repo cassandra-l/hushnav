@@ -1,0 +1,25 @@
+name: Weekly Edge Forecast Refresh
+
+on:
+  schedule:
+    # 00:00 UTC every Monday
+    - cron: "0 0 * * 1"
+
+jobs:
+  refresh-forecast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install forecast dependencies
+        run: pip install -r database_schema_dataimports/forecast_requirements.txt
+
+      - name: Run weekly forecast pipeline
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FORECAST_HISTORY_DAYS: "28"
+        run: python database_schema_dataimports/forecast_edge_weights.py
