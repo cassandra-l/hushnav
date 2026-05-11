@@ -4,6 +4,7 @@ import {
   getQuietestRouteFromCoordinates,
   snapToNearestNode,
   type AvoidMode,
+  type RouteMode,
   type RouteResult,
 } from "./route";
 import {
@@ -26,6 +27,8 @@ export type PlanRouteRequest = {
   startQuery?: string;
   endQuery?: string;
   avoidMode?: AvoidMode;
+  routeMode?: RouteMode;
+  routeTime?: string;
   safeSpaceTypes?: SafeSpaceType[];
 
   // Old single-stop field.
@@ -158,6 +161,8 @@ export async function planRoute(
     startQuery,
     endQuery,
     avoidMode = "both",
+    routeMode = "live",
+    routeTime,
     safeSpaceTypes,
     stopSafeSpaceId,
     stopSafeSpaceIds,
@@ -222,7 +227,11 @@ export async function planRoute(
     const result = await getQuietestRouteFromCoordinates(
       startCoordinate,
       endCoordinate,
-      avoidMode
+      avoidMode,
+      {
+        routeMode,
+        routeTime,
+      }
     );
 
     const safeSpaces = await getSafeSpacesNearRoute(
@@ -302,7 +311,11 @@ export async function planRoute(
     const legRoute = await findQuietestRoute(
       legStartNode.node_id,
       legEndNode.node_id,
-      avoidMode
+      avoidMode,
+      {
+        routeMode,
+        routeTime,
+      }
     );
 
     routeLegs.push(legRoute);

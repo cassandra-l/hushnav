@@ -7,6 +7,7 @@ export type Coordinate = {
 };
 
 export type AvoidMode = "crowd" | "construction" | "both";
+export type RouteMode = "live" | "forecast";
 
 export type NodeRow = {
   node_id: number;
@@ -24,6 +25,17 @@ type EdgeRow = {
   noise_db: number | null;
   crowd_count: number | null;
   is_high_crowd: boolean | null;
+  live_final_cost: number | null;
+  live_noise_db: number | null;
+  live_crowd_count: number | null;
+  forecast_final_cost: number | null;
+  forecast_noise_db: number | null;
+  forecast_crowd_count: number | null;
+};
+
+type RoutingOptions = {
+  routeMode?: RouteMode;
+  routeTime?: string;
 };
 
 type GraphEdge = {
@@ -311,6 +323,126 @@ async function loadGraph(): Promise<Map<number, GraphEdge[]>> {
   }
 }
 
+function bucketToNearestHour(routeTime: string): Date {
+  const parsed = new Date(routeTime);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error("Invalid routeTime. Expected an ISO datetime string.");
+  }
+
+  const slotMs = 60 * 60 * 1000;
+  const roundedMs = Math.round(parsed.getTime() / slotMs) * slotMs;
+  return new Date(roundedMs);
+}
+
+async function loadGraphForForecast(
+  forecastBucket: Date
+): Promise<Map<number, GraphEdge[]>> {
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query<EdgeRow>(
+      `
+      WITH latest_succeeded_run AS (
+        SELECT fr.run_id
+        FROM forecast_runs fr
+        WHERE fr.status = 'succeeded'
+        ORDER BY fr.generated_at DESC
+        LIMIT 1
+      )
+      SELECT
+        e.edge_id,
+        e.u,
+        e.v,
+        e.length,
+        e.is_indoor,
+        ew.final_cost AS live_final_cost,
+        ew.noise_db AS live_noise_db,
+        ew.crowd_count AS live_crowd_count,
+        fw.final_cost AS forecast_final_cost,
+        fw.predicted_noise_db AS forecast_noise_db,
+        fw.predicted_crowd_count AS forecast_crowd_count,
+        COALESCE(fw.final_cost, ew.final_cost) AS final_cost,
+        COALESCE(fw.predicted_noise_db, ew.noise_db) AS noise_db,
+        COALESCE(fw.predicted_crowd_count, ew.crowd_count) AS crowd_count,
+        COALESCE(fw.is_high_crowd, ew.is_high_crowd) AS is_high_crowd
+      FROM edge e
+      LEFT JOIN edge_weight ew
+        ON e.edge_id = ew.edge_id
+      LEFT JOIN LATERAL (
+        SELECT
+          f.final_cost,
+          f.predicted_noise_db,
+          f.predicted_crowd_count,
+          f.is_high_crowd
+        FROM edge_forecasts f
+        WHERE f.edge_id = e.edge_id
+          AND f.run_id = (SELECT run_id FROM latest_succeeded_run)
+          AND (
+            -- Exact slot match when requested time is inside stored horizon.
+            f.forecast_time = $1
+            OR
+            -- Fallback for dates beyond horizon:
+            -- use same Melbourne weekday + hour from the latest forecast week.
+            (
+              EXTRACT(ISODOW FROM (f.forecast_time AT TIME ZONE 'Australia/Melbourne')) =
+              EXTRACT(ISODOW FROM ($1::timestamptz AT TIME ZONE 'Australia/Melbourne'))
+              AND EXTRACT(HOUR FROM (f.forecast_time AT TIME ZONE 'Australia/Melbourne')) =
+              EXTRACT(HOUR FROM ($1::timestamptz AT TIME ZONE 'Australia/Melbourne'))
+            )
+          )
+        ORDER BY
+          CASE
+            WHEN f.forecast_time = $1 THEN 0
+            ELSE 1
+          END
+        LIMIT 1
+      ) fw ON TRUE
+      `,
+      [forecastBucket.toISOString()]
+    );
+
+    const graph = new Map<number, GraphEdge[]>();
+
+    for (const row of result.rows) {
+      const forward: GraphEdge = {
+        edgeId: Number(row.edge_id),
+        from: Number(row.u),
+        to: Number(row.v),
+        length: Number(row.length),
+        defaultCost:
+          row.final_cost !== null && row.final_cost !== undefined
+            ? Number(row.final_cost)
+            : null,
+        noiseDb:
+          row.noise_db !== null && row.noise_db !== undefined
+            ? Number(row.noise_db)
+            : null,
+        crowdCount:
+          row.crowd_count !== null && row.crowd_count !== undefined
+            ? Number(row.crowd_count)
+            : null,
+        isHighCrowd: Boolean(row.is_high_crowd),
+      };
+
+      const backward: GraphEdge = {
+        ...forward,
+        from: Number(row.v),
+        to: Number(row.u),
+      };
+
+      if (!graph.has(forward.from)) graph.set(forward.from, []);
+      if (!graph.has(backward.from)) graph.set(backward.from, []);
+
+      graph.get(forward.from)!.push(forward);
+      graph.get(backward.from)!.push(backward);
+    }
+
+    return graph;
+  } finally {
+    client.release();
+  }
+}
+
 
 
 async function getNodesByIds(nodeIds: number[]): Promise<NodeRow[]> {
@@ -380,12 +512,17 @@ async function getNodeCoordinate(nodeId: number): Promise<Coordinate> {
 export async function findQuietestRoute(
   startNodeId: number,
   endNodeId: number,
-  avoidMode: AvoidMode = "both"
+  avoidMode: AvoidMode = "both",
+  options: RoutingOptions = {}
 ): Promise<RouteResult> {
   startNodeId = Number(startNodeId);
   endNodeId = Number(endNodeId);
 
-  const graph = await loadGraph();
+  const routeMode = options.routeMode ?? "live";
+  const graph =
+    routeMode === "forecast" && options.routeTime
+      ? await loadGraphForForecast(bucketToNearestHour(options.routeTime))
+      : await loadGraph();
 
   const blockedEdgeIds =
     avoidMode === "construction" || avoidMode === "both"
@@ -483,7 +620,8 @@ export async function findQuietestRoute(
 export async function getQuietestRouteFromCoordinates(
   start: Coordinate,
   end: Coordinate,
-  avoidMode: AvoidMode = "both"
+  avoidMode: AvoidMode = "both",
+  options: RoutingOptions = {}
 ): Promise<{
   startNode: NodeRow;
   endNode: NodeRow;
@@ -495,7 +633,8 @@ export async function getQuietestRouteFromCoordinates(
   const route = await findQuietestRoute(
     startNode.node_id,
     endNode.node_id,
-    avoidMode
+    avoidMode,
+    options
   );
 
   return {

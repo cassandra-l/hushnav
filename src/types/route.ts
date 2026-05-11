@@ -38,6 +38,8 @@ export type PlanRouteRequest = {
   startQuery?: string;
   endQuery?: string;
   avoidMode?: AvoidMode;
+  routeMode?: "live" | "forecast";
+  routeTime?: string;
   safeSpaceTypes?: SafeSpaceType[];
 
   // Old single-stop field, kept so older code does not break

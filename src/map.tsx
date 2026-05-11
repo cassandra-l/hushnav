@@ -6,6 +6,7 @@ import {
   Navigation,
   ChevronDown,
   Wind,
+  Clock3,
   SlidersVertical,
   Mic,
   AlertTriangle,
@@ -67,6 +68,19 @@ type UserLocation = {
   lat: number;
   lng: number;
   accuracy?: number;
+};
+
+type DepartureConfig = {
+  enabled: boolean;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+};
+
+type BestTimeSuggestion = {
+  startHour: number;
+  endHour: number;
+  label: string;
+  routeTimeIso: string;
 };
 
 // Photon API feature shape
@@ -338,6 +352,37 @@ const DEFAULT_SAFE_SPACE_TYPES: SafeSpaceType[] = [
   "synagogue",
 ];
 
+function getTodayLocalDateString() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function getCurrentHourMinuteString() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+function toRouteTimeIso(date: string, time: string) {
+  // Build local datetime from picker values and convert to ISO for backend.
+  return new Date(`${date}T${time}:00`).toISOString();
+}
+
+function formatHourRangeLabel(startHour: number) {
+  const to12h = (hour: number) => {
+    const h = hour % 24;
+    const suffix = h >= 12 ? "PM" : "AM";
+    const value = h % 12 === 0 ? 12 : h % 12;
+    return `${value}:00 ${suffix}`;
+  };
+  const endHour = (startHour + 2) % 24;
+  return `${to12h(startHour)} - ${to12h(endHour)}`;
+}
+
 function readSelectedSafeSpaceTypes(): SafeSpaceType[] {
   const raw = localStorage.getItem(SAFE_SPACES_STORAGE_KEY);
 
@@ -453,6 +498,7 @@ export function Map() {
   // Route API loading + error state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isBestTimeLoading, setIsBestTimeLoading] = useState(false);
 
   // Live user location from browser Geolocation API
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
@@ -461,6 +507,18 @@ export function Map() {
 
   // Final route response shown on the map
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
+  const [departureConfig, setDepartureConfig] = useState<DepartureConfig>({
+    enabled: false,
+    date: getTodayLocalDateString(),
+    time: getCurrentHourMinuteString(),
+  });
+  const [isDepartureModalOpen, setIsDepartureModalOpen] = useState(false);
+  const [isBestTimeTab, setIsBestTimeTab] = useState(false);
+  const [bestTimeSuggestion, setBestTimeSuggestion] =
+    useState<BestTimeSuggestion | null>(null);
+  const departureSummary = departureConfig.enabled
+    ? `${departureConfig.date} ${departureConfig.time}`
+    : "Now";
 
   const [selectedSafeSpaceTypes, setSelectedSafeSpaceTypes] = useState<
     SafeSpaceType[]
@@ -568,7 +626,9 @@ export function Map() {
       FILTER_PREVIEW_STATE_KEY,
       JSON.stringify(previewSnapshot),
     );
-    navigate("/filter_page");
+    navigate("/filter_page", {
+      state: { forecastSensitivityLocked: departureConfig.enabled },
+    });
   };
 
   useEffect(() => {
@@ -694,6 +754,14 @@ export function Map() {
     setSelectedSafeSpaceStops([]);
     setSelectedSafeSpaceFromPanel(null);
     setIsNavigationActive(false);
+    setIsDepartureModalOpen(false);
+    setBestTimeSuggestion(null);
+    setIsBestTimeTab(false);
+    setDepartureConfig({
+      enabled: false,
+      date: getTodayLocalDateString(),
+      time: getCurrentHourMinuteString(),
+    });
 
     // Clear the input strings so the search bar is empty
     setStartLocation("");
@@ -1037,10 +1105,137 @@ export function Map() {
   };
 
   // Sends route request to backend
+  const buildRouteRequestBody = (
+    safeSpaceStops: SafeSpace[],
+    safeSpaceTypes: SafeSpaceType[],
+    avoidMode: AvoidMode,
+    routeMode: "live" | "forecast",
+    routeTime?: string,
+  ): PlanRouteRequest => ({
+    start:
+      selectedStart?.center && selectedStart.center.length >= 2
+        ? {
+            lng: selectedStart.center[0],
+            lat: selectedStart.center[1],
+          }
+        : undefined,
+    end:
+      selectedDestination?.center && selectedDestination.center.length >= 2
+        ? {
+            lng: selectedDestination.center[0],
+            lat: selectedDestination.center[1],
+          }
+        : undefined,
+    startQuery: startLocation,
+    endQuery: destination,
+    avoidMode,
+    safeSpaceTypes,
+    routeMode,
+    routeTime,
+    stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
+  });
+
+  const fetchRouteCostEstimate = async (
+    routeTimeIso: string,
+    safeSpaceStops: SafeSpace[],
+    safeSpaceTypes: SafeSpaceType[],
+    avoidMode: AvoidMode,
+  ): Promise<number | null> => {
+    if (!API_BASE_URL) return null;
+    const requestBody = buildRouteRequestBody(
+      safeSpaceStops,
+      safeSpaceTypes,
+      avoidMode,
+      "forecast",
+      routeTimeIso,
+    );
+
+    const response = await fetch(`${API_BASE_URL}/plan-route`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) return null;
+    const data = (await response.json()) as PlanRouteResponse;
+    return data?.route?.totalCost ?? null;
+  };
+
+  const handleFindBestTime = async () => {
+    setError("");
+    setBestTimeSuggestion(null);
+
+    if (!startLocation.trim() || !destination.trim()) {
+      setError("Please select start and destination before finding best time.");
+      return;
+    }
+    if (!API_BASE_URL) {
+      setError("API base URL not set. Add VITE_API_BASE_URL to your .env file.");
+      return;
+    }
+
+    setIsBestTimeLoading(true);
+    try {
+      // Recommend from 6 AM to 10 PM in hourly starts.
+      const candidateHours = Array.from({ length: 17 }, (_, i) => i + 6);
+      let best: { hour: number; cost: number } | null = null;
+
+      for (const hour of candidateHours) {
+        const time = `${String(hour).padStart(2, "0")}:00`;
+        const routeTimeIso = toRouteTimeIso(departureConfig.date, time);
+        const cost = await fetchRouteCostEstimate(
+          routeTimeIso,
+          selectedSafeSpaceStops,
+          selectedSafeSpaceTypes,
+          selectedAvoidMode,
+        );
+        if (cost === null) continue;
+        if (!best || cost < best.cost) {
+          best = { hour, cost };
+        }
+      }
+
+      if (!best) {
+        setError("Could not calculate best time for this date.");
+        return;
+      }
+
+      const bestTime = `${String(best.hour).padStart(2, "0")}:00`;
+      const routeTimeIso = toRouteTimeIso(departureConfig.date, bestTime);
+      setBestTimeSuggestion({
+        startHour: best.hour,
+        endHour: best.hour + 2,
+        label: formatHourRangeLabel(best.hour),
+        routeTimeIso,
+      });
+
+      const nextDepartureConfig: DepartureConfig = {
+        ...departureConfig,
+        enabled: true,
+        time: bestTime,
+      };
+      setDepartureConfig(nextDepartureConfig);
+      await handlePlanRoute(
+        selectedSafeSpaceStops,
+        selectedSafeSpaceTypes,
+        selectedAvoidMode,
+        nextDepartureConfig,
+      );
+    } catch (err) {
+      console.error("Best time recommendation failed:", err);
+      setError("Failed to calculate best time.");
+    } finally {
+      setIsBestTimeLoading(false);
+    }
+  };
+
   const handlePlanRoute = async (
     safeSpaceStops = selectedSafeSpaceStops,
     safeSpaceTypes = selectedSafeSpaceTypes,
     avoidMode = selectedAvoidMode,
+    departureOverride?: DepartureConfig,
   ) => {
     console.log("DEBUG - Start Selection:", selectedStart);
     console.log("DEBUG - Destination Selection:", selectedDestination);
@@ -1074,34 +1269,19 @@ export function Map() {
     setLoading(true);
 
     try {
-      const requestBody: PlanRouteRequest = {
-        start:
-          selectedStart?.center && selectedStart.center.length >= 2
-            ? {
-                lng: selectedStart.center[0],
-                lat: selectedStart.center[1],
-              }
-            : undefined,
-
-        end:
-          selectedDestination?.center && selectedDestination.center.length >= 2
-            ? {
-                lng: selectedDestination.center[0],
-                lat: selectedDestination.center[1],
-              }
-            : undefined,
-
-        startQuery: startLocation,
-        endQuery: destination,
-
-        avoidMode,
+      const effectiveDeparture = departureOverride ?? departureConfig;
+      const routeMode = effectiveDeparture.enabled ? "forecast" : "live";
+      const routeTime =
+        routeMode === "forecast"
+          ? toRouteTimeIso(effectiveDeparture.date, effectiveDeparture.time)
+        : undefined;
+      const requestBody = buildRouteRequestBody(
+        safeSpaceStops,
         safeSpaceTypes,
-
-        // Send selected safe spaces to the backend in the exact order Emily selected them.
-        // Backend will calculate:
-        // start -> stop 1 -> stop 2 -> ... -> destination
-        stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
-      };
+        avoidMode,
+        routeMode,
+        routeTime,
+      );
 
       console.log("Plan route request body:", requestBody);
 
@@ -1263,6 +1443,18 @@ export function Map() {
                 setIsStartSuggestionsOpen(false);
               }}
             />
+
+            <button
+              type="button"
+              onClick={() => setIsDepartureModalOpen(true)}
+              className="mb-3 flex w-full items-center justify-between rounded-2xl border border-[#DCE7E3] bg-[#F8FBFA] px-4 py-2.5 text-sm text-[#1E2939]"
+            >
+              <span className="flex items-center gap-2">
+                <Clock3 size={15} className="text-[#5A9A8E]" />
+                Departure
+              </span>
+              <span className="font-medium text-[#5A9A8E]">{departureSummary}</span>
+            </button>
 
             <button
               onClick={() => handlePlanRoute()}
@@ -1523,6 +1715,20 @@ export function Map() {
                     />
                   </div>
 
+                  <button
+                    type="button"
+                    onClick={() => setIsDepartureModalOpen(true)}
+                    className="mt-2 flex w-full items-center justify-between rounded-2xl border border-[#DCE7E3] bg-white/90 px-4 py-2.5 text-sm text-[#1E2939]"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Clock3 size={15} className="text-[#5A9A8E]" />
+                      Departure
+                    </span>
+                    <span className="font-medium text-[#5A9A8E]">
+                      {departureSummary}
+                    </span>
+                  </button>
+
                   <AnimatePresence>
                     {startLocation && destination && (
                       <motion.div
@@ -1687,6 +1893,129 @@ export function Map() {
         </div>
       </div>
 
+      {isDepartureModalOpen && (
+        <div className="absolute inset-0 z-40 flex items-end justify-center bg-black/25 p-3">
+          <div className="w-full max-w-md rounded-3xl border border-white/60 bg-white shadow-xl">
+            <div className="flex border-b border-[#E8EEEC]">
+              <button
+                type="button"
+                onClick={() => setIsBestTimeTab(false)}
+                className={`flex-1 py-3 text-sm font-medium ${
+                  !isBestTimeTab
+                    ? "text-[#5A9A8E] border-b-2 border-[#5A9A8E]"
+                    : "text-[#6A7282]"
+                }`}
+              >
+                Choose time
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsBestTimeTab(true)}
+                className={`flex-1 py-3 text-sm font-medium ${
+                  isBestTimeTab
+                    ? "text-[#5A9A8E] border-b-2 border-[#5A9A8E]"
+                    : "text-[#6A7282]"
+                }`}
+              >
+                Best time
+              </button>
+            </div>
+
+            <div className="space-y-3 p-4">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[#6A7282]">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={departureConfig.date}
+                  onChange={(e) =>
+                    setDepartureConfig((prev) => ({
+                      ...prev,
+                      date: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border border-[#DCE7E3] px-3 py-2 text-sm"
+                />
+              </div>
+
+              {!isBestTimeTab && (
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[#6A7282]">
+                    Departure time
+                  </label>
+                  <input
+                    type="time"
+                    value={departureConfig.time}
+                    onChange={(e) =>
+                      setDepartureConfig((prev) => ({
+                        ...prev,
+                        time: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-[#DCE7E3] px-3 py-2 text-sm"
+                  />
+                </div>
+              )}
+
+              {isBestTimeTab && bestTimeSuggestion && (
+                <div className="rounded-2xl border border-[#E8EEEC] bg-[#F8FBFA] p-3">
+                  <p className="text-xs text-[#6A7282]">Quietest time to travel</p>
+                  <p className="mt-1 text-sm font-semibold text-[#1E2939]">
+                    {bestTimeSuggestion.label}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 border-t border-[#E8EEEC] p-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDepartureModalOpen(false);
+                  setBestTimeSuggestion(null);
+                }}
+                className="flex-1 rounded-xl border border-[#DCE7E3] py-2.5 text-sm text-[#6A7282]"
+              >
+                Cancel
+              </button>
+
+              {isBestTimeTab ? (
+                <button
+                  type="button"
+                  onClick={handleFindBestTime}
+                  disabled={isBestTimeLoading}
+                  className="flex-1 rounded-xl bg-[#7DB0A6] py-2.5 text-sm font-medium text-white disabled:opacity-70"
+                >
+                  {isBestTimeLoading ? "Finding..." : "Find"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const nextDepartureConfig: DepartureConfig = {
+                      ...departureConfig,
+                      enabled: true,
+                    };
+                    setDepartureConfig(nextDepartureConfig);
+                    setIsDepartureModalOpen(false);
+                    await handlePlanRoute(
+                      selectedSafeSpaceStops,
+                      selectedSafeSpaceTypes,
+                      selectedAvoidMode,
+                      nextDepartureConfig,
+                    );
+                  }}
+                  className="flex-1 rounded-xl bg-[#7DB0A6] py-2.5 text-sm font-medium text-white"
+                >
+                  Done
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Microphone permission popup */}
       <PopUp
         isOpen={isPopUpOpen}
@@ -1750,6 +2079,7 @@ export function Map() {
           navigate("/achievements");
         }}
       />
+
     </main>
   );
 }
