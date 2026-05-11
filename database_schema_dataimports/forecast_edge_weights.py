@@ -1,26 +1,4 @@
 #!/usr/bin/env python3
-"""
-Weekly forecast pipeline for future routing edge weights.
-
-This script:
-1) Pulls historical microclimate noise + pedestrian counts from Melbourne Open Data APIs.
-2) Resamples each sensor series to hourly bins.
-3) Builds a weekly profile per sensor (weekday + hour slot) and forecasts 7 days (168 bins).
-4) Maps forecasted sensor values to nearest edges and writes edge_forecasts.
-
-Plain-English version of what this means:
-- Look at recent history (noise + crowd) for each sensor in the city.
-- Convert that history into a regular timeline where each row is one hour.
-- Build a simple weekly profile per sensor to estimate "what next week could look like".
-- Translate those sensor predictions into edge costs, so future routing can choose paths
-  based on expected conditions instead of only current/live conditions.
-
-Forecasting approach in this version:
-- Primary model is a weekly profile lookup (weekday + hour slot) per sensor.
-- This keeps hourly variation without model-fit instability.
-- If a specific profile bucket is missing, a simple fallback chain ensures every slot
-  gets a prediction.
-"""
 
 from __future__ import annotations
 
