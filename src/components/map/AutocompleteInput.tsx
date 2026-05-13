@@ -54,7 +54,7 @@ export function AutocompleteInput({
       )}
 
       <div className="relative">
-        <div className="flex items-center gap-3 rounded-2xl px-4 py-2">
+        <div className="flex items-center gap-3 rounded-2xl border-0 px-4 py-3 lg:border lg:border-[#E8EEEC] lg:py-2">
           <div
             className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
               isStart ? "bg-[#D4B896]" : "bg-[#7DB0A6]"
@@ -77,19 +77,19 @@ export function AutocompleteInput({
             autoComplete="off"
             className="min-w-0 w-full bg-transparent text-[14px] text-[#1E2939] outline-none placeholder:text-[#8B98A5]"
           />
-        </div>
 
-        {isStart && onLocationClick && (
-          <button
-            type="button"
-            onClick={onLocationClick}
-            disabled={isLocating}
-            className="mx-4 mb-3 flex items-center justify-center gap-2 rounded-2xl border border-[#DCE7E3] bg-white/80 px-4 py-2 text-sm font-medium text-[#5A9A8E] shadow-sm disabled:opacity-60"
-          >
-            <LocateFixed size={16} />
-            {isLocating ? "Finding your location..." : "Use Current Location"}
-          </button>
-        )}
+          {isStart && onLocationClick && (
+            <button
+              type="button"
+              onClick={onLocationClick}
+              disabled={isLocating}
+              className={`cursor-pointer shrink-0 p-1 text-[#5A9A8E] transition-colors hover:text-[#7DB0A6] ${isLocating ? "animate-pulse" : ""}`}
+              title="Use current location"
+            >
+              <LocateFixed size={18} />
+            </button>
+          )}
+        </div>
 
         {isOpen && (
           <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 max-h-72 overflow-y-auto rounded-2xl border border-[#DCE7E3] bg-white shadow-xl">

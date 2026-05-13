@@ -42,7 +42,7 @@ export function RoutePreviewPanel({
   const totalLength = routeData.route.totalLength;
 
   return (
-    <section className="absolute bottom-3 left-3 right-3 z-10 lg:hidden">
+    <section className="w-full lg:hidden">
       <div className="overflow-hidden rounded-[28px] border border-white/80 bg-white/95 shadow-xl backdrop-blur-sm">
         <div className="max-h-[36vh] overflow-y-auto overscroll-contain">
           <div className="px-5 pb-3 pt-4">

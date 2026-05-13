@@ -2,9 +2,9 @@ import { geocodePlace } from "./geocode";
 import {
   findQuietestRoute,
   getQuietestRouteFromCoordinates,
-  getRouteGraph,
   snapToNearestNode,
   type AvoidMode,
+  type RouteMode,
   type RouteResult,
 } from "./route";
 import {
@@ -27,6 +27,8 @@ export type PlanRouteRequest = {
   startQuery?: string;
   endQuery?: string;
   avoidMode?: AvoidMode;
+  routeMode?: RouteMode;
+  routeTime?: string;
   safeSpaceTypes?: SafeSpaceType[];
 
   // Old single-stop field.
@@ -159,6 +161,8 @@ export async function planRoute(
     startQuery,
     endQuery,
     avoidMode = "both",
+    routeMode = "live",
+    routeTime,
     safeSpaceTypes,
     stopSafeSpaceId,
     stopSafeSpaceIds,
@@ -223,7 +227,11 @@ export async function planRoute(
     const result = await getQuietestRouteFromCoordinates(
       startCoordinate,
       endCoordinate,
-      avoidMode
+      avoidMode,
+      {
+        routeMode,
+        routeTime,
+      }
     );
 
     const safeSpaces = await getSafeSpacesNearRoute(
@@ -292,8 +300,6 @@ export async function planRoute(
     waypointCoordinates.map((coordinate) => snapToNearestNode(coordinate))
   );
 
-  const routeGraph = await getRouteGraph();
-
   // Calculate each leg using snapped node IDs:
   // start node -> stop 1 node -> stop 2 node -> end node.
   const routeLegs: RouteResult[] = [];
@@ -306,7 +312,10 @@ export async function planRoute(
       legStartNode.node_id,
       legEndNode.node_id,
       avoidMode,
-      routeGraph
+      {
+        routeMode,
+        routeTime,
+      }
     );
 
     routeLegs.push(legRoute);

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ChevronLeft,
@@ -13,6 +13,7 @@ import {
   Check,
   Wrench,
 } from "lucide-react";
+import { PopUp } from "./components/pop-up";
 
 // Types for styling and options
 type Theme = "sage" | "tan";
@@ -100,6 +101,11 @@ const FilterCard = ({
 //  Main Filter Screen Component
 export default function FilterScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const forecastSensitivityLocked = Boolean(
+    (location.state as { forecastSensitivityLocked?: boolean } | null)
+      ?.forecastSensitivityLocked,
+  );
 
   const safeSpaces: FilterOption[] = [
     {
@@ -174,6 +180,8 @@ export default function FilterScreen() {
     useState<string[]>(defaultSafeSpaceIds);
   const [selectedSensitivity, setSelectedSensitivity] =
     useState<string>("standard");
+  const [isSensitivityLockedPopupOpen, setIsSensitivityLockedPopupOpen] =
+    useState(false);
 
   const toggleSafeSpace = (id: string) => {
     setSelectedSafeSpaces((prev) =>
@@ -255,11 +263,23 @@ export default function FilterScreen() {
                 key={opt.id}
                 option={opt}
                 isSelected={selectedSensitivity === opt.id}
-                onToggle={(id) => setSelectedSensitivity(id)}
+                onToggle={(id) => {
+                  if (forecastSensitivityLocked) {
+                    setIsSensitivityLockedPopupOpen(true);
+                    return;
+                  }
+                  setSelectedSensitivity(id);
+                }}
                 selectionType="single"
               />
             ))}
           </div>
+          {forecastSensitivityLocked && (
+            <p className="mt-2 text-xs text-[#7B828A]">
+              Sensitivity preferences are locked while departure forecasting is
+              active.
+            </p>
+          )}
         </section>
 
         {/* Apply Filter Button */}
@@ -272,6 +292,17 @@ export default function FilterScreen() {
           </motion.button>
         </div>
       </div>
+
+      <PopUp
+        isOpen={isSensitivityLockedPopupOpen}
+        onClose={() => setIsSensitivityLockedPopupOpen(false)}
+        onConfirm={() => setIsSensitivityLockedPopupOpen(false)}
+        title="Sensitivity Locked During Forecast"
+        description="Safe space filters can still be changed. To edit sensitivity preferences, set departure back to Now first."
+        buttonText="Got it"
+        icon={<Settings2 size={24} />}
+        iconBgColor="bg-[#C9A882]/60"
+      />
     </motion.div>
   );
 }
