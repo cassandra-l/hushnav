@@ -2,6 +2,7 @@ import { geocodePlace } from "./geocode";
 import {
   findQuietestRoute,
   getQuietestRouteFromCoordinates,
+  getRouteGraph,
   snapToNearestNode,
   type AvoidMode,
   type RouteResult,
@@ -291,6 +292,8 @@ export async function planRoute(
     waypointCoordinates.map((coordinate) => snapToNearestNode(coordinate))
   );
 
+  const routeGraph = await getRouteGraph();
+
   // Calculate each leg using snapped node IDs:
   // start node -> stop 1 node -> stop 2 node -> end node.
   const routeLegs: RouteResult[] = [];
@@ -302,7 +305,8 @@ export async function planRoute(
     const legRoute = await findQuietestRoute(
       legStartNode.node_id,
       legEndNode.node_id,
-      avoidMode
+      avoidMode,
+      routeGraph
     );
 
     routeLegs.push(legRoute);
