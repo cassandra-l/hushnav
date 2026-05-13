@@ -42,6 +42,11 @@ import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
 import { ReportSuccess } from "./components/report-success";
 import { Navbar } from "./components/nav-bar";
 import { MobileMenu } from "./components/hamburger-menu";
+import {
+  DepartureEditor,
+  type BestTimeSuggestion,
+  type DepartureConfig,
+} from "./components/departure-editor";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -68,19 +73,6 @@ type UserLocation = {
   lat: number;
   lng: number;
   accuracy?: number;
-};
-
-type DepartureConfig = {
-  enabled: boolean;
-  date: string; // YYYY-MM-DD
-  time: string; // HH:mm
-};
-
-type BestTimeSuggestion = {
-  startHour: number;
-  endHour: number;
-  label: string;
-  routeTimeIso: string;
 };
 
 // Photon API feature shape
@@ -512,7 +504,7 @@ export function Map() {
     date: getTodayLocalDateString(),
     time: getCurrentHourMinuteString(),
   });
-  const [isDepartureModalOpen, setIsDepartureModalOpen] = useState(false);
+  const [isDepartureOpen, setIsDepartureOpen] = useState(false);
   const [isBestTimeTab, setIsBestTimeTab] = useState(false);
   const [bestTimeSuggestion, setBestTimeSuggestion] =
     useState<BestTimeSuggestion | null>(null);
@@ -754,7 +746,7 @@ export function Map() {
     setSelectedSafeSpaceStops([]);
     setSelectedSafeSpaceFromPanel(null);
     setIsNavigationActive(false);
-    setIsDepartureModalOpen(false);
+    setIsDepartureOpen(false);
     setBestTimeSuggestion(null);
     setIsBestTimeTab(false);
     setDepartureConfig({
@@ -1444,17 +1436,55 @@ export function Map() {
               }}
             />
 
-            <button
-              type="button"
-              onClick={() => setIsDepartureModalOpen(true)}
-              className="mb-3 flex w-full items-center justify-between rounded-2xl border border-[#DCE7E3] bg-[#F8FBFA] px-4 py-2.5 text-sm text-[#1E2939]"
-            >
-              <span className="flex items-center gap-2">
-                <Clock3 size={15} className="text-[#5A9A8E]" />
-                Departure
-              </span>
-              <span className="font-medium text-[#5A9A8E]">{departureSummary}</span>
-            </button>
+            <div className="mb-3">
+              <button
+                type="button"
+                onClick={() => setIsDepartureOpen((open) => !open)}
+                className="flex w-full items-center justify-between gap-2 rounded-2xl border border-[#DCE7E3] bg-[#F8FBFA] px-4 py-2.5 text-sm text-[#1E2939]"
+                aria-expanded={isDepartureOpen}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <Clock3 size={15} className="shrink-0 text-[#5A9A8E]" />
+                  Departure
+                </span>
+                <span className="flex min-w-0 shrink-0 items-center gap-2">
+                  <span className="max-w-[7rem] truncate font-medium text-[#5A9A8E]">
+                    {departureSummary}
+                  </span>
+                  <ChevronDown
+                    size={16}
+                    className={`shrink-0 text-[#6A7282] transition-transform duration-200 ${
+                      isDepartureOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </span>
+              </button>
+              {isDepartureOpen && (
+                <div className="mt-2 overflow-hidden rounded-2xl border border-[#E8EEEC] bg-white shadow-sm">
+                  <DepartureEditor
+                    isBestTimeTab={isBestTimeTab}
+                    setIsBestTimeTab={setIsBestTimeTab}
+                    departureConfig={departureConfig}
+                    setDepartureConfig={setDepartureConfig}
+                    bestTimeSuggestion={bestTimeSuggestion}
+                    isBestTimeLoading={isBestTimeLoading}
+                    onCancel={() => {
+                      setIsDepartureOpen(false);
+                      setBestTimeSuggestion(null);
+                    }}
+                    onApplyChooseTime={async () => {
+                      const nextDepartureConfig: DepartureConfig = {
+                        ...departureConfig,
+                        enabled: true,
+                      };
+                      setDepartureConfig(nextDepartureConfig);
+                      setIsDepartureOpen(false);
+                    }}
+                    onFindBestTime={handleFindBestTime}
+                  />
+                </div>
+              )}
+            </div>
 
             <button
               onClick={() => handlePlanRoute()}
@@ -1515,6 +1545,15 @@ export function Map() {
                   </div>
 
                   <div className="space-y-3 text-sm text-[#1E2939]">
+                    {departureConfig.enabled && (
+                      <div className="flex justify-between gap-4">
+                        <span className="text-[#6A7282]">Departure</span>
+                        <span className="max-w-[55%] text-right font-medium text-[#5A9A8E]">
+                          {departureSummary}
+                        </span>
+                      </div>
+                    )}
+
                     <div className="flex justify-between gap-4">
                       <span className="text-[#6A7282]">Noise Level</span>
                       <span className="font-medium text-[#5A9A8E]">Quiet</span>
@@ -1629,7 +1668,7 @@ export function Map() {
                   </button>
                 </div> */}
                 <button
-                  className="p-4 bg-white/40 backdrop-blur-md rounded-full border border-white/20 text-[#1E2939] shadow-sm"
+                  className="rounded-full border border-white/70 bg-white/95 p-4 text-[#1E2939] shadow-md backdrop-blur-sm"
                   onClick={() => setIsMenuOpen(true)}
                 >
                   <Menu size={20} />
@@ -1640,7 +1679,7 @@ export function Map() {
                 />
 
                 <div className="min-w-0 flex-1 flex-col">
-                  <div className="min-w-0 flex-1 overflow-visible rounded-3xl border border-white bg-white/85 shadow-md backdrop-blur-sm">
+                  <div className="min-w-0 flex-1 overflow-visible rounded-3xl border border-white/80 bg-white/95 shadow-md backdrop-blur-sm">
                     <AutocompleteInput
                       id="mobileStartLocation"
                       label=""
@@ -1717,8 +1756,8 @@ export function Map() {
 
                   <button
                     type="button"
-                    onClick={() => setIsDepartureModalOpen(true)}
-                    className="mt-2 flex w-full items-center justify-between rounded-2xl border border-[#DCE7E3] bg-white/90 px-4 py-2.5 text-sm text-[#1E2939]"
+                    onClick={() => setIsDepartureOpen(true)}
+                    className="mt-2 flex w-full items-center justify-between rounded-2xl border border-[#DCE7E3] bg-white px-4 py-2.5 text-sm text-[#1E2939] shadow-sm"
                   >
                     <span className="flex items-center gap-2">
                       <Clock3 size={15} className="text-[#5A9A8E]" />
@@ -1829,14 +1868,12 @@ export function Map() {
             </button>
           )}
 
-          {/* Mobile mic button + live noise bar */}
+          {/* Mobile mic button + live noise bar — fixed bottom; no layout jump when route loads */}
           <div
-            className={`absolute left-4 z-20 transition-all duration-300 lg:hidden ${
-              routeData
-                ? isSafeSpacesOpen
-                  ? "pointer-events-none bottom-44 opacity-0"
-                  : "bottom-[calc(25vh+8px)]"
-                : "bottom-6"
+            className={`absolute bottom-6 left-4 z-20 lg:hidden ${
+              routeData && isSafeSpacesOpen
+                ? "pointer-events-none opacity-0 transition-opacity duration-200"
+                : "opacity-100 transition-opacity duration-200"
             }`}
           >
             {isMonitoring && <VolumeBar volume={volume} />}
@@ -1850,18 +1887,16 @@ export function Map() {
 
           {/* Mobile find calm button */}
           <div
-            className={`absolute right-4 z-20 transition-all duration-300 lg:hidden ${
-              routeData
-                ? isSafeSpacesOpen
-                  ? "pointer-events-none bottom-44 opacity-0"
-                  : "bottom-[calc(25vh+8px)]"
-                : "bottom-6"
+            className={`absolute bottom-6 right-4 z-20 lg:hidden ${
+              routeData && isSafeSpacesOpen
+                ? "pointer-events-none opacity-0 transition-opacity duration-200"
+                : "opacity-100 transition-opacity duration-200"
             }`}
           >
             <button
               type="button"
               onClick={() => navigate("/support")}
-              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
+              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
               aria-label="Go to Find Calm page"
             >
               <Wind size={22} />
@@ -1893,125 +1928,36 @@ export function Map() {
         </div>
       </div>
 
-      {isDepartureModalOpen && (
-        <div className="absolute inset-0 z-40 flex items-end justify-center bg-black/25 p-3">
+      {isDepartureOpen && (
+        <div className="absolute inset-0 z-40 flex items-end justify-center bg-black/25 p-3 lg:hidden">
           <div className="w-full max-w-md rounded-3xl border border-white/60 bg-white shadow-xl">
-            <div className="flex border-b border-[#E8EEEC]">
-              <button
-                type="button"
-                onClick={() => setIsBestTimeTab(false)}
-                className={`flex-1 py-3 text-sm font-medium ${
-                  !isBestTimeTab
-                    ? "text-[#5A9A8E] border-b-2 border-[#5A9A8E]"
-                    : "text-[#6A7282]"
-                }`}
-              >
-                Choose time
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsBestTimeTab(true)}
-                className={`flex-1 py-3 text-sm font-medium ${
-                  isBestTimeTab
-                    ? "text-[#5A9A8E] border-b-2 border-[#5A9A8E]"
-                    : "text-[#6A7282]"
-                }`}
-              >
-                Best time
-              </button>
-            </div>
-
-            <div className="space-y-3 p-4">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-[#6A7282]">
-                  Date
-                </label>
-                <input
-                  type="date"
-                  value={departureConfig.date}
-                  onChange={(e) =>
-                    setDepartureConfig((prev) => ({
-                      ...prev,
-                      date: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-xl border border-[#DCE7E3] px-3 py-2 text-sm"
-                />
-              </div>
-
-              {!isBestTimeTab && (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-[#6A7282]">
-                    Departure time
-                  </label>
-                  <input
-                    type="time"
-                    value={departureConfig.time}
-                    onChange={(e) =>
-                      setDepartureConfig((prev) => ({
-                        ...prev,
-                        time: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded-xl border border-[#DCE7E3] px-3 py-2 text-sm"
-                  />
-                </div>
-              )}
-
-              {isBestTimeTab && bestTimeSuggestion && (
-                <div className="rounded-2xl border border-[#E8EEEC] bg-[#F8FBFA] p-3">
-                  <p className="text-xs text-[#6A7282]">Quietest time to travel</p>
-                  <p className="mt-1 text-sm font-semibold text-[#1E2939]">
-                    {bestTimeSuggestion.label}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-2 border-t border-[#E8EEEC] p-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsDepartureModalOpen(false);
-                  setBestTimeSuggestion(null);
-                }}
-                className="flex-1 rounded-xl border border-[#DCE7E3] py-2.5 text-sm text-[#6A7282]"
-              >
-                Cancel
-              </button>
-
-              {isBestTimeTab ? (
-                <button
-                  type="button"
-                  onClick={handleFindBestTime}
-                  disabled={isBestTimeLoading}
-                  className="flex-1 rounded-xl bg-[#7DB0A6] py-2.5 text-sm font-medium text-white disabled:opacity-70"
-                >
-                  {isBestTimeLoading ? "Finding..." : "Find"}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const nextDepartureConfig: DepartureConfig = {
-                      ...departureConfig,
-                      enabled: true,
-                    };
-                    setDepartureConfig(nextDepartureConfig);
-                    setIsDepartureModalOpen(false);
-                    await handlePlanRoute(
-                      selectedSafeSpaceStops,
-                      selectedSafeSpaceTypes,
-                      selectedAvoidMode,
-                      nextDepartureConfig,
-                    );
-                  }}
-                  className="flex-1 rounded-xl bg-[#7DB0A6] py-2.5 text-sm font-medium text-white"
-                >
-                  Done
-                </button>
-              )}
-            </div>
+            <DepartureEditor
+              isBestTimeTab={isBestTimeTab}
+              setIsBestTimeTab={setIsBestTimeTab}
+              departureConfig={departureConfig}
+              setDepartureConfig={setDepartureConfig}
+              bestTimeSuggestion={bestTimeSuggestion}
+              isBestTimeLoading={isBestTimeLoading}
+              onCancel={() => {
+                setIsDepartureOpen(false);
+                setBestTimeSuggestion(null);
+              }}
+              onApplyChooseTime={async () => {
+                const nextDepartureConfig: DepartureConfig = {
+                  ...departureConfig,
+                  enabled: true,
+                };
+                setDepartureConfig(nextDepartureConfig);
+                setIsDepartureOpen(false);
+                await handlePlanRoute(
+                  selectedSafeSpaceStops,
+                  selectedSafeSpaceTypes,
+                  selectedAvoidMode,
+                  nextDepartureConfig,
+                );
+              }}
+              onFindBestTime={handleFindBestTime}
+            />
           </div>
         </div>
       )}
