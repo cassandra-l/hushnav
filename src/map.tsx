@@ -47,6 +47,11 @@ import {
   type BestTimeSuggestion,
   type DepartureConfig,
 } from "./components/departure-editor";
+import {
+  DEPARTURE_NOW_OR_FUTURE_MESSAGE,
+  isChosenDepartureInPast,
+  parseLocalDepartureMs,
+} from "./departurePast";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -360,19 +365,21 @@ function getCurrentHourMinuteString() {
 }
 
 function toRouteTimeIso(date: string, time: string) {
-  // Build local datetime from picker values and convert to ISO for backend.
+  const ms = parseLocalDepartureMs(date, time);
+  if (ms !== null) return new Date(ms).toISOString();
   return new Date(`${date}T${time}:00`).toISOString();
 }
 
+// One-hour window, 12h clock, compact label (e.g. 9:00AM-10:00AM).
 function formatHourRangeLabel(startHour: number) {
   const to12h = (hour: number) => {
     const h = hour % 24;
     const suffix = h >= 12 ? "PM" : "AM";
     const value = h % 12 === 0 ? 12 : h % 12;
-    return `${value}:00 ${suffix}`;
+    return `${value}:00${suffix}`;
   };
-  const endHour = (startHour + 2) % 24;
-  return `${to12h(startHour)} - ${to12h(endHour)}`;
+  const endHour = (startHour + 1) % 24;
+  return `${to12h(startHour)}-${to12h(endHour)}`;
 }
 
 function readSelectedSafeSpaceTypes(): SafeSpaceType[] {
@@ -1127,6 +1134,7 @@ export function Map() {
     stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
   });
 
+  // Forecast /plan-route; response totalCost only.
   const fetchRouteCostEstimate = async (
     routeTimeIso: string,
     safeSpaceStops: SafeSpace[],
@@ -1168,9 +1176,14 @@ export function Map() {
       return;
     }
 
+    if (isChosenDepartureInPast(departureConfig.date, departureConfig.time)) {
+      setError(DEPARTURE_NOW_OR_FUTURE_MESSAGE);
+      return;
+    }
+
     setIsBestTimeLoading(true);
     try {
-      // Recommend from 6 AM to 10 PM in hourly starts.
+      // Hours 6–22: one forecast route each; pick minimum totalCost.
       const candidateHours = Array.from({ length: 17 }, (_, i) => i + 6);
       let best: { hour: number; cost: number } | null = null;
 
@@ -1196,9 +1209,10 @@ export function Map() {
 
       const bestTime = `${String(best.hour).padStart(2, "0")}:00`;
       const routeTimeIso = toRouteTimeIso(departureConfig.date, bestTime);
+      // Label is a one-hour band; forecast still uses the start hour only.
       setBestTimeSuggestion({
         startHour: best.hour,
-        endHour: best.hour + 2,
+        endHour: (best.hour + 1) % 24,
         label: formatHourRangeLabel(best.hour),
         routeTimeIso,
       });
@@ -1258,10 +1272,19 @@ export function Map() {
       return;
     }
 
+    const effectiveDeparture = departureOverride ?? departureConfig;
+    if (
+      effectiveDeparture.enabled &&
+      isChosenDepartureInPast(effectiveDeparture.date, effectiveDeparture.time)
+    ) {
+      setRouteData(null);
+      setError(DEPARTURE_NOW_OR_FUTURE_MESSAGE);
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const effectiveDeparture = departureOverride ?? departureConfig;
       const routeMode = effectiveDeparture.enabled ? "forecast" : "live";
       const routeTime =
         routeMode === "forecast"
@@ -1460,7 +1483,7 @@ export function Map() {
                 </span>
               </button>
               {isDepartureOpen && (
-                <div className="mt-2 overflow-hidden rounded-2xl border border-[#E8EEEC] bg-white shadow-sm">
+                <div className="mt-2 min-w-0 overflow-hidden rounded-2xl border border-[#E8EEEC] bg-white shadow-sm">
                   <DepartureEditor
                     isBestTimeTab={isBestTimeTab}
                     setIsBestTimeTab={setIsBestTimeTab}
@@ -1473,6 +1496,14 @@ export function Map() {
                       setBestTimeSuggestion(null);
                     }}
                     onApplyChooseTime={async () => {
+                      if (
+                        isChosenDepartureInPast(
+                          departureConfig.date,
+                          departureConfig.time,
+                        )
+                      ) {
+                        return;
+                      }
                       const nextDepartureConfig: DepartureConfig = {
                         ...departureConfig,
                         enabled: true,
@@ -1481,6 +1512,8 @@ export function Map() {
                       setIsDepartureOpen(false);
                     }}
                     onFindBestTime={handleFindBestTime}
+                    getCurrentTimeHm={getCurrentHourMinuteString}
+                    getTodayYmd={getTodayLocalDateString}
                   />
                 </div>
               )}
@@ -1838,25 +1871,52 @@ export function Map() {
             </section>
           )}
 
-          {/* Mobile route preview panel - Google Maps style bottom sheet */}
+          {/* Mobile route preview: mic + Find Calm above the sheet so they do not cover it */}
           {routeData && !isNavigationActive && (
-            <RoutePreviewPanel
-              routeData={routeData}
-              safeSpaces={routeSafeSpaces}
-              onMoveStopUp={handleMoveSafeSpaceStopUp}
-              onMoveStopDown={handleMoveSafeSpaceStopDown}
-              selectedStops={selectedSafeSpaceStops}
-              isSafeSpacesOpen={isSafeSpacesOpen}
-              isNavigationActive={isNavigationActive}
-              formatRouteLength={formatRouteLength}
-              estimateWalkingMinutes={estimateWalkingMinutes}
-              onOpenFilters={handleOpenFilters}
-              onStartNavigation={handleStartNavigation}
-              onExitRoute={handleExitRoute}
-              onToggleSafeSpaces={() => setIsSafeSpacesOpen((prev) => !prev)}
-              onAddStop={handleAddSafeSpaceStop}
-              onRemoveStop={handleRemoveSafeSpaceStop}
-            />
+            <section className="absolute bottom-3 left-3 right-3 z-10 flex flex-col gap-3 lg:hidden">
+              <div
+                className={`flex shrink-0 items-end justify-between gap-3 px-1 ${
+                  isSafeSpacesOpen
+                    ? "pointer-events-none opacity-0 transition-opacity duration-200"
+                    : "opacity-100 transition-opacity duration-200"
+                }`}
+              >
+                <div className="flex flex-col items-start gap-2">
+                  {isMonitoring && <VolumeBar volume={volume} />}
+                  <MicButton
+                    onClick={
+                      isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)
+                    }
+                    isActive={isMonitoring}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/support")}
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
+                  aria-label="Go to Find Calm page"
+                >
+                  <Wind size={22} />
+                </button>
+              </div>
+              <RoutePreviewPanel
+                routeData={routeData}
+                safeSpaces={routeSafeSpaces}
+                onMoveStopUp={handleMoveSafeSpaceStopUp}
+                onMoveStopDown={handleMoveSafeSpaceStopDown}
+                selectedStops={selectedSafeSpaceStops}
+                isSafeSpacesOpen={isSafeSpacesOpen}
+                isNavigationActive={isNavigationActive}
+                formatRouteLength={formatRouteLength}
+                estimateWalkingMinutes={estimateWalkingMinutes}
+                onOpenFilters={handleOpenFilters}
+                onStartNavigation={handleStartNavigation}
+                onExitRoute={handleExitRoute}
+                onToggleSafeSpaces={() => setIsSafeSpacesOpen((prev) => !prev)}
+                onAddStop={handleAddSafeSpaceStop}
+                onRemoveStop={handleRemoveSafeSpaceStop}
+              />
+            </section>
           )}
 
           {routeData && isNavigationActive && (
@@ -1868,40 +1928,47 @@ export function Map() {
             </button>
           )}
 
-          {/* Mobile mic button + live noise bar — fixed bottom; no layout jump when route loads */}
-          <div
-            className={`absolute bottom-6 left-4 z-20 lg:hidden ${
-              routeData && isSafeSpacesOpen
-                ? "pointer-events-none opacity-0 transition-opacity duration-200"
-                : "opacity-100 transition-opacity duration-200"
-            }`}
-          >
-            {isMonitoring && <VolumeBar volume={volume} />}
-            <MicButton
-              onClick={
-                isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)
-              }
-              isActive={isMonitoring}
-            />
-          </div>
+          {/* Mobile mic + Find Calm: float only when no preview sheet (search / nav mode) */}
+          {(!routeData || isNavigationActive) && (
+            <>
+              <div
+                className={`absolute left-4 z-20 lg:hidden ${
+                  isNavigationActive ? "bottom-[5.75rem]" : "bottom-6"
+                } ${
+                  routeData && isSafeSpacesOpen
+                    ? "pointer-events-none opacity-0 transition-opacity duration-200"
+                    : "opacity-100 transition-opacity duration-200"
+                }`}
+              >
+                {isMonitoring && <VolumeBar volume={volume} />}
+                <MicButton
+                  onClick={
+                    isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)
+                  }
+                  isActive={isMonitoring}
+                />
+              </div>
 
-          {/* Mobile find calm button */}
-          <div
-            className={`absolute bottom-6 right-4 z-20 lg:hidden ${
-              routeData && isSafeSpacesOpen
-                ? "pointer-events-none opacity-0 transition-opacity duration-200"
-                : "opacity-100 transition-opacity duration-200"
-            }`}
-          >
-            <button
-              type="button"
-              onClick={() => navigate("/support")}
-              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
-              aria-label="Go to Find Calm page"
-            >
-              <Wind size={22} />
-            </button>
-          </div>
+              <div
+                className={`absolute right-4 z-20 lg:hidden ${
+                  isNavigationActive ? "bottom-[5.75rem]" : "bottom-6"
+                } ${
+                  routeData && isSafeSpacesOpen
+                    ? "pointer-events-none opacity-0 transition-opacity duration-200"
+                    : "opacity-100 transition-opacity duration-200"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => navigate("/support")}
+                  className="flex h-14 w-14 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
+                  aria-label="Go to Find Calm page"
+                >
+                  <Wind size={22} />
+                </button>
+              </div>
+            </>
+          )}
 
           {/* Desktop mic button + live noise bar */}
           <div className="absolute bottom-6 left-6 z-10 hidden lg:block">
@@ -1929,8 +1996,8 @@ export function Map() {
       </div>
 
       {isDepartureOpen && (
-        <div className="absolute inset-0 z-40 flex items-end justify-center bg-black/25 p-3 lg:hidden">
-          <div className="w-full max-w-md rounded-3xl border border-white/60 bg-white shadow-xl">
+        <div className="absolute inset-0 z-40 flex items-end justify-center overflow-x-hidden bg-black/25 p-3 lg:hidden">
+          <div className="w-full min-w-0 max-w-md max-h-[90dvh] overflow-x-hidden overflow-y-auto rounded-3xl border border-white/60 bg-white shadow-xl">
             <DepartureEditor
               isBestTimeTab={isBestTimeTab}
               setIsBestTimeTab={setIsBestTimeTab}
@@ -1943,6 +2010,14 @@ export function Map() {
                 setBestTimeSuggestion(null);
               }}
               onApplyChooseTime={async () => {
+                if (
+                  isChosenDepartureInPast(
+                    departureConfig.date,
+                    departureConfig.time,
+                  )
+                ) {
+                  return;
+                }
                 const nextDepartureConfig: DepartureConfig = {
                   ...departureConfig,
                   enabled: true,
@@ -1957,6 +2032,8 @@ export function Map() {
                 );
               }}
               onFindBestTime={handleFindBestTime}
+              getCurrentTimeHm={getCurrentHourMinuteString}
+              getTodayYmd={getTodayLocalDateString}
             />
           </div>
         </div>
