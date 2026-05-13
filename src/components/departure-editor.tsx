@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   DEPARTURE_NOW_OR_FUTURE_MESSAGE,
   isChosenDepartureInPast,
@@ -77,10 +77,6 @@ export function DepartureEditor({
   );
 
   const [showPastSubmitError, setShowPastSubmitError] = useState(false);
-
-  useEffect(() => {
-    if (!departureIsPast) setShowPastSubmitError(false);
-  }, [departureIsPast]);
 
   const resetToNowIfInvalid = () => {
     if (departureIsPast) {
