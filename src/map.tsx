@@ -405,6 +405,12 @@ export function Map() {
     ? `${departureConfig.date} ${departureConfig.time}`
     : "Now";
 
+  useEffect(() => {
+    if (!routeData) return;
+    setIsDepartureOpen(false);
+    setBestTimeSuggestion(null);
+  }, [routeData]);
+
   const [selectedSafeSpaceTypes, setSelectedSafeSpaceTypes] = useState<
     SafeSpaceType[]
   >(() => readSelectedSafeSpaceTypes());
@@ -1345,65 +1351,67 @@ export function Map() {
               }}
             />
 
-            <div className="mb-3">
-              <button
-                type="button"
-                onClick={() => setIsDepartureOpen((open) => !open)}
-                className="flex w-full items-center justify-between gap-2 rounded-2xl border border-[#DCE7E3] bg-[#F8FBFA] px-4 py-2.5 text-sm text-[#1E2939]"
-                aria-expanded={isDepartureOpen}
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <Clock3 size={15} className="shrink-0 text-[#5A9A8E]" />
-                  Departure
-                </span>
-                <span className="flex min-w-0 shrink-0 items-center gap-2">
-                  <span className="max-w-[7rem] truncate font-medium text-[#5A9A8E]">
-                    {departureSummary}
+            {!routeData && (
+              <div className="mb-3">
+                <button
+                  type="button"
+                  onClick={() => setIsDepartureOpen((open) => !open)}
+                  className="flex w-full items-center justify-between gap-2 rounded-2xl border border-[#DCE7E3] bg-[#F8FBFA] px-4 py-2.5 text-sm text-[#1E2939]"
+                  aria-expanded={isDepartureOpen}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Clock3 size={15} className="shrink-0 text-[#5A9A8E]" />
+                    Departure
                   </span>
-                  <ChevronDown
-                    size={16}
-                    className={`shrink-0 text-[#6A7282] transition-transform duration-200 ${
-                      isDepartureOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </span>
-              </button>
-              {isDepartureOpen && (
-                <div className="mt-2 min-w-0 overflow-hidden rounded-2xl border border-[#E8EEEC] bg-white shadow-sm">
-                  <DepartureEditor
-                    isBestTimeTab={isBestTimeTab}
-                    setIsBestTimeTab={setIsBestTimeTab}
-                    departureConfig={departureConfig}
-                    setDepartureConfig={setDepartureConfig}
-                    bestTimeSuggestion={bestTimeSuggestion}
-                    isBestTimeLoading={isBestTimeLoading}
-                    onCancel={() => {
-                      setIsDepartureOpen(false);
-                      setBestTimeSuggestion(null);
-                    }}
-                    onApplyChooseTime={async () => {
-                      if (
-                        isChosenDepartureInPast(
-                          departureConfig.date,
-                          departureConfig.time,
-                        )
-                      ) {
-                        return;
-                      }
-                      const nextDepartureConfig: DepartureConfig = {
-                        ...departureConfig,
-                        enabled: true,
-                      };
-                      setDepartureConfig(nextDepartureConfig);
-                      setIsDepartureOpen(false);
-                    }}
-                    onFindBestTime={handleFindBestTime}
-                    getCurrentTimeHm={getCurrentHourMinuteString}
-                    getTodayYmd={getTodayLocalDateString}
-                  />
-                </div>
-              )}
-            </div>
+                  <span className="flex min-w-0 shrink-0 items-center gap-2">
+                    <span className="max-w-[7rem] truncate font-medium text-[#5A9A8E]">
+                      {departureSummary}
+                    </span>
+                    <ChevronDown
+                      size={16}
+                      className={`shrink-0 text-[#6A7282] transition-transform duration-200 ${
+                        isDepartureOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </span>
+                </button>
+                {isDepartureOpen && (
+                  <div className="mt-2 min-w-0 overflow-hidden rounded-2xl border border-[#E8EEEC] bg-white shadow-sm">
+                    <DepartureEditor
+                      isBestTimeTab={isBestTimeTab}
+                      setIsBestTimeTab={setIsBestTimeTab}
+                      departureConfig={departureConfig}
+                      setDepartureConfig={setDepartureConfig}
+                      bestTimeSuggestion={bestTimeSuggestion}
+                      isBestTimeLoading={isBestTimeLoading}
+                      onCancel={() => {
+                        setIsDepartureOpen(false);
+                        setBestTimeSuggestion(null);
+                      }}
+                      onApplyChooseTime={async () => {
+                        if (
+                          isChosenDepartureInPast(
+                            departureConfig.date,
+                            departureConfig.time,
+                          )
+                        ) {
+                          return;
+                        }
+                        const nextDepartureConfig: DepartureConfig = {
+                          ...departureConfig,
+                          enabled: true,
+                        };
+                        setDepartureConfig(nextDepartureConfig);
+                        setIsDepartureOpen(false);
+                      }}
+                      onFindBestTime={handleFindBestTime}
+                      getCurrentTimeHm={getCurrentHourMinuteString}
+                      getTodayYmd={getTodayLocalDateString}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             <button
               onClick={() => handlePlanRoute()}
@@ -1881,7 +1889,7 @@ export function Map() {
         </div>
       </div>
 
-      {isDepartureOpen && (
+      {isDepartureOpen && !routeData && (
         <div className="absolute inset-0 z-40 flex items-end justify-center overflow-x-hidden bg-black/25 p-3 lg:hidden">
           <div className="w-full min-w-0 max-w-md max-h-[90dvh] overflow-x-hidden overflow-y-auto rounded-3xl border border-white/60 bg-white shadow-xl">
             <DepartureEditor
