@@ -26,7 +26,7 @@ type EdgeRow = {
   is_high_crowd: boolean | null;
 };
 
-type GraphEdge = {
+export type GraphEdge = {
   edgeId: number;
   from: number;
   to: number;
@@ -52,6 +52,9 @@ type QueueItem = {
 
 let nodeCoordinateCache: Map<number, NodeRow> | null = null;
 let nodeCoordinateCachePromise: Promise<Map<number, NodeRow>> | null = null;
+
+let graphCache: Map<number, GraphEdge[]> | null = null;
+let graphCachePromise: Promise<Map<number, GraphEdge[]>> | null = null;
 
 
 async function loadNodeCoordinateCache(): Promise<Map<number, NodeRow>> {
@@ -370,6 +373,33 @@ async function loadGraph(): Promise<Map<number, GraphEdge[]>> {
 }
 
 
+async function getGraphCache(): Promise<Map<number, GraphEdge[]>> {
+  if (graphCache) {
+    return graphCache;
+  }
+
+  if (!graphCachePromise) {
+    graphCachePromise = loadGraph();
+  }
+
+  try {
+    graphCache = await graphCachePromise;
+    return graphCache;
+  } finally {
+    graphCachePromise = null;
+  }
+}
+
+export function clearGraphCache() {
+  graphCache = null;
+  graphCachePromise = null;
+}
+
+
+export async function getRouteGraph(): Promise<Map<number, GraphEdge[]>> {
+  return getGraphCache();
+}
+
 
 async function getNodesByIds(nodeIds: number[]): Promise<NodeRow[]> {
   if (nodeIds.length === 0) return [];
@@ -406,22 +436,23 @@ async function getNodeCoordinate(nodeId: number): Promise<Coordinate> {
 export async function findQuietestRoute(
   startNodeId: number,
   endNodeId: number,
-  avoidMode: AvoidMode = "both"
+  avoidMode: AvoidMode = "both",
+  graph?: Map<number, GraphEdge[]>
 ): Promise<RouteResult> {
   startNodeId = Number(startNodeId);
   endNodeId = Number(endNodeId);
 
-  const graph = await loadGraph();
+  const routeGraph = graph ?? await getGraphCache();
 
   const blockedEdgeIds =
     avoidMode === "construction" || avoidMode === "both"
       ? await getConstructionBlockedEdgeIds()
       : new Set<number>();
 
-  if (!graph.has(startNodeId)) {
+  if (!routeGraph.has(startNodeId)) {
     throw new Error(`Start node ${startNodeId} has no connected edges.`);
   }
-  if (!graph.has(endNodeId)) {
+  if (!routeGraph.has(endNodeId)) {
     throw new Error(`End node ${endNodeId} has no connected edges.`);
   }
 
@@ -447,7 +478,7 @@ export async function findQuietestRoute(
       for (let i = 0; i < nodeIds.length - 1; i++) {
         const from = Number(nodeIds[i]);
         const to = Number(nodeIds[i + 1]);
-        const edge = graph.get(from)?.find((e) => Number(e.to) === to);
+        const edge = routeGraph.get(from)?.find((e) => Number(e.to) === to);
         if (edge) {
           totalLength += Number(edge.length);
         }
@@ -467,7 +498,7 @@ export async function findQuietestRoute(
     }
     visited.add(current.nodeId);
 
-    const neighbors = graph.get(Number(current.nodeId)) ?? [];
+    const neighbors = routeGraph.get(Number(current.nodeId)) ?? [];
 
     for (const edge of neighbors) {
       if (blockedEdgeIds.has(Number(edge.edgeId))) {
@@ -509,7 +540,8 @@ export async function findQuietestRoute(
 export async function getQuietestRouteFromCoordinates(
   start: Coordinate,
   end: Coordinate,
-  avoidMode: AvoidMode = "both"
+  avoidMode: AvoidMode = "both",
+  graph?: Map<number, GraphEdge[]>
 ): Promise<{
   startNode: NodeRow;
   endNode: NodeRow;
@@ -521,7 +553,8 @@ export async function getQuietestRouteFromCoordinates(
   const route = await findQuietestRoute(
     startNode.node_id,
     endNode.node_id,
-    avoidMode
+    avoidMode,
+    graph
   );
 
   return {
