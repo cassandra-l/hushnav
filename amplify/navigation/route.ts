@@ -38,7 +38,7 @@ type RoutingOptions = {
   routeTime?: string;
 };
 
-type GraphEdge = {
+export type GraphEdge = {
   edgeId: number;
   from: number;
   to: number;
@@ -61,6 +61,67 @@ type QueueItem = {
   nodeId: number;
   fScore: number;
 };
+
+let nodeCoordinateCache: Map<number, NodeRow> | null = null;
+let nodeCoordinateCachePromise: Promise<Map<number, NodeRow>> | null = null;
+
+let graphCache: Map<number, GraphEdge[]> | null = null;
+let graphCachePromise: Promise<Map<number, GraphEdge[]>> | null = null;
+
+
+async function loadNodeCoordinateCache(): Promise<Map<number, NodeRow>> {
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query<NodeRow>(
+      `
+      SELECT node_id, lat, lon
+      FROM node
+      `
+    );
+
+    const byId = new Map<number, NodeRow>();
+
+    for (const row of result.rows) {
+      byId.set(Number(row.node_id), {
+        node_id: Number(row.node_id),
+        lat: Number(row.lat),
+        lon: Number(row.lon),
+      });
+    }
+
+    return byId;
+  } finally {
+    client.release();
+  }
+}
+
+async function getNodeCoordinateCache(): Promise<Map<number, NodeRow>> {
+  if (nodeCoordinateCache) {
+    return nodeCoordinateCache;
+  }
+
+  // Prevent multiple route requests from loading the same node table at the same time
+  if (!nodeCoordinateCachePromise) {
+    nodeCoordinateCachePromise = loadNodeCoordinateCache();
+  }
+
+  try {
+    nodeCoordinateCache = await nodeCoordinateCachePromise;
+    return nodeCoordinateCache;
+  } finally {
+    nodeCoordinateCachePromise = null;
+  }
+}
+
+
+
+export function clearNodeCoordinateCache() {
+  nodeCoordinateCache = null;
+  nodeCoordinateCachePromise = null;
+}
+
+
 
 function haversineDistanceMeters(a: Coordinate, b: Coordinate): number {
   const R = 6371000;
@@ -444,68 +505,63 @@ async function loadGraphForForecast(
 }
 
 
+async function getGraphCache(): Promise<Map<number, GraphEdge[]>> {
+  if (graphCache) {
+    return graphCache;
+  }
+
+  if (!graphCachePromise) {
+    graphCachePromise = loadGraph();
+  }
+
+  try {
+    graphCache = await graphCachePromise;
+    return graphCache;
+  } finally {
+    graphCachePromise = null;
+  }
+}
+
+export function clearGraphCache() {
+  graphCache = null;
+  graphCachePromise = null;
+}
+
+
+export async function getRouteGraph(): Promise<Map<number, GraphEdge[]>> {
+  return getGraphCache();
+}
+
 
 async function getNodesByIds(nodeIds: number[]): Promise<NodeRow[]> {
   if (nodeIds.length === 0) return [];
 
-  const client = await pool.connect();
+  const nodesById = await getNodeCoordinateCache();
 
-  try {
-    const result = await client.query<NodeRow>(
-      `
-      SELECT node_id, lat, lon
-      FROM node
-      WHERE node_id = ANY($1::bigint[])
-      `,
-      [nodeIds]
-    );
+  return nodeIds.map((id) => {
+    const row = nodesById.get(Number(id));
 
-    const byId = new Map<number, NodeRow>();
-    for (const row of result.rows) {
-      byId.set(Number(row.node_id), {
-        node_id: Number(row.node_id),
-        lat: Number(row.lat),
-        lon: Number(row.lon),
-      });
+    if (!row) {
+      throw new Error(`Node ${id} not found while building route geometry.`);
     }
 
-    return nodeIds.map((id) => {
-      const row = byId.get(Number(id));
-      if (!row) {
-        throw new Error(`Node ${id} not found while building route geometry.`);
-      }
-      return row;
-    });
-  } finally {
-    client.release();
-  }
+    return row;
+  });
 }
 
+
 async function getNodeCoordinate(nodeId: number): Promise<Coordinate> {
-  const client = await pool.connect();
+  const nodesById = await getNodeCoordinateCache();
+  const row = nodesById.get(Number(nodeId));
 
-  try {
-    const result = await client.query<NodeRow>(
-      `
-      SELECT node_id, lat, lon
-      FROM node
-      WHERE node_id = $1
-      LIMIT 1
-      `,
-      [nodeId]
-    );
-
-    if (result.rows.length === 0) {
-      throw new Error(`Node ${nodeId} not found.`);
-    }
-
-    return {
-      lat: Number(result.rows[0].lat),
-      lng: Number(result.rows[0].lon),
-    };
-  } finally {
-    client.release();
+  if (!row) {
+    throw new Error(`Node ${nodeId} not found.`);
   }
+
+  return {
+    lat: Number(row.lat),
+    lng: Number(row.lon),
+  };
 }
 
 
@@ -519,7 +575,7 @@ export async function findQuietestRoute(
   endNodeId = Number(endNodeId);
 
   const routeMode = options.routeMode ?? "live";
-  const graph =
+  const routeGraph =
     routeMode === "forecast" && options.routeTime
       ? await loadGraphForForecast(bucketToNearestHour(options.routeTime))
       : await loadGraph();
@@ -529,10 +585,10 @@ export async function findQuietestRoute(
       ? await getConstructionBlockedEdgeIds()
       : new Set<number>();
 
-  if (!graph.has(startNodeId)) {
+  if (!routeGraph.has(startNodeId)) {
     throw new Error(`Start node ${startNodeId} has no connected edges.`);
   }
-  if (!graph.has(endNodeId)) {
+  if (!routeGraph.has(endNodeId)) {
     throw new Error(`End node ${endNodeId} has no connected edges.`);
   }
 
@@ -558,7 +614,7 @@ export async function findQuietestRoute(
       for (let i = 0; i < nodeIds.length - 1; i++) {
         const from = Number(nodeIds[i]);
         const to = Number(nodeIds[i + 1]);
-        const edge = graph.get(from)?.find((e) => Number(e.to) === to);
+        const edge = routeGraph.get(from)?.find((e) => Number(e.to) === to);
         if (edge) {
           totalLength += Number(edge.length);
         }
@@ -578,7 +634,7 @@ export async function findQuietestRoute(
     }
     visited.add(current.nodeId);
 
-    const neighbors = graph.get(Number(current.nodeId)) ?? [];
+    const neighbors = routeGraph.get(Number(current.nodeId)) ?? [];
 
     for (const edge of neighbors) {
       if (blockedEdgeIds.has(Number(edge.edgeId))) {
