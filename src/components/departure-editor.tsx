@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   BEST_TIME_DATE_MESSAGE,
   BEST_TIME_TAP_FIND_MESSAGE,
@@ -98,10 +98,6 @@ export function DepartureEditor({
     : departureIsPast;
 
   const [showPastSubmitError, setShowPastSubmitError] = useState(false);
-
-  useEffect(() => {
-    if (!submitErrorActive) setShowPastSubmitError(false);
-  }, [submitErrorActive]);
 
   const resetToNowIfInvalid = () => {
     if (isBestTimeTab) {
