@@ -5,24 +5,24 @@ import SensitivityResults from "./sensitivity-results";
 import { calculateSensitivityResult, quizQuestions } from "./quiz-data";
 import type { QuizAnswers, QuizStep, SensitivityResult } from "./types";
 
+// Import shared navbar so the page matches the rest of HushNav.
+import { Navbar } from "../nav-bar";
+
 export default function SelfDiscoveryPage() {
-  // Controls which screen is visible: intro, quiz, or results.
   const [step, setStep] = useState<QuizStep>("intro");
 
-  // Tracks which quiz question Emily is currently answering.
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
-  // Stores Emily’s selected answers locally.
-  // This supports the privacy message because we are not sending answers to a backend.
   const [answers, setAnswers] = useState<QuizAnswers>({});
 
-  // Stores the final calculated result after the quiz is completed.
   const [result, setResult] = useState<SensitivityResult | null>(null);
 
+  // Starts the quiz flow from the intro screen.
   function handleStartQuiz() {
     setStep("quiz");
   }
 
+  // Saves selected answers locally.
   function handleSelectAnswer(questionId: string, optionId: string) {
     setAnswers((previousAnswers) => ({
       ...previousAnswers,
@@ -30,21 +30,25 @@ export default function SelfDiscoveryPage() {
     }));
   }
 
+  // Handles next question navigation and final result calculation.
   function handleNextQuestion() {
-    const isLastQuestion = currentQuestionIndex === quizQuestions.length - 1;
+    const isLastQuestion =
+      currentQuestionIndex === quizQuestions.length - 1;
 
     if (isLastQuestion) {
       const calculatedResult = calculateSensitivityResult(answers);
+
       setResult(calculatedResult);
       setStep("results");
+
       return;
     }
 
     setCurrentQuestionIndex((previousIndex) => previousIndex + 1);
   }
 
+  // Allows Emily to retake the assessment.
   // Supports AC 6.1.3.
-  // Emily can retake the assessment, which clears old answers and creates updated results.
   function handleRetakeQuiz() {
     setAnswers({});
     setResult(null);
@@ -52,6 +56,7 @@ export default function SelfDiscoveryPage() {
     setStep("quiz");
   }
 
+  // Resets the flow if the user closes the quiz.
   function handleCloseQuiz() {
     setAnswers({});
     setResult(null);
@@ -59,25 +64,41 @@ export default function SelfDiscoveryPage() {
     setStep("intro");
   }
 
-  if (step === "intro") {
-    return <QuizIntro onStart={handleStartQuiz} />;
-  }
-
-  if (step === "quiz") {
-    return (
-      <SensitivityQuiz
-        answers={answers}
-        currentQuestionIndex={currentQuestionIndex}
-        onSelectAnswer={handleSelectAnswer}
-        onNext={handleNextQuestion}
-        onClose={handleCloseQuiz}
+  return (
+    <main className="min-h-screen bg-[#EAF5F2]">
+      
+      {/* Shared HushNav navbar */}
+      <Navbar
+        showLogo={true}
+        className="hidden lg:flex"
       />
-    );
-  }
 
-  if (step === "results" && result) {
-    return <SensitivityResults result={result} onRetake={handleRetakeQuiz} />;
-  }
+      {/* Adds spacing so content does not go underneath navbar */}
+      <div className="pt-28">
+        {step === "intro" && (
+          <QuizIntro
+            onStart={handleStartQuiz}
+            onBack={handleCloseQuiz}
+          />
+        )}
 
-  return null;
+        {step === "quiz" && (
+          <SensitivityQuiz
+            answers={answers}
+            currentQuestionIndex={currentQuestionIndex}
+            onSelectAnswer={handleSelectAnswer}
+            onNext={handleNextQuestion}
+            onClose={handleCloseQuiz}
+          />
+        )}
+
+        {step === "results" && result && (
+          <SensitivityResults
+            result={result}
+            onRetake={handleRetakeQuiz}
+          />
+        )}
+      </div>
+    </main>
+  );
 }
