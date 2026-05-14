@@ -1,8 +1,13 @@
 import type { Dispatch, SetStateAction } from "react";
 import { useState } from "react";
 import {
+  BEST_TIME_DATE_MESSAGE,
+  BEST_TIME_TAP_FIND_MESSAGE,
+  DEPARTURE_BEST_TIME_DATE_HINT,
+  DEPARTURE_DATE_ONLY_HINT,
   DEPARTURE_NOW_OR_FUTURE_MESSAGE,
   isChosenDepartureInPast,
+  isDepartureDateBeforeTodayLocal,
 } from "../departurePast";
 
 const fieldClassName =
@@ -15,6 +20,10 @@ const timeFieldClassName = [
   "[&::-webkit-datetime-edit]:min-w-0",
   "[&::-webkit-calendar-picker-indicator]:ml-0 [&::-webkit-calendar-picker-indicator]:shrink-0",
 ].join(" ");
+
+/** Best-time slot height; Choose time column uses the same `h-[4.75rem]` so tabs align. */
+const BEST_TIME_SLOT_CLASS =
+  "box-border flex h-[4.75rem] w-full min-w-0 flex-col rounded-2xl border border-[#E8EEEC] bg-[#F8FBFA] p-2.5";
 
 function tabClass(active: boolean) {
   return `flex-1 border-b-2 py-2.5 text-sm font-medium transition-colors ${
@@ -65,20 +74,38 @@ export function DepartureEditor({
   getTodayYmd,
 }: DepartureEditorProps) {
   const applyDepartureNow = () =>
-    setDepartureConfig((prev) => ({
-      ...prev,
-      date: getTodayYmd(),
-      time: getCurrentTimeHm(),
-    }));
+    setDepartureConfig((prev) =>
+      isBestTimeTab
+        ? { ...prev, date: getTodayYmd() }
+        : {
+            ...prev,
+            date: getTodayYmd(),
+            time: getCurrentTimeHm(),
+          },
+    );
 
   const departureIsPast = isChosenDepartureInPast(
     departureConfig.date,
     departureConfig.time,
   );
 
+  const bestTimeDateInvalid = isDepartureDateBeforeTodayLocal(
+    departureConfig.date,
+  );
+
+  const submitErrorActive = isBestTimeTab
+    ? bestTimeDateInvalid
+    : departureIsPast;
+
   const [showPastSubmitError, setShowPastSubmitError] = useState(false);
 
   const resetToNowIfInvalid = () => {
+    if (isBestTimeTab) {
+      if (bestTimeDateInvalid) {
+        setDepartureConfig((prev) => ({ ...prev, date: getTodayYmd() }));
+      }
+      return;
+    }
     if (departureIsPast) {
       setDepartureConfig({
         enabled: false,
@@ -88,8 +115,19 @@ export function DepartureEditor({
     }
   };
 
-  const submitIfValid = (action: () => void | Promise<void>) => {
-    if (departureIsPast) {
+  const clampTimeIfToday = (dateYmd: string, timeHm: string) => {
+    if (dateYmd !== getTodayYmd()) return timeHm;
+    const minHm = getCurrentTimeHm();
+    return timeHm < minHm ? minHm : timeHm;
+  };
+
+  const submitIfValid = (
+    mode: "choose" | "best",
+    action: () => void | Promise<void>,
+  ) => {
+    const invalid =
+      mode === "best" ? bestTimeDateInvalid : departureIsPast;
+    if (invalid) {
       setShowPastSubmitError(true);
       return;
     }
@@ -105,6 +143,10 @@ export function DepartureEditor({
           onClick={() => {
             setShowPastSubmitError(false);
             setIsBestTimeTab(false);
+            setDepartureConfig((prev) => ({
+              ...prev,
+              time: clampTimeIfToday(prev.date, prev.time),
+            }));
           }}
           className={tabClass(!isBestTimeTab)}
         >
@@ -129,9 +171,13 @@ export function DepartureEditor({
             type="button"
             onClick={applyDepartureNow}
             className="shrink-0 rounded-md border border-[#DCE7E3] bg-[#F8FBFA] px-2 py-0.5 text-xs font-medium text-[#5A9A8E] hover:bg-[#EEF6F4]"
-            aria-label="Set departure date to today and time to now"
+            aria-label={
+              isBestTimeTab
+                ? "Set best-time date to today"
+                : "Set departure date to today and time to now"
+            }
           >
-            Now
+            {isBestTimeTab ? "Today" : "Now"}
           </button>
         </div>
         <input
@@ -141,19 +187,25 @@ export function DepartureEditor({
           onChange={(e) => {
             const v = e.target.value;
             const t = getTodayYmd();
-            setDepartureConfig((prev) => ({
-              ...prev,
-              date: !v || v < t ? t : v,
-            }));
+            const nextDate = !v || v < t ? t : v;
+            setDepartureConfig((prev) => {
+              if (isBestTimeTab) {
+                return { ...prev, date: nextDate };
+              }
+              const nextTime = clampTimeIfToday(nextDate, prev.time);
+              return { ...prev, date: nextDate, time: nextTime };
+            });
           }}
           className={fieldClassName}
         />
         <p className="text-xs leading-relaxed text-[#6A7282]">
-          Past dates cannot be selected. Choose today or a future day.
+          {isBestTimeTab
+            ? DEPARTURE_BEST_TIME_DATE_HINT
+            : DEPARTURE_DATE_ONLY_HINT}
         </p>
 
         {!isBestTimeTab ? (
-          <>
+          <div className="flex h-[4.75rem] w-full min-w-0 flex-col">
             <label className="mb-1 block text-xs font-medium text-[#6A7282]">
               Departure time
             </label>
@@ -168,41 +220,44 @@ export function DepartureEditor({
               onChange={(e) =>
                 setDepartureConfig((prev) => ({
                   ...prev,
-                  time: e.target.value,
+                  time: clampTimeIfToday(prev.date, e.target.value),
                 }))
               }
               className={timeFieldClassName}
             />
-          </>
+            <div className="min-h-0 flex-1" aria-hidden />
+          </div>
         ) : (
-          <div className="rounded-2xl border border-[#E8EEEC] bg-[#F8FBFA] p-2.5">
+          <div className={BEST_TIME_SLOT_CLASS}>
             {bestTimeSuggestion ? (
               <>
                 <p className="text-xs text-[#6A7282]">
                   Quietest time to travel
                 </p>
-                <p className="mt-1 text-sm font-semibold text-[#1E2939]">
+                <p className="mt-1 line-clamp-2 text-sm font-semibold leading-snug text-[#1E2939]">
                   {bestTimeSuggestion.label}
                 </p>
               </>
             ) : (
               <p className="text-xs leading-relaxed text-[#6A7282]">
-                Tap Find for the quietest hour to travel on your chosen date
-                (today or a future day).
+                {BEST_TIME_TAP_FIND_MESSAGE}
               </p>
             )}
+            <div className="min-h-0 flex-1" aria-hidden />
           </div>
         )}
       </div>
 
       <div className="min-w-0 border-t border-[#E8EEEC] px-3 pb-3 pt-2">
-        {showPastSubmitError && departureIsPast ? (
+        {showPastSubmitError && submitErrorActive ? (
           <p
             role="alert"
             aria-live="polite"
             className="mb-2 text-sm font-medium leading-snug text-red-600"
           >
-            {DEPARTURE_NOW_OR_FUTURE_MESSAGE}
+            {isBestTimeTab
+              ? BEST_TIME_DATE_MESSAGE
+              : DEPARTURE_NOW_OR_FUTURE_MESSAGE}
           </p>
         ) : null}
         <div className="flex min-w-0 gap-2">
@@ -221,16 +276,16 @@ export function DepartureEditor({
           {isBestTimeTab ? (
             <button
               type="button"
-              onClick={() => submitIfValid(onFindBestTime)}
+              onClick={() => submitIfValid("best", onFindBestTime)}
               disabled={isBestTimeLoading}
-              className="flex-1 rounded-xl bg-[#7DB0A6] py-2 text-sm font-medium text-white disabled:opacity-70"
+              className="flex-1 rounded-xl bg-[#7DB0A6] py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-70"
             >
               {isBestTimeLoading ? "Finding..." : "Find"}
             </button>
           ) : (
             <button
               type="button"
-              onClick={() => submitIfValid(onApplyChooseTime)}
+              onClick={() => submitIfValid("choose", onApplyChooseTime)}
               className="flex-1 cursor-pointer rounded-xl bg-[#7DB0A6] py-2 text-sm font-medium text-white"
             >
               Done
