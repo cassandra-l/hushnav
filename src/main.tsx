@@ -12,7 +12,7 @@ import { PasswordLockPage } from "./password-lock-page.tsx";
 import { AuthGate } from "./components/auth-gate.tsx";
 import "./index.css";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
-import { AudioProvider } from "./context/audio-context.tsx";
+import { AudioProvider } from "./context/audio-provider.tsx";
 import { Soundscape } from "./soundscape.tsx";
 
 // import AnimatedLayout from "./animated-layout";

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAudio } from "./context/audio-context";
+import { useAudio } from "./context/use-audio";
 import {
   Play,
   Pause,
@@ -69,7 +69,10 @@ export function Soundscape() {
       {/* Mobile Menu */}
       <MobileMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
 
-      <div className="fixed inset-0 -z-10 bg-[#f2f8f6]" aria-hidden="true" />
+      <div
+        className="fixed inset-0 -z-10 bg-linear-to-b from-[#F0F4F3] via-[#EDF2F1] to-[#EBF0EE]"
+        aria-hidden="true"
+      />
 
       {/* Desktop Navbar */}
       <Navbar
