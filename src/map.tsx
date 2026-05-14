@@ -1033,34 +1033,6 @@ export function Map() {
     stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
   });
 
-  // Forecast /plan-route; response totalCost only.
-  const fetchRouteCostEstimate = async (
-    routeTimeIso: string,
-    safeSpaceStops: SafeSpace[],
-    safeSpaceTypes: SafeSpaceType[],
-    avoidMode: AvoidMode,
-  ): Promise<number | null> => {
-    if (!API_BASE_URL) return null;
-    const requestBody = buildRouteRequestBody(
-      safeSpaceStops,
-      safeSpaceTypes,
-      avoidMode,
-      "forecast",
-      routeTimeIso,
-    );
-
-    const response = await fetch(`${API_BASE_URL}/plan-route`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) return null;
-    const data = (await response.json()) as PlanRouteResponse;
-    return data?.route?.totalCost ?? null;
-  };
 
   const handleFindBestTime = async () => {
     setError("");
@@ -1144,6 +1116,7 @@ export function Map() {
             errorMessage = errorData.error;
           }
         } catch {
+          // Keep the generic message if the backend does not return JSON
         }
 
         throw new Error(errorMessage);
@@ -1157,7 +1130,6 @@ export function Map() {
 
       const bestDate = new Date(bestTimeData.bestRouteTime);
       const bestHour = bestDate.getHours();
-      const bestTime = `${String(bestHour).padStart(2, "0")}:00`;
       const routeTimeIso = bestTimeData.bestRouteTime;
 
       // Label is a one-hour band; forecast still uses the start hour only.

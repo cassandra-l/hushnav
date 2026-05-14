@@ -88,8 +88,8 @@ let graphTopologyCache: Map<number, GraphTopologyEdge[]> | null = null;
 let graphTopologyCachePromise: Promise<Map<number, GraphTopologyEdge[]>> | null =
   null;
 
-let forecastGraphCache = new Map<string, Map<number, GraphEdge[]>>();
-let forecastGraphCachePromises = new Map<
+const forecastGraphCache = new Map<string, Map<number, GraphEdge[]>>();
+const forecastGraphCachePromises = new Map<
   string,
   Promise<Map<number, GraphEdge[]>>
 >();
