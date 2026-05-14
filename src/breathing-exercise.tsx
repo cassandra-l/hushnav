@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { XButton } from "./components/x-button";
+
 import { AnimatePresence, motion } from "framer-motion";
 
 // breathing exercise component that is 4 secs inhale and 6 secs exhale, with a circular progress indicator and text instructions

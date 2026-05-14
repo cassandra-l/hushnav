@@ -17,12 +17,12 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
 const router = createBrowserRouter([
   {
-    // public lock page.
+    // Public lock page.
     path: "/lock",
     element: <PasswordLockPage />,
   },
   {
-    // routes below require auth.
+    // Routes below require auth.
     element: <AuthGate />,
     children: [
       {
@@ -33,6 +33,10 @@ const router = createBrowserRouter([
           { path: "support", element: <SupportPage /> },
           { path: "breathing-exercise", element: <BreathingExercise /> },
           { path: "filter_page", element: <FilterScreen /> },
+
+          // Self Discovery quiz page for AC 6.1.1, AC 6.1.2 and AC 6.1.3.
+          { path: "self-discovery", element: <SelfDiscoveryPage /> },
+
           { path: "achievements", element: <AchievementSummaryPage /> },
           { path: "achievements/badges", element: <AchievementsBadgesPage /> },
           { path: "badges", element: <AchievementsBadgesPage /> },
