@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { PopUp } from "./components/pop-up";
 
-// Types for styling and options
 type Theme = "sage" | "tan";
 
 interface FilterOption {
@@ -30,8 +29,10 @@ type SelectionType = "multi" | "single";
 
 const SAFE_SPACES_STORAGE_KEY = "hushnav:selectedSafeSpaces";
 const SENSITIVITY_STORAGE_KEY = "hushnav:selectedSensitivity";
+const RECOMMENDED_SENSITIVITY_STORAGE_KEY =
+  "hushnav-recommended-sensitivity-filter";
+const ROUTE_FILTER_WEIGHTS_STORAGE_KEY = "hushnav-route-filter-weights";
 
-// Sub-component for individual Filter Cards
 const FilterCard = ({
   option,
   isSelected,
@@ -55,7 +56,7 @@ const FilterCard = ({
     <motion.button
       whileHover={{ scale: 1.01 }}
       onClick={() => onToggle(option.id)}
-      className={`mb-3 flex w-full cursor-pointer items-center rounded-2xl border p-4 transition-all duration-200 text-left shadow-sm hover:shadow-md ${
+      className={`mb-3 flex w-full cursor-pointer items-center rounded-2xl border p-4 text-left shadow-sm transition-all duration-200 hover:shadow-md ${
         isSelected ? theme.active : theme.inactive
       }`}
     >
@@ -72,16 +73,18 @@ const FilterCard = ({
 
       <div className="flex-1">
         <h4
-          className={`text-[16px] font-bold transition-colors ${isSelected ? "text-[#2D3142]" : "text-[#7B828A]"}`}
+          className={`text-[16px] font-bold transition-colors ${
+            isSelected ? "text-[#2D3142]" : "text-[#7B828A]"
+          }`}
         >
           {option.title}
         </h4>
+
         <p className="text-[13px] leading-tight text-[#7B828A]">
           {option.description}
         </p>
       </div>
 
-      {/* Visual Indicator */}
       <div
         className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-all ${
           isSelected ? theme.indicatorBg : "border-2 border-slate-200 bg-white"
@@ -98,10 +101,10 @@ const FilterCard = ({
   );
 };
 
-//  Main Filter Screen Component
 export default function FilterScreen() {
   const navigate = useNavigate();
   const location = useLocation();
+
   const forecastSensitivityLocked = Boolean(
     (location.state as { forecastSensitivityLocked?: boolean } | null)
       ?.forecastSensitivityLocked,
@@ -156,7 +159,7 @@ export default function FilterScreen() {
     {
       id: "mechanical",
       title: "Mechanical Sounds",
-      description: "Reduces exposure to harsh sounds",
+      description: "Reduces exposure to harsh sounds.",
       icon: <Wrench />,
       theme: "tan",
     },
@@ -176,16 +179,46 @@ export default function FilterScreen() {
     "church",
     "synagogue",
   ];
+
   const [selectedSafeSpaces, setSelectedSafeSpaces] =
-    useState<string[]>(defaultSafeSpaceIds);
-  const [selectedSensitivity, setSelectedSensitivity] =
-    useState<string>("standard");
+    useState<string[]>(() => {
+      const storedSafeSpaces = localStorage.getItem(SAFE_SPACES_STORAGE_KEY);
+
+      if (!storedSafeSpaces) {
+        return defaultSafeSpaceIds;
+      }
+
+      try {
+        return JSON.parse(storedSafeSpaces) as string[];
+      } catch {
+        return defaultSafeSpaceIds;
+      }
+    });
+
+  const [selectedSensitivity, setSelectedSensitivity] = useState<string>(() => {
+    const recommendedSensitivity = localStorage.getItem(
+      RECOMMENDED_SENSITIVITY_STORAGE_KEY,
+    );
+
+    const previouslySelectedSensitivity = localStorage.getItem(
+      SENSITIVITY_STORAGE_KEY,
+    );
+
+    return (
+      recommendedSensitivity ||
+      previouslySelectedSensitivity ||
+      "standard"
+    );
+  });
+
   const [isSensitivityLockedPopupOpen, setIsSensitivityLockedPopupOpen] =
     useState(false);
 
   const toggleSafeSpace = (id: string) => {
     setSelectedSafeSpaces((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+      prev.includes(id)
+        ? prev.filter((item) => item !== id)
+        : [...prev, id],
     );
   };
 
@@ -194,21 +227,39 @@ export default function FilterScreen() {
       SAFE_SPACES_STORAGE_KEY,
       JSON.stringify(selectedSafeSpaces),
     );
+
     localStorage.setItem(SENSITIVITY_STORAGE_KEY, selectedSensitivity);
-    navigate("/map", { state: { restoreRoutePreview: true } });
+
+    const filterWeights = {
+      avoidMechanical: selectedSensitivity === "mechanical",
+      avoidSocial: selectedSensitivity === "social",
+      balanced: selectedSensitivity === "standard",
+    };
+
+    localStorage.setItem(
+      ROUTE_FILTER_WEIGHTS_STORAGE_KEY,
+      JSON.stringify(filterWeights),
+    );
+
+    localStorage.removeItem(RECOMMENDED_SENSITIVITY_STORAGE_KEY);
+
+    navigate("/map", {
+      state: {
+        restoreRoutePreview: true,
+        appliedSensitivity: selectedSensitivity,
+      },
+    });
   };
 
   return (
     <motion.div
-      // Slide-in animation
       initial={{ x: "100%" }}
       animate={{ x: 0 }}
       exit={{ x: "100%" }}
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      className="fixed inset-0 min-h-screen px-6 py-8 flex flex-col items-center overflow-y-auto bg-linear-to-b from-[#F0F4F3] via-[#EDF2F1] to-[#EBF0EE]"
+      className="fixed inset-0 flex min-h-screen flex-col items-center overflow-y-auto bg-linear-to-b from-[#F0F4F3] via-[#EDF2F1] to-[#EBF0EE] px-6 py-8"
     >
       <div className="w-full max-w-5xl">
-        {/* Header */}
         <header className="mb-10 flex items-center justify-between">
           <motion.button
             whileHover={{ scale: 1.1 }}
@@ -218,13 +269,14 @@ export default function FilterScreen() {
           >
             <ChevronLeft size={24} className="text-[#2D3142]" />
           </motion.button>
+
           <h1 className="text-2xl font-bold tracking-tight text-slate-800">
             Filters
           </h1>
+
           <div className="w-12" />
         </header>
 
-        {/* Top Section: Safe Space Types */}
         <section className="mb-8">
           <div className="mb-6">
             <h2 className="text-xl font-bold text-[#2D3142]">
@@ -234,7 +286,8 @@ export default function FilterScreen() {
               Choose which safe spaces to include in your map.
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+
+          <div className="grid grid-cols-1 gap-x-6 gap-y-1 md:grid-cols-2">
             {safeSpaces.map((opt) => (
               <FilterCard
                 key={opt.id}
@@ -247,7 +300,6 @@ export default function FilterScreen() {
           </div>
         </section>
 
-        {/* Bottom Section: Sensitivity Preferences */}
         <section className="mb-12">
           <div className="mb-6">
             <h2 className="text-xl font-bold text-[#2D3142]">
@@ -257,7 +309,8 @@ export default function FilterScreen() {
               Layer extra quietness in your journey.
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1">
+
+          <div className="grid grid-cols-1 gap-x-6 gap-y-1 md:grid-cols-2 lg:grid-cols-3">
             {sensitivities.map((opt) => (
               <FilterCard
                 key={opt.id}
@@ -268,12 +321,14 @@ export default function FilterScreen() {
                     setIsSensitivityLockedPopupOpen(true);
                     return;
                   }
+
                   setSelectedSensitivity(id);
                 }}
                 selectionType="single"
               />
             ))}
           </div>
+
           {forecastSensitivityLocked && (
             <p className="mt-2 text-xs text-[#7B828A]">
               Sensitivity preferences are locked while departure forecasting is
@@ -282,10 +337,9 @@ export default function FilterScreen() {
           )}
         </section>
 
-        {/* Apply Filter Button */}
         <div className="mt-4 flex justify-center pb-12">
           <motion.button
-            className="cursor-pointer w-full lg:w-fit lg:px-32 rounded-3xl bg-[#7DB0A6] py-3 text-lg font-medium text-white shadow-lg shadow-[#82AF9F]/20 transition-all hover:bg-[#7DB0A6]/90"
+            className="w-full cursor-pointer rounded-3xl bg-[#7DB0A6] py-3 text-lg font-medium text-white shadow-lg shadow-[#82AF9F]/20 transition-all hover:bg-[#7DB0A6]/90 lg:w-fit lg:px-32"
             onClick={handleApplyFilters}
           >
             Apply Filters
