@@ -49,8 +49,10 @@ import {
   type DepartureConfig,
 } from "./components/departure-editor";
 import {
+  BEST_TIME_DATE_MESSAGE,
   DEPARTURE_NOW_OR_FUTURE_MESSAGE,
   isChosenDepartureInPast,
+  isDepartureDateBeforeTodayLocal,
   parseLocalDepartureMs,
 } from "./departurePast";
 
@@ -405,6 +407,10 @@ export function Map() {
   const departureSummary = departureConfig.enabled
     ? `${departureConfig.date} ${departureConfig.time}`
     : "Now";
+
+  useEffect(() => {
+    setBestTimeSuggestion(null);
+  }, [departureConfig.date]);
 
   useEffect(() => {
     if (!routeData) return;
@@ -1069,15 +1075,33 @@ export function Map() {
       return;
     }
 
-    if (isChosenDepartureInPast(departureConfig.date, departureConfig.time)) {
-      setError(DEPARTURE_NOW_OR_FUTURE_MESSAGE);
+    if (isDepartureDateBeforeTodayLocal(departureConfig.date)) {
+      setError(BEST_TIME_DATE_MESSAGE);
+      return;
+    }
+
+    // Hours 6–22; for "today" skip slot starts that are already in the past.
+    const baseCandidateHours = Array.from({ length: 17 }, (_, i) => i + 6);
+    const candidateHours =
+      departureConfig.date === getTodayLocalDateString()
+        ? baseCandidateHours.filter(
+            (hour) =>
+              !isChosenDepartureInPast(
+                departureConfig.date,
+                `${String(hour).padStart(2, "0")}:00`,
+              ),
+          )
+        : baseCandidateHours;
+
+    if (candidateHours.length === 0) {
+      setError(
+        "There are no remaining hours to score for today. Choose a future date.",
+      );
       return;
     }
 
     setIsBestTimeLoading(true);
     try {
-      // Hours 6–22: one forecast route each; pick minimum totalCost.
-      const candidateHours = Array.from({ length: 17 }, (_, i) => i + 6);
       let best: { hour: number; cost: number } | null = null;
 
       for (const hour of candidateHours) {
@@ -1109,19 +1133,6 @@ export function Map() {
         label: formatHourRangeLabel(best.hour),
         routeTimeIso,
       });
-
-      const nextDepartureConfig: DepartureConfig = {
-        ...departureConfig,
-        enabled: true,
-        time: bestTime,
-      };
-      setDepartureConfig(nextDepartureConfig);
-      await handlePlanRoute(
-        selectedSafeSpaceStops,
-        selectedSafeSpaceTypes,
-        selectedAvoidMode,
-        nextDepartureConfig,
-      );
     } catch (err) {
       console.error("Best time recommendation failed:", err);
       setError("Failed to calculate best time.");
