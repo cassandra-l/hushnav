@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { Home } from "./home.tsx";
 import { Map } from "./map.tsx";
+import SelfDiscoveryPage from "./components/self-discovery/self-discovery-page";
 import { SupportPage } from "./support-page.tsx";
 import { BreathingExercise } from "./breathing-exercise.tsx";
 import FilterScreen from "./filter_page.tsx";
@@ -11,6 +12,7 @@ import { PasswordLockPage } from "./password-lock-page.tsx";
 import { AuthGate } from "./components/auth-gate.tsx";
 import "./index.css";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
+
 // import AnimatedLayout from "./animated-layout";
 
 const router = createBrowserRouter([
