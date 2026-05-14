@@ -27,6 +27,7 @@ import type {
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
 import { AutocompleteInput } from "./components/map/AutocompleteInput";
+
 import type { CrowdMapFeatureCollection } from "./types/noise-map";
 import { AnimatePresence, motion } from "framer-motion";
 import {

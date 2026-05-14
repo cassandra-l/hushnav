@@ -1,8 +1,9 @@
 import { useLocation, Link } from "react-router-dom";
-import { Logo } from "./logo"; // Adjust path as needed
+import { Logo } from "./logo";
 import { motion, MotionValue } from "framer-motion";
 
-// Inside your Navbar component file
+// Navbar component props.
+// Allows optional logo display and animated opacity effects.
 interface NavbarProps {
   showLogo?: boolean;
   className?: string;
@@ -15,6 +16,9 @@ export function Navbar({
   logoOpacity = 1,
 }: NavbarProps) {
   const location = useLocation();
+
+  // Checks if the current page matches the navbar route.
+  // Used to highlight the active tab.
   const isActive = (path: string) => location.pathname === path;
 
   return (
@@ -22,7 +26,8 @@ export function Navbar({
       className={`fixed top-8 left-0 w-full z-50 px-6 lg:px-12 ${className}`}
     >
       <div className="flex items-center justify-between w-full">
-        {/* Logo Container */}
+        
+        {/* Left Logo Section */}
         <div className="flex-1 flex justify-start">
           {showLogo && (
             <motion.div
@@ -30,6 +35,7 @@ export function Navbar({
               style={{ opacity: logoOpacity }}
             >
               <Logo />
+
               <span className="text-sm text-[#5A9A8E] font-bold tracking-[0.3em] uppercase whitespace-nowrap">
                 HushNav
               </span>
@@ -37,15 +43,39 @@ export function Navbar({
           )}
         </div>
 
-        {/* Navigation Pill */}
+        {/* Main Navigation Pill */}
         <nav className="flex items-center gap-10 bg-white/40 backdrop-blur-md px-10 py-4 rounded-full border border-white/20 shadow-sm pointer-events-auto">
-          <NavLink to="/" label="Home" active={isActive("/")} />
-          <NavLink to="/map" label="Quiet Routes" active={isActive("/map")} />
+          
+          {/* Home */}
+          <NavLink
+            to="/"
+            label="Home"
+            active={isActive("/")}
+          />
+
+          {/* Quiet Routes / Main Map */}
+          <NavLink
+            to="/map"
+            label="Quiet Routes"
+            active={isActive("/map")}
+          />
+
+          {/* Existing calming tool page */}
           <NavLink
             to="/support"
             label="Calming Tool"
             active={isActive("/support")}
           />
+
+          {/* NEW Self Discovery Quiz Page */}
+          {/* Supports AC 6.1.1, 6.1.2 and 6.1.3 */}
+          <NavLink
+            to="/self-discovery"
+            label="Find Your Profile"
+            active={isActive("/self-discovery")}
+          />
+
+          {/* Achievements page */}
           <NavLink
             to="/achievements"
             label="Achievements"
@@ -53,12 +83,14 @@ export function Navbar({
           />
         </nav>
 
+        {/* Empty spacer so navbar stays centered */}
         <div className="flex-1 hidden lg:flex justify-end" />
       </div>
     </div>
   );
 }
 
+// Reusable navigation link component.
 function NavLink({
   to,
   label,
@@ -72,16 +104,15 @@ function NavLink({
     <Link
       to={to}
       className={`relative text-[11px] font-bold uppercase tracking-[0.2em] transition-colors flex flex-col items-center ${
-        active ? "text-[#1E2939]" : "text-[#1E2939]/70 hover:text-[#1E2939]"
+        active
+          ? "text-[#1E2939]"
+          : "text-[#1E2939]/70 hover:text-[#1E2939]"
       }`}
     >
       {label}
+
+      {/* Animated active indicator dot */}
       {active && (
-        /* 
-           1. Use motion.span instead of a regular span.
-           2. Add layoutId="active-pill" to identify this element.
-           3. Framer Motion will see this ID and "slide" the dot between links.
-        */
         <motion.span
           layoutId="active-pill"
           className="absolute -bottom-2.5 w-1.5 h-1.5 bg-[#5A9A8E] rounded-full"
