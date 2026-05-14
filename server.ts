@@ -6,6 +6,7 @@ import {
   handleGetSafeSpaces,
 } from "./amplify/navigation/handler";
 import { handleCrowdMap } from "./amplify/spatialData/handler";
+import { findBestRouteTime } from "./amplify/navigation/bestTime";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -64,6 +65,21 @@ const planRouteHandler = async (req: express.Request, res: express.Response) => 
   }
 };
 
+const bestTimeHandler = async (req: express.Request, res: express.Response) => {
+  try {
+    const result = await findBestRouteTime(req.body);
+    res.status(200).json(result);
+  } catch (error) {
+    console.error("Local best-time error:", error);
+    res.status(500).json({
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to calculate best time.",
+    });
+  }
+};
+
 const noiseMapHandler = async (_req: express.Request, res: express.Response) => {
   try {
     const result = await handleCrowdMap();
@@ -110,6 +126,9 @@ app.get("/noise-map", noiseMapHandler);
 
 app.get("/api/safe-spaces", safeSpacesHandler);
 app.get("/safe-spaces", safeSpacesHandler);
+
+app.post("/api/best-time", bestTimeHandler);
+app.post("/best-time", bestTimeHandler);
 
 // Always return JSON for unknown API-style routes
 app.use((_req, res) => {
