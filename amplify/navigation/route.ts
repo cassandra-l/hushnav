@@ -69,6 +69,12 @@ let graphCache: Map<number, GraphEdge[]> | null = null;
 let graphCachePromise: Promise<Map<number, GraphEdge[]>> | null = null;
 
 
+let forecastGraphCache = new Map<string, Map<number, GraphEdge[]>>();
+let forecastGraphCachePromises = new Map<
+  string,
+  Promise<Map<number, GraphEdge[]>>
+>();
+
 async function loadNodeCoordinateCache(): Promise<Map<number, NodeRow>> {
   const client = await pool.connect();
 
@@ -136,9 +142,9 @@ function haversineDistanceMeters(a: Coordinate, b: Coordinate): number {
   const h =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1) *
-      Math.cos(lat2) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
+    Math.cos(lat2) *
+    Math.sin(dLng / 2) *
+    Math.sin(dLng / 2);
 
   return 2 * R * Math.asin(Math.sqrt(h));
 }
@@ -214,11 +220,11 @@ function computeEdgeCost(edge: GraphEdge, avoidMode: AvoidMode): number {
 
   // 2. noise + crowd + construction
   if (avoidMode === "both") {
-  const crowdPenalty =
-    edge.crowdCount !== null ? crowdCountToPenaltyDefault(edge.crowdCount) : 0;
+    const crowdPenalty =
+      edge.crowdCount !== null ? crowdCountToPenaltyDefault(edge.crowdCount) : 0;
 
-  const normalCrowdWeight = 1;
-  return edge.length * (1 + noisePenalty + normalCrowdWeight * crowdPenalty);
+    const normalCrowdWeight = 1;
+    return edge.length * (1 + noisePenalty + normalCrowdWeight * crowdPenalty);
   }
 
   // 3. noise + crowd (stronger crowd effect)
@@ -504,6 +510,32 @@ async function loadGraphForForecast(
   }
 }
 
+async function getForecastGraphCache(
+  forecastBucket: Date
+): Promise<Map<number, GraphEdge[]>> {
+  const cacheKey = forecastBucket.toISOString();
+
+  const cachedGraph = forecastGraphCache.get(cacheKey);
+  if (cachedGraph) {
+    return cachedGraph;
+  }
+
+  let graphPromise = forecastGraphCachePromises.get(cacheKey);
+
+  if (!graphPromise) {
+    graphPromise = loadGraphForForecast(forecastBucket);
+    forecastGraphCachePromises.set(cacheKey, graphPromise);
+  }
+
+  try {
+    const graph = await graphPromise;
+    forecastGraphCache.set(cacheKey, graph);
+    return graph;
+  } finally {
+    forecastGraphCachePromises.delete(cacheKey);
+  }
+}
+
 
 async function getGraphCache(): Promise<Map<number, GraphEdge[]>> {
   if (graphCache) {
@@ -525,7 +557,10 @@ async function getGraphCache(): Promise<Map<number, GraphEdge[]>> {
 export function clearGraphCache() {
   graphCache = null;
   graphCachePromise = null;
+  forecastGraphCache.clear();
+  forecastGraphCachePromises.clear();
 }
+
 
 
 export async function getRouteGraph(): Promise<Map<number, GraphEdge[]>> {
@@ -571,19 +606,39 @@ export async function findQuietestRoute(
   avoidMode: AvoidMode = "both",
   options: RoutingOptions = {}
 ): Promise<RouteResult> {
+
+  const routeStartMs = Date.now();
   startNodeId = Number(startNodeId);
   endNodeId = Number(endNodeId);
 
+
   const routeMode = options.routeMode ?? "live";
+
+  const graphStartMs = Date.now();
   const routeGraph =
     routeMode === "forecast" && options.routeTime
-      ? await loadGraphForForecast(bucketToNearestHour(options.routeTime))
-      : await loadGraph();
+      ? await getForecastGraphCache(bucketToNearestHour(options.routeTime))
+      : await getGraphCache();
+
+
+  console.log("route timing: graph loaded", {
+    routeMode,
+    routeTime: options.routeTime,
+    ms: Date.now() - graphStartMs,
+  });
+
+  const blockedStartMs = Date.now();
 
   const blockedEdgeIds =
     avoidMode === "construction" || avoidMode === "both"
       ? await getConstructionBlockedEdgeIds()
       : new Set<number>();
+
+  console.log("route timing: blocked edges loaded", {
+    avoidMode,
+    count: blockedEdgeIds.size,
+    ms: Date.now() - blockedStartMs,
+  });
 
   if (!routeGraph.has(startNodeId)) {
     throw new Error(`Start node ${startNodeId} has no connected edges.`);
@@ -619,6 +674,15 @@ export async function findQuietestRoute(
           totalLength += Number(edge.length);
         }
       }
+
+      console.log("route timing: route search complete", {
+        routeMode,
+        routeTime: options.routeTime,
+        visitedNodes: visited.size,
+        pathNodes: nodeIds.length,
+        pathEdges: edgeIds.length,
+        totalMs: Date.now() - routeStartMs,
+      });
 
       return {
         geojson: buildLineString(routeNodes),
