@@ -234,10 +234,16 @@ export async function planRoute(
       }
     );
 
+    const safeSpacesStartMs = Date.now();
     const safeSpaces = await getSafeSpacesNearRoute(
       result.route.geojson,
       safeSpaceTypes
     );
+    console.log("route timing: safe spaces loaded", {
+      stopovers: 0,
+      count: safeSpaces.length,
+      ms: Date.now() - safeSpacesStartMs,
+    });
 
     return {
       start: {
@@ -324,10 +330,16 @@ export async function planRoute(
   // Merge every leg into one final route line.
   const mergedRoute = mergeMultipleRouteResults(routeLegs);
 
+  const safeSpacesStartMs = Date.now();
   const safeSpaces = await getSafeSpacesNearRoute(
     mergedRoute.geojson,
     safeSpaceTypes
   );
+  console.log("route timing: safe spaces loaded", {
+    stopovers: orderedUniqueStopIds.length,
+    count: safeSpaces.length,
+    ms: Date.now() - safeSpacesStartMs,
+  });
 
   const stopovers = selectedSafeSpaces.map((safeSpace) => ({
     id: safeSpace.id,

@@ -451,8 +451,8 @@ export function Map() {
     selectedSafeSpaceTypes.length === 0
       ? []
       : allSafeSpaces.filter((safeSpace) =>
-          selectedSafeSpaceTypes.includes(safeSpace.type),
-        );
+        selectedSafeSpaceTypes.includes(safeSpace.type),
+      );
 
   // Refs for click-outside handling
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
@@ -1013,16 +1013,16 @@ export function Map() {
     start:
       selectedStart?.center && selectedStart.center.length >= 2
         ? {
-            lng: selectedStart.center[0],
-            lat: selectedStart.center[1],
-          }
+          lng: selectedStart.center[0],
+          lat: selectedStart.center[1],
+        }
         : undefined,
     end:
       selectedDestination?.center && selectedDestination.center.length >= 2
         ? {
-            lng: selectedDestination.center[0],
-            lat: selectedDestination.center[1],
-          }
+          lng: selectedDestination.center[0],
+          lat: selectedDestination.center[1],
+        }
         : undefined,
     startQuery: startLocation,
     endQuery: destination,
@@ -1033,34 +1033,6 @@ export function Map() {
     stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
   });
 
-  // Forecast /plan-route; response totalCost only.
-  const fetchRouteCostEstimate = async (
-    routeTimeIso: string,
-    safeSpaceStops: SafeSpace[],
-    safeSpaceTypes: SafeSpaceType[],
-    avoidMode: AvoidMode,
-  ): Promise<number | null> => {
-    if (!API_BASE_URL) return null;
-    const requestBody = buildRouteRequestBody(
-      safeSpaceStops,
-      safeSpaceTypes,
-      avoidMode,
-      "forecast",
-      routeTimeIso,
-    );
-
-    const response = await fetch(`${API_BASE_URL}/plan-route`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) return null;
-    const data = (await response.json()) as PlanRouteResponse;
-    return data?.route?.totalCost ?? null;
-  };
 
   const handleFindBestTime = async () => {
     setError("");
@@ -1085,12 +1057,12 @@ export function Map() {
     const candidateHours =
       departureConfig.date === getTodayLocalDateString()
         ? baseCandidateHours.filter(
-            (hour) =>
-              !isChosenDepartureInPast(
-                departureConfig.date,
-                `${String(hour).padStart(2, "0")}:00`,
-              ),
-          )
+          (hour) =>
+            !isChosenDepartureInPast(
+              departureConfig.date,
+              `${String(hour).padStart(2, "0")}:00`,
+            ),
+        )
         : baseCandidateHours;
 
     if (candidateHours.length === 0) {
@@ -1102,37 +1074,72 @@ export function Map() {
 
     setIsBestTimeLoading(true);
     try {
-      let best: { hour: number; cost: number } | null = null;
-
-      for (const hour of candidateHours) {
+      const routeTimes = candidateHours.map((hour) => {
         const time = `${String(hour).padStart(2, "0")}:00`;
-        const routeTimeIso = toRouteTimeIso(departureConfig.date, time);
-        const cost = await fetchRouteCostEstimate(
-          routeTimeIso,
-          selectedSafeSpaceStops,
-          selectedSafeSpaceTypes,
-          selectedAvoidMode,
-        );
-        if (cost === null) continue;
-        if (!best || cost < best.cost) {
-          best = { hour, cost };
+        return toRouteTimeIso(departureConfig.date, time);
+      });
+
+      const response = await fetch(`${API_BASE_URL}/best-time`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          start:
+            selectedStart?.center && selectedStart.center.length >= 2
+              ? {
+                lng: selectedStart.center[0],
+                lat: selectedStart.center[1],
+              }
+              : undefined,
+          end:
+            selectedDestination?.center && selectedDestination.center.length >= 2
+              ? {
+                lng: selectedDestination.center[0],
+                lat: selectedDestination.center[1],
+              }
+              : undefined,
+          startQuery: startLocation,
+          endQuery: destination,
+          avoidMode: selectedAvoidMode,
+          routeTimes,
+          stopSafeSpaceIds: selectedSafeSpaceStops.map((stop) => stop.id),
+        }),
+      });
+
+      if (!response.ok) {
+        let errorMessage = "Could not calculate best time for this date.";
+
+        try {
+          const errorData = (await response.json()) as { error?: string };
+          if (typeof errorData.error === "string" && errorData.error.trim()) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // Keep the generic message if the backend does not return JSON
         }
+
+        throw new Error(errorMessage);
       }
 
-      if (!best) {
-        setError("Could not calculate best time for this date.");
-        return;
-      }
+      const bestTimeData = (await response.json()) as {
+        bestRouteTime: string;
+        bestCost: number;
+        costs: { routeTime: string; cost: number | null }[];
+      };
 
-      const bestTime = `${String(best.hour).padStart(2, "0")}:00`;
-      const routeTimeIso = toRouteTimeIso(departureConfig.date, bestTime);
+      const bestDate = new Date(bestTimeData.bestRouteTime);
+      const bestHour = bestDate.getHours();
+      const routeTimeIso = bestTimeData.bestRouteTime;
+
       // Label is a one-hour band; forecast still uses the start hour only.
       setBestTimeSuggestion({
-        startHour: best.hour,
-        endHour: (best.hour + 1) % 24,
-        label: formatHourRangeLabel(best.hour),
+        startHour: bestHour,
+        endHour: (bestHour + 1) % 24,
+        label: formatHourRangeLabel(bestHour),
         routeTimeIso,
       });
+
     } catch (err) {
       console.error("Best time recommendation failed:", err);
       setError("Failed to calculate best time.");
@@ -1193,7 +1200,7 @@ export function Map() {
       const routeTime =
         routeMode === "forecast"
           ? toRouteTimeIso(effectiveDeparture.date, effectiveDeparture.time)
-        : undefined;
+          : undefined;
       const requestBody = buildRouteRequestBody(
         safeSpaceStops,
         safeSpaceTypes,
@@ -1381,9 +1388,8 @@ export function Map() {
                     </span>
                     <ChevronDown
                       size={16}
-                      className={`shrink-0 text-[#6A7282] transition-transform duration-200 ${
-                        isDepartureOpen ? "rotate-180" : ""
-                      }`}
+                      className={`shrink-0 text-[#6A7282] transition-transform duration-200 ${isDepartureOpen ? "rotate-180" : ""
+                        }`}
                     />
                   </span>
                 </button>
@@ -1781,11 +1787,10 @@ export function Map() {
           {routeData && !isNavigationActive && (
             <section className="absolute bottom-3 left-3 right-3 z-10 flex flex-col gap-3 lg:hidden">
               <div
-                className={`flex shrink-0 items-end justify-between gap-3 px-1 ${
-                  isSafeSpacesOpen
-                    ? "pointer-events-none opacity-0 transition-opacity duration-200"
-                    : "opacity-100 transition-opacity duration-200"
-                }`}
+                className={`flex shrink-0 items-end justify-between gap-3 px-1 ${isSafeSpacesOpen
+                  ? "pointer-events-none opacity-0 transition-opacity duration-200"
+                  : "opacity-100 transition-opacity duration-200"
+                  }`}
               >
                 <div className="flex flex-col items-start gap-2">
                   {isMonitoring && <VolumeBar volume={volume} />}
@@ -1838,13 +1843,11 @@ export function Map() {
           {(!routeData || isNavigationActive) && (
             <>
               <div
-                className={`absolute left-4 z-20 lg:hidden ${
-                  isNavigationActive ? "bottom-[5.75rem]" : "bottom-6"
-                } ${
-                  routeData && isSafeSpacesOpen
+                className={`absolute left-4 z-20 lg:hidden ${isNavigationActive ? "bottom-[5.75rem]" : "bottom-6"
+                  } ${routeData && isSafeSpacesOpen
                     ? "pointer-events-none opacity-0 transition-opacity duration-200"
                     : "opacity-100 transition-opacity duration-200"
-                }`}
+                  }`}
               >
                 {isMonitoring && <VolumeBar volume={volume} />}
                 <MicButton
@@ -1856,13 +1859,11 @@ export function Map() {
               </div>
 
               <div
-                className={`absolute right-4 z-20 lg:hidden ${
-                  isNavigationActive ? "bottom-[5.75rem]" : "bottom-6"
-                } ${
-                  routeData && isSafeSpacesOpen
+                className={`absolute right-4 z-20 lg:hidden ${isNavigationActive ? "bottom-[5.75rem]" : "bottom-6"
+                  } ${routeData && isSafeSpacesOpen
                     ? "pointer-events-none opacity-0 transition-opacity duration-200"
                     : "opacity-100 transition-opacity duration-200"
-                }`}
+                  }`}
               >
                 <button
                   type="button"
