@@ -12,6 +12,8 @@ import { PasswordLockPage } from "./password-lock-page.tsx";
 import { AuthGate } from "./components/auth-gate.tsx";
 import "./index.css";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { AudioProvider } from "./context/audio-provider.tsx";
+import { Soundscape } from "./soundscape.tsx";
 
 // import AnimatedLayout from "./animated-layout";
 
@@ -33,13 +35,11 @@ const router = createBrowserRouter([
           { path: "support", element: <SupportPage /> },
           { path: "breathing-exercise", element: <BreathingExercise /> },
           { path: "filter_page", element: <FilterScreen /> },
-
-          // Self Discovery quiz page for AC 6.1.1, AC 6.1.2 and AC 6.1.3.
           { path: "self-discovery", element: <SelfDiscoveryPage /> },
-
           { path: "achievements", element: <AchievementSummaryPage /> },
           { path: "achievements/badges", element: <AchievementsBadgesPage /> },
           { path: "badges", element: <AchievementsBadgesPage /> },
+          { path: "soundscape", element: <Soundscape /> },
         ],
       },
     ],
@@ -48,6 +48,8 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <AudioProvider>
+      <RouterProvider router={router} />
+    </AudioProvider>
   </React.StrictMode>,
 );
