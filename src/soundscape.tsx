@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAudio } from "./context/use-audio";
-import { Play, Pause, Menu } from "lucide-react";
-import { motion } from "framer-motion";
+import { Play, Menu, Pause } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Navbar } from "./components/nav-bar";
 import { MobileMenu } from "./components/hamburger-menu";
 
@@ -11,7 +11,7 @@ const soundLibrary = [
     title: "Deep Earth",
     desc: "Consistent low-frequency sound",
     file: "/audio/brown_noise.mp3",
-    duration: "3:45",
+    duration: "0:07",
     category: "FOCUS",
   },
   {
@@ -19,7 +19,7 @@ const soundLibrary = [
     title: "Downpour",
     desc: "Gentle rainfall",
     file: "/audio/rain.mp3",
-    duration: "4:12",
+    duration: "1:34",
     category: "NATURE",
   },
   {
@@ -27,7 +27,7 @@ const soundLibrary = [
     title: "Tidal Flow",
     desc: "Calming coastal sounds",
     file: "/audio/waves.mp3",
-    duration: "2:58",
+    duration: "0:32",
     category: "NATURE",
   },
   {
@@ -43,7 +43,7 @@ const soundLibrary = [
     title: "Morning Echoes",
     desc: "Natural bird sounds",
     file: "/audio/chirping.mp3",
-    duration: "3:15",
+    duration: "1:42",
     category: "NATURE",
   },
   {
@@ -51,7 +51,7 @@ const soundLibrary = [
     title: "Hidden Creek",
     desc: "Gentle flowing water",
     file: "/audio/stream.mp3",
-    duration: "4:00",
+    duration: "1:34",
     category: "NATURE",
   },
 ];
@@ -72,25 +72,31 @@ export function Soundscape() {
         showLogo={false}
       />
 
+      {/* Mobile Header */}
       <header className="lg:hidden sticky top-0 z-20 flex items-center px-5 py-4">
-        <button onClick={() => setIsMenuOpen(true)} className="p-2">
-          <Menu size={24} />
+        <button
+          onClick={() => setIsMenuOpen(true)}
+          className="p-4 bg-white/40 backdrop-blur-md rounded-full border border-white/20 text-[#1E2939] shadow-sm"
+        >
+          <Menu size={20} className="text-[#134E48]" />
         </button>
       </header>
 
-      <main className="flex-1 overflow-y-auto pt-20 lg:pt-30 pb-20 px-6">
+      {/* Title Position */}
+      <main className="flex-1 overflow-y-auto pt-6 md:pt-35 pb-10 px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
           className="max-w-3xl mx-auto"
         >
-          <div className="text-left mb-12 pl-8">
-            <h1 className="text-6xl font-black tracking-tight mb-2">
+          {/* Header Section */}
+          <div className="text-left mb-8 md:mb-12 md:pl-8">
+            <h1 className="text-5xl md:text-6xl font-black tracking-tight mb-2 text-[#1E2939]">
               Soundscape
             </h1>
-            <p className="text-[10px] font-bold uppercase tracking-[0.4em] opacity-60">
-              Immersive audio to drown out urban noise
+            <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.3em] md:tracking-[0.4em] opacity-60 text-[#5A9A8E]">
+              IMMERSIVE AUDIO CURATED FOR YOU
             </p>
           </div>
 
@@ -105,55 +111,101 @@ export function Soundscape() {
                   onMouseEnter={() => setHoveredId(sound.id)}
                   onMouseLeave={() => setHoveredId(null)}
                   onClick={() => togglePlay(sound.id, sound.file)}
-                  className={`group flex items-center px-8 py-4 rounded-2xl transition-all cursor-pointer ${
-                    isPlaying ? "bg-white shadow-sm" : "hover:bg-white/40"
+                  className={`group flex items-center px-4 md:px-8 py-4 rounded-2xl transition-all duration-300 cursor-pointer border ${
+                    isPlaying
+                      ? "bg-white shadow-sm border-white/80 backdrop-blur-md"
+                      : isHovered
+                        ? "bg-white/30 border-transparent backdrop-blur-sm"
+                        : "bg-transparent border-transparent"
                   }`}
                 >
-                  <div className="w-10 text-sm font-medium">
-                    {isHovered ? (
-                      isPlaying ? (
-                        <Pause size={16} fill="currentColor" />
+                  {/* Category Pill - Far Left on Mobile only */}
+                  {/* <div className="md:hidden mr-4">
+                    <span className="px-2 py-1 bg-[#134E48]/10 rounded-md text-[8px] font-black tracking-widest text-[#134E48]">
+                      {sound.category[0]}
+                    </span>
+                  </div> */}
+
+                  {/* Action Area */}
+                  <div className="w-8 md:w-10 text-sm font-medium">
+                    <AnimatePresence mode="wait">
+                      {isHovered || isPlaying ? (
+                        <motion.div
+                          key={
+                            isPlaying && isHovered
+                              ? "pause"
+                              : isPlaying
+                                ? "bars"
+                                : "play"
+                          }
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.8 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          {/* If hovered AND playing, show Pause */}
+                          {isHovered && isPlaying ? (
+                            <Pause
+                              size={16}
+                              fill="currentColor"
+                              className="text-[#5A9A8E]"
+                            />
+                          ) : isPlaying ? (
+                            /* If playing but NOT hovered, show animated bars */
+                            <div className="flex items-end gap-[2px] h-3 w-4">
+                              <motion.div
+                                animate={{ height: [4, 12, 6] }}
+                                transition={{ repeat: Infinity, duration: 0.6 }}
+                                className="w-[2px] bg-[#5A9A8E]"
+                              />
+                              <motion.div
+                                animate={{ height: [8, 4, 12] }}
+                                transition={{ repeat: Infinity, duration: 0.8 }}
+                                className="w-[2px] bg-[#5A9A8E]"
+                              />
+                              <motion.div
+                                animate={{ height: [12, 8, 4] }}
+                                transition={{ repeat: Infinity, duration: 0.5 }}
+                                className="w-[2px] bg-[#5A9A8E]"
+                              />
+                            </div>
+                          ) : (
+                            /* If hovered but NOT playing, show Play */
+                            <Play size={16} fill="currentColor" />
+                          )}
+                        </motion.div>
                       ) : (
-                        <Play size={16} fill="currentColor" />
-                      )
-                    ) : isPlaying ? (
-                      /* Animated bar animation for the active track */
-                      <div className="flex items-end gap-[2px] h-3 w-4">
-                        <motion.div
-                          animate={{ height: [4, 12, 6] }}
-                          transition={{ repeat: Infinity, duration: 0.6 }}
-                          className="w-[2px] bg-[#5A9A8E]"
-                        />
-                        <motion.div
-                          animate={{ height: [8, 4, 12] }}
-                          transition={{ repeat: Infinity, duration: 0.8 }}
-                          className="w-[2px] bg-[#5A9A8E]"
-                        />
-                        <motion.div
-                          animate={{ height: [12, 8, 4] }}
-                          transition={{ repeat: Infinity, duration: 0.5 }}
-                          className="w-[2px] bg-[#5A9A8E]"
-                        />
-                      </div>
-                    ) : (
-                      <span className="opacity-40">{index + 1}</span>
-                    )}
+                        /* Default state: Track Number */
+                        <motion.span
+                          key="number"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 0.4 }}
+                          className="text-[#134E48]"
+                        >
+                          {index + 1}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
                   </div>
 
-                  <div className="flex-1">
+                  {/* Description */}
+                  <div className="flex-1 min-w-0">
                     <h3
-                      className={`font-bold text-[15px] ${isPlaying ? "text-[#5A9A8E]" : ""}`}
+                      className={`font-bold text-[14px] md:text-[15px] transition-colors duration-300 truncate ${isPlaying ? "text-[#5A9A8E]" : ""}`}
                     >
                       {sound.title}
                     </h3>
-                    <p className="text-[12px] opacity-50">{sound.desc}</p>
+                    <p className="text-[11px] md:text-[12px] opacity-50 truncate">
+                      {sound.desc}
+                    </p>
                   </div>
 
+                  {/* Metadata*/}
                   <div className="flex items-center gap-6">
                     <span className="px-3 py-1 bg-black/5 rounded-full text-[9px] border border-[#141414]/10 font-bold tracking-widest opacity-40 uppercase">
                       {sound.category}
                     </span>
-                    <div className="opacity-40 font-mono text-[11px] w-8 text-right">
+                    <div className="hidden md:block opacity-40 font-mono text-[11px] w-8 text-right">
                       {sound.duration}
                     </div>
                   </div>
