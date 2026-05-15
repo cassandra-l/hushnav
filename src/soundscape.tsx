@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAudio } from "./context/use-audio";
-import { Play, Menu, Pause } from "lucide-react";
+import { Play, Menu, Pause, Clock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Navbar } from "./components/nav-bar";
 import { MobileMenu } from "./components/hamburger-menu";
@@ -61,6 +61,18 @@ export function Soundscape() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
+  // Helper to calculate total time from the library
+  const calculateTotalTime = () => {
+    const totalSeconds = soundLibrary.reduce((acc, track) => {
+      const [minutes, seconds] = track.duration.split(":").map(Number);
+      return acc + minutes * 60 + seconds;
+    }, 0);
+
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
+
   return (
     <div className="flex flex-col h-dvh overflow-hidden font-sans text-[#101828]">
       <MobileMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
@@ -76,9 +88,9 @@ export function Soundscape() {
       <header className="lg:hidden sticky top-0 z-20 flex items-center px-5 py-4">
         <button
           onClick={() => setIsMenuOpen(true)}
-          className="p-4 bg-white/40 backdrop-blur-md rounded-full border border-white/20 text-[#1E2939] shadow-sm"
+          className="p-4 bg-white/60 backdrop-blur-xl rounded-full border border-white/40 text-[#1E2939] shadow-sm"
         >
-          <Menu size={20} className="text-[#134E48]" />
+          <Menu size={20} className="text-[#5A9A8E]" />
         </button>
       </header>
 
@@ -91,7 +103,7 @@ export function Soundscape() {
           className="max-w-3xl mx-auto"
         >
           {/* Header Section */}
-          <div className="text-left mb-8 md:mb-12 md:pl-8">
+          <div className="text-left mb-8 md:mb-12">
             <h1 className="text-5xl md:text-6xl font-black tracking-tight mb-2 text-[#1E2939]">
               Soundscape
             </h1>
@@ -100,7 +112,19 @@ export function Soundscape() {
             </p>
           </div>
 
-          <div className="space-y-1">
+          <div className="flex justify-between items-center mb-3 px-2">
+            <span className="text-[12px] font-mono font-bold uppercase tracking-[0.15em] text-[#1E2939]/50">
+              Playlist
+            </span>
+            <div className="flex items-center gap-2 text-[#1E2939]/50">
+              <Clock size={12} strokeWidth={2.5} />{" "}
+              <span className="font-mono text-[12px] font-bold uppercase tracking-[0.15em]">
+                Total {calculateTotalTime()}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-3">
             {soundLibrary.map((sound, index) => {
               const isPlaying = playingId === sound.id;
               const isHovered = hoveredId === sound.id;
@@ -111,21 +135,14 @@ export function Soundscape() {
                   onMouseEnter={() => setHoveredId(sound.id)}
                   onMouseLeave={() => setHoveredId(null)}
                   onClick={() => togglePlay(sound.id, sound.file)}
-                  className={`group flex items-center px-4 md:px-8 py-4 rounded-2xl transition-all duration-300 cursor-pointer border ${
+                  className={`group flex items-center px-4 md:px-8 py-4 rounded-2xl transition-all duration-300 cursor-pointer border backdrop-blur-md ${
                     isPlaying
-                      ? "bg-white shadow-sm border-white/80 backdrop-blur-md"
+                      ? "bg-white shadow-md border-white/80 backdrop-blur-3xl" // Solid white when active
                       : isHovered
-                        ? "bg-white/30 border-transparent backdrop-blur-sm"
-                        : "bg-transparent border-transparent"
+                        ? "bg-white/60 border-white/60 shadow-sm backdrop-blur-3xl" // Brighter on hover
+                        : "bg-white/40 border-white/30 backdrop-blur-3xl" // Standard
                   }`}
                 >
-                  {/* Category Pill - Far Left on Mobile only */}
-                  {/* <div className="md:hidden mr-4">
-                    <span className="px-2 py-1 bg-[#134E48]/10 rounded-md text-[8px] font-black tracking-widest text-[#134E48]">
-                      {sound.category[0]}
-                    </span>
-                  </div> */}
-
                   {/* Action Area */}
                   <div className="w-8 md:w-10 text-sm font-medium">
                     <AnimatePresence mode="wait">
@@ -143,7 +160,6 @@ export function Soundscape() {
                           exit={{ opacity: 0, scale: 0.8 }}
                           transition={{ duration: 0.2 }}
                         >
-                          {/* If hovered AND playing, show Pause */}
                           {isHovered && isPlaying ? (
                             <Pause
                               size={16}
@@ -151,7 +167,6 @@ export function Soundscape() {
                               className="text-[#5A9A8E]"
                             />
                           ) : isPlaying ? (
-                            /* If playing but NOT hovered, show animated bars */
                             <div className="flex items-end gap-[2px] h-3 w-4">
                               <motion.div
                                 animate={{ height: [4, 12, 6] }}
@@ -170,12 +185,10 @@ export function Soundscape() {
                               />
                             </div>
                           ) : (
-                            /* If hovered but NOT playing, show Play */
                             <Play size={16} fill="currentColor" />
                           )}
                         </motion.div>
                       ) : (
-                        /* Default state: Track Number */
                         <motion.span
                           key="number"
                           initial={{ opacity: 0 }}
@@ -191,21 +204,21 @@ export function Soundscape() {
                   {/* Description */}
                   <div className="flex-1 min-w-0">
                     <h3
-                      className={`font-bold text-[14px] md:text-[15px] transition-colors duration-300 truncate ${isPlaying ? "text-[#5A9A8E]" : ""}`}
+                      className={`font-bold text-[15px] md:text-[15px] transition-colors duration-300 truncate ${isPlaying ? "text-[#5A9A8E]" : "text-[#1E2939]"}`}
                     >
                       {sound.title}
                     </h3>
-                    <p className="text-[11px] md:text-[12px] opacity-50 truncate">
+                    <p className="text-[11px] md:text-[14px] opacity-60 text-[#1E2939] truncate">
                       {sound.desc}
                     </p>
                   </div>
 
-                  {/* Metadata*/}
+                  {/* Metadata */}
                   <div className="flex items-center gap-6">
-                    <span className="px-3 py-1 bg-black/5 rounded-full text-[9px] border border-[#141414]/10 font-bold tracking-widest opacity-40 uppercase">
+                    <span className="px-3 py-1 bg-black/5 rounded-full text-[9px] md:text-[10px] border border-[#141414]/10 font-bold tracking-widest opacity-60 uppercase text-[#141414]">
                       {sound.category}
                     </span>
-                    <div className="hidden md:block opacity-40 font-mono text-[11px] w-8 text-right">
+                    <div className="hidden md:block opacity-40 font-mono text-[12px] w-8 text-right text-[#1E2939]">
                       {sound.duration}
                     </div>
                   </div>
