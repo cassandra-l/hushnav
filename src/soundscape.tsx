@@ -1,16 +1,6 @@
 import { useState } from "react";
 import { useAudio } from "./context/use-audio";
-import {
-  Play,
-  Pause,
-  CloudRain,
-  Waves,
-  Flame,
-  Menu,
-  Bird,
-  Droplet,
-  AudioLines,
-} from "lucide-react";
+import { Play, Pause, Menu } from "lucide-react";
 import { motion } from "framer-motion";
 import { Navbar } from "./components/nav-bar";
 import { MobileMenu } from "./components/hamburger-menu";
@@ -18,136 +8,155 @@ import { MobileMenu } from "./components/hamburger-menu";
 const soundLibrary = [
   {
     id: "brownNoise",
-    title: "Brown Noise",
+    title: "Deep Earth",
     desc: "Consistent low-frequency sound",
-    icon: AudioLines,
     file: "/audio/brown_noise.mp3",
+    duration: "3:45",
+    category: "FOCUS",
   },
   {
     id: "rain",
-    title: "Rain",
+    title: "Downpour",
     desc: "Gentle rainfall",
-    icon: CloudRain,
     file: "/audio/rain.mp3",
+    duration: "4:12",
+    category: "NATURE",
   },
   {
     id: "waves",
-    title: "Ocean Waves",
+    title: "Tidal Flow",
     desc: "Calming coastal sounds",
-    icon: Waves,
     file: "/audio/waves.mp3",
+    duration: "2:58",
+    category: "NATURE",
   },
   {
     id: "fire",
-    title: "Fireplace",
+    title: "Kindle",
     desc: "Crackling wood fire",
-    icon: Flame,
     file: "/audio/fireplace.mp3",
+    duration: "5:20",
+    category: "NATURE",
   },
   {
     id: "chirping",
-    title: "Chirping Birds",
+    title: "Morning Echoes",
     desc: "Natural bird sounds",
-    icon: Bird,
     file: "/audio/chirping.mp3",
+    duration: "3:15",
+    category: "NATURE",
   },
   {
     id: "stream",
-    title: "Stream",
+    title: "Hidden Creek",
     desc: "Gentle flowing water",
-    icon: Droplet,
     file: "/audio/stream.mp3",
+    duration: "4:00",
+    category: "NATURE",
   },
 ];
 
 export function Soundscape() {
   const { playingId, togglePlay } = useAudio();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   return (
-    <div className="flex flex-col h-dvh overflow-hidden font-sans">
-      {/* Mobile Menu */}
+    <div className="flex flex-col h-dvh overflow-hidden font-sans text-[#101828]">
       <MobileMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
 
-      <div
-        className="fixed inset-0 -z-10 bg-linear-to-b from-[#F0F4F3] via-[#EDF2F1] to-[#EBF0EE]"
-        aria-hidden="true"
-      />
+      <div className="fixed inset-0 -z-10 bg-[#EAF5F2]" aria-hidden="true" />
 
-      {/* Desktop Navbar */}
       <Navbar
         className="left-1/2 -translate-x-1/2 top-8 w-auto hidden lg:flex"
         showLogo={false}
       />
 
-      {/* Hamburger Menu */}
-      <header className="lg:hidden sticky top-0 z-20 flex items-center border-b border-slate-200 bg-white px-5 py-4">
-        <button
-          className="p-4 bg-white/40 backdrop-blur-md rounded-full border border-white/20 text-[#1E2939] shadow-sm cursor-pointer"
-          onClick={() => setIsMenuOpen(true)}
-        >
-          <Menu size={20} />
+      <header className="lg:hidden sticky top-0 z-20 flex items-center px-5 py-4">
+        <button onClick={() => setIsMenuOpen(true)} className="p-2">
+          <Menu size={24} />
         </button>
-        <h1 className="flex-1 text-center text-lg font-semibold text-[#1e293b] mr-10">
-          Soundscapes
-        </h1>
       </header>
 
-      {/* Animated entrance*/}
-      <main className="flex-1 overflow-y-auto pt-10 lg:pt-32 pb-20 px-6">
+      <main className="flex-1 overflow-y-auto pt-20 lg:pt-30 pb-20 px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 1 }}
-          className="max-w-2xl mx-auto flex flex-col"
+          className="max-w-3xl mx-auto"
         >
-          <span className="text-[11px] font-bold uppercase tracking-[0.3em] text-[#5A9A8E]">
-            Calming Tools
-          </span>
-          <h1 className="text-5xl font-bold text-[#1E2939] mt-4 mb-2">
-            Soundscapes
-          </h1>
-          <p className="text-gray-400 mb-12">
-            Immersive audio environments designed to ground you in the present.
-          </p>
+          <div className="text-left mb-12 pl-8">
+            <h1 className="text-6xl font-black tracking-tight mb-2">
+              Soundscape
+            </h1>
+            <p className="text-[10px] font-bold uppercase tracking-[0.4em] opacity-60">
+              Immersive audio to drown out urban noise
+            </p>
+          </div>
 
-          <div className="space-y-4">
-            {soundLibrary.map((sound) => {
+          <div className="space-y-1">
+            {soundLibrary.map((sound, index) => {
               const isPlaying = playingId === sound.id;
+              const isHovered = hoveredId === sound.id;
+
               return (
                 <div
                   key={sound.id}
-                  className="flex items-center justify-between p-6 bg-white/60 backdrop-blur-xl rounded-[32px] border border-white/20 shadow-sm transition-all hover:bg-white/80"
+                  onMouseEnter={() => setHoveredId(sound.id)}
+                  onMouseLeave={() => setHoveredId(null)}
+                  onClick={() => togglePlay(sound.id, sound.file)}
+                  className={`group flex items-center px-8 py-4 rounded-2xl transition-all cursor-pointer ${
+                    isPlaying ? "bg-white shadow-sm" : "hover:bg-white/40"
+                  }`}
                 >
+                  <div className="w-10 text-sm font-medium">
+                    {isHovered ? (
+                      isPlaying ? (
+                        <Pause size={16} fill="currentColor" />
+                      ) : (
+                        <Play size={16} fill="currentColor" />
+                      )
+                    ) : isPlaying ? (
+                      /* Animated bar animation for the active track */
+                      <div className="flex items-end gap-[2px] h-3 w-4">
+                        <motion.div
+                          animate={{ height: [4, 12, 6] }}
+                          transition={{ repeat: Infinity, duration: 0.6 }}
+                          className="w-[2px] bg-[#5A9A8E]"
+                        />
+                        <motion.div
+                          animate={{ height: [8, 4, 12] }}
+                          transition={{ repeat: Infinity, duration: 0.8 }}
+                          className="w-[2px] bg-[#5A9A8E]"
+                        />
+                        <motion.div
+                          animate={{ height: [12, 8, 4] }}
+                          transition={{ repeat: Infinity, duration: 0.5 }}
+                          className="w-[2px] bg-[#5A9A8E]"
+                        />
+                      </div>
+                    ) : (
+                      <span className="opacity-40">{index + 1}</span>
+                    )}
+                  </div>
+
+                  <div className="flex-1">
+                    <h3
+                      className={`font-bold text-[15px] ${isPlaying ? "text-[#5A9A8E]" : ""}`}
+                    >
+                      {sound.title}
+                    </h3>
+                    <p className="text-[12px] opacity-50">{sound.desc}</p>
+                  </div>
+
                   <div className="flex items-center gap-6">
-                    <div className="w-16 h-16 bg-[#f8fafc] rounded-3xl flex items-center justify-center text-[#5A9A8E]">
-                      <sound.icon size={28} strokeWidth={1.5} />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-lg text-[#1E2939]">
-                        {sound.title}
-                      </h3>
-                      <p className="text-sm text-gray-400">{sound.desc}</p>
+                    <span className="px-3 py-1 bg-black/5 rounded-full text-[9px] border border-[#141414]/10 font-bold tracking-widest opacity-40 uppercase">
+                      {sound.category}
+                    </span>
+                    <div className="opacity-40 font-mono text-[11px] w-8 text-right">
+                      {sound.duration}
                     </div>
                   </div>
-                  <button
-                    onClick={() => togglePlay(sound.id, sound.file)}
-                    className="w-14 h-14 rounded-full border border-gray-200 flex items-center justify-center hover:bg-[#F0F7F4] transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                  >
-                    {isPlaying ? (
-                      <Pause
-                        size={20}
-                        fill="#1E2939"
-                        className="text-[#1E2939]"
-                      />
-                    ) : (
-                      <Play
-                        size={20}
-                        fill="#1E2939"
-                        className="text-[#1E2939] ml-1"
-                      />
-                    )}
-                  </button>
                 </div>
               );
             })}

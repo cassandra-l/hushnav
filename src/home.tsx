@@ -122,7 +122,7 @@ export function Home() {
                     onClick={() => navigate("/support")}
                     className="relative pl-6 pr-12 py-4 flex items-center justify-center text-xs font-bold uppercase tracking-widest cursor-pointer whitespace-nowrap"
                   >
-                    <span>Calming Tool</span>
+                    <span>Breath Work</span>
 
                     {/* Arrow Icon */}
                     <span className="absolute right-2 p-2 rounded-full group-hover:bg-[#1E2939] group-hover:text-white transition-all duration-300">
