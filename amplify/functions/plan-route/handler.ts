@@ -1,6 +1,12 @@
 import type { APIGatewayProxyHandler } from "aws-lambda";
 import { handlePlanRoute } from "../../navigation/handler";
 
+const headers = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Methods": "OPTIONS,POST",
+};
+
 export const handler: APIGatewayProxyHandler = async (event) => {
   try {
     const body = event.body ? JSON.parse(event.body) : {};
@@ -8,11 +14,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     return {
       statusCode: result.statusCode,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "*",
-        "Content-Type": "application/json",
-      },
+      headers, 
       body: result.body,
     };
   } catch (error) {
@@ -20,11 +22,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     return {
       statusCode: 500,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "*",
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify({
         error: "Failed to plan route.",
       }),
