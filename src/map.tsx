@@ -43,6 +43,7 @@ import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
 import { ReportSuccess } from "./components/report-success";
 import { Navbar } from "./components/nav-bar";
 import { MobileMenu } from "./components/hamburger-menu";
+import { NavigationNoiseNotice } from "./components/navigation-noise-notice";
 import {
   DepartureEditor,
   type BestTimeSuggestion,
@@ -81,6 +82,24 @@ type UserLocation = {
   lat: number;
   lng: number;
   accuracy?: number;
+};
+
+type MapCenter = {
+  lat: number;
+  lng: number;
+};
+
+type NoiseReportPin = {
+  id: number;
+  lat: number;
+  lng: number;
+  noiseLevel: number | null;
+  createdAt: string;
+};
+
+type ActiveNoiseNotice = {
+  report: NoiseReportPin;
+  distanceMeters: number;
 };
 
 // Photon API feature shape
@@ -225,6 +244,10 @@ const COOLDOWN_DURATION = 5 * 60 * 1000;
 // Noise threshold to trigger the alert
 const NOISE_THRESHOLD = 10;
 const FILTER_PREVIEW_STATE_KEY = "hushnav:mapPreviewBeforeFilters";
+const NOISE_REPORT_LOOKUP_RADIUS_METERS = 1000;
+const NOISE_NOTICE_TRIGGER_DISTANCE_METERS = 100;
+const NOISE_ROUTE_CORRIDOR_DISTANCE_METERS = 60;
+const NOISE_NOTICE_PASSED_TOLERANCE_METERS = 20;
 
 const SAFE_SPACES_STORAGE_KEY = "hushnav:selectedSafeSpaces";
 
@@ -257,6 +280,99 @@ function toRouteTimeIso(date: string, time: string) {
   const ms = parseLocalDepartureMs(date, time);
   if (ms !== null) return new Date(ms).toISOString();
   return new Date(`${date}T${time}:00`).toISOString();
+}
+
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
+}
+
+function distanceBetweenMeters(a: UserLocation, b: NoiseReportPin) {
+  const earthRadiusMeters = 6371000;
+  const deltaLat = toRadians(b.lat - a.lat);
+  const deltaLng = toRadians(b.lng - a.lng);
+  const lat1 = toRadians(a.lat);
+  const lat2 = toRadians(b.lat);
+
+  const haversine =
+    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+    Math.cos(lat1) *
+    Math.cos(lat2) *
+    Math.sin(deltaLng / 2) *
+    Math.sin(deltaLng / 2);
+
+  return (
+    2 *
+    earthRadiusMeters *
+    Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+  );
+}
+
+function coordinateToMeters(
+  coordinate: { lat: number; lng: number },
+  origin: { lat: number; lng: number },
+) {
+  const earthRadiusMeters = 6371000;
+
+  return {
+    x:
+      toRadians(coordinate.lng - origin.lng) *
+      earthRadiusMeters *
+      Math.cos(toRadians(origin.lat)),
+    y: toRadians(coordinate.lat - origin.lat) * earthRadiusMeters,
+  };
+}
+
+function getRoutePositionForPoint(
+  routeCoordinates: [number, number][],
+  point: { lat: number; lng: number },
+) {
+  if (routeCoordinates.length < 2) return null;
+
+  let travelledMeters = 0;
+  let nearestDistanceMeters = Number.POSITIVE_INFINITY;
+  let nearestProgressMeters = 0;
+
+  for (let index = 0; index < routeCoordinates.length - 1; index += 1) {
+    const [startLng, startLat] = routeCoordinates[index];
+    const [endLng, endLat] = routeCoordinates[index + 1];
+    const start = coordinateToMeters(
+      { lat: startLat, lng: startLng },
+      point,
+    );
+    const end = coordinateToMeters({ lat: endLat, lng: endLng }, point);
+    const segmentX = end.x - start.x;
+    const segmentY = end.y - start.y;
+    const segmentLengthSquared = segmentX * segmentX + segmentY * segmentY;
+    const segmentLengthMeters = Math.sqrt(segmentLengthSquared);
+
+    if (segmentLengthSquared === 0) continue;
+
+    const projectionRatio = Math.max(
+      0,
+      Math.min(
+        1,
+        -(start.x * segmentX + start.y * segmentY) / segmentLengthSquared,
+      ),
+    );
+    const projectedX = start.x + projectionRatio * segmentX;
+    const projectedY = start.y + projectionRatio * segmentY;
+    const distanceMeters = Math.sqrt(
+      projectedX * projectedX + projectedY * projectedY,
+    );
+
+    if (distanceMeters < nearestDistanceMeters) {
+      nearestDistanceMeters = distanceMeters;
+      nearestProgressMeters =
+        travelledMeters + projectionRatio * segmentLengthMeters;
+    }
+
+    travelledMeters += segmentLengthMeters;
+  }
+
+  return {
+    distanceToRouteMeters: nearestDistanceMeters,
+    progressMeters: nearestProgressMeters,
+  };
 }
 
 // One-hour window, 12h clock, compact label (e.g. 9:00AM-10:00AM).
@@ -392,6 +508,13 @@ export function Map() {
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [isLocatingUser, setIsLocatingUser] = useState(false);
   const [locationError, setLocationError] = useState("");
+  const [noiseReportPins, setNoiseReportPins] = useState<NoiseReportPin[]>([]);
+  const [focusedNoiseReportPin, setFocusedNoiseReportPin] =
+    useState<NoiseReportPin | null>(null);
+  const [activeNoiseNotice, setActiveNoiseNotice] =
+    useState<ActiveNoiseNotice | null>(null);
+  const [mapCenter, setMapCenter] = useState<MapCenter>(CBD_CENTER);
+  const dismissedNoiseNoticeIdsRef = useRef<Set<number>>(new Set());
 
   // Final route response shown on the map
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
@@ -634,6 +757,91 @@ export function Map() {
     );
   };
 
+  const getCurrentLocationForReport = () => {
+    if (!navigator.geolocation) {
+      setLocationError("Live location is not supported by this browser.");
+      return Promise.resolve(userLocation);
+    }
+
+    return new Promise<UserLocation | null>((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const currentLocation: UserLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+          };
+
+          setUserLocation(currentLocation);
+          setLocationError("");
+          resolve(currentLocation);
+        },
+        (geolocationError) => {
+          console.error("Failed to get report location:", geolocationError);
+
+          if (geolocationError.code === geolocationError.PERMISSION_DENIED) {
+            setLocationError("Location permission was denied.");
+          } else if (
+            geolocationError.code === geolocationError.POSITION_UNAVAILABLE
+          ) {
+            setLocationError("Your location is currently unavailable.");
+          } else if (geolocationError.code === geolocationError.TIMEOUT) {
+            setLocationError("Location request timed out.");
+          } else {
+            setLocationError("Could not get your current location.");
+          }
+
+          resolve(userLocation);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 5000,
+        },
+      );
+    });
+  };
+
+  const handleSubmitNoiseReport = async () => {
+    setIsHighNoiseAlertOpen(false);
+
+    const reportLocation = await getCurrentLocationForReport();
+
+    if (!reportLocation) {
+      incrementNoiseReports(1);
+      setIsReportSuccessOpen(true);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/noise-reports`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          lat: reportLocation.lat,
+          lng: reportLocation.lng,
+          noiseLevel: volume,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Create noise report failed: ${response.status}`);
+      }
+
+      const savedReport = (await response.json()) as NoiseReportPin;
+
+      setNoiseReportPins((pins) => [savedReport, ...pins]);
+      setFocusedNoiseReportPin(savedReport);
+    } catch (err) {
+      console.error("Failed to save noise report:", err);
+    }
+
+    incrementNoiseReports(1);
+    setIsReportSuccessOpen(true);
+  };
+
   // Starts navigation from the route preview page.
   // Map zoom/follow can be wired inside RouteMap when that nav feature is ready.
   const handleStartNavigation = () => {
@@ -652,6 +860,7 @@ export function Map() {
     setSelectedSafeSpaceStops([]);
     setSelectedSafeSpaceFromPanel(null);
     setIsNavigationActive(false);
+    setActiveNoiseNotice(null);
     setIsDepartureOpen(false);
     setBestTimeSuggestion(null);
     setIsBestTimeTab(false);
@@ -817,6 +1026,78 @@ export function Map() {
       navigator.geolocation.clearWatch(watchId);
     };
   }, [isNavigationActive]);
+
+  useEffect(() => {
+    if (
+      !isNavigationActive ||
+      !userLocation ||
+      !routeData ||
+      noiseReportPins.length === 0
+    ) {
+      setActiveNoiseNotice(null);
+      return;
+    }
+
+    const routeCoordinates = routeData.route.geojson.coordinates;
+    const userRoutePosition = getRoutePositionForPoint(
+      routeCoordinates,
+      userLocation,
+    );
+
+    if (!userRoutePosition) {
+      setActiveNoiseNotice(null);
+      return;
+    }
+
+    const nearestReport = noiseReportPins.reduce<ActiveNoiseNotice | null>(
+      (nearest, report) => {
+        if (dismissedNoiseNoticeIdsRef.current.has(report.id)) {
+          return nearest;
+        }
+
+        const reportRoutePosition = getRoutePositionForPoint(
+          routeCoordinates,
+          report,
+        );
+
+        if (!reportRoutePosition) {
+          return nearest;
+        }
+
+        const routeDistanceAheadMeters =
+          reportRoutePosition.progressMeters - userRoutePosition.progressMeters;
+
+        if (
+          reportRoutePosition.distanceToRouteMeters >
+          NOISE_ROUTE_CORRIDOR_DISTANCE_METERS
+        ) {
+          return nearest;
+        }
+
+        if (routeDistanceAheadMeters < -NOISE_NOTICE_PASSED_TOLERANCE_METERS) {
+          return nearest;
+        }
+
+        if (routeDistanceAheadMeters > NOISE_NOTICE_TRIGGER_DISTANCE_METERS) {
+          return nearest;
+        }
+
+        const displayDistanceMeters = Math.max(0, routeDistanceAheadMeters);
+
+        if (!nearest || displayDistanceMeters < nearest.distanceMeters) {
+          return {
+            report,
+            distanceMeters: displayDistanceMeters,
+          };
+        }
+
+        return nearest;
+      },
+      null,
+    );
+
+    setActiveNoiseNotice(nearestReport);
+  }, [isNavigationActive, noiseReportPins, routeData, userLocation]);
 
   // Close suggestion dropdowns when user clicks outside both panels
   useEffect(() => {
@@ -985,6 +1266,35 @@ export function Map() {
       return () => clearTimeout(timer);
     }
   }, [isSafeSpacesOpen]);
+
+  useEffect(() => {
+    const fetchNoiseReports = async () => {
+      try {
+        if (!API_BASE_URL) return;
+
+        const params = new URLSearchParams({
+          lat: String(mapCenter.lat),
+          lng: String(mapCenter.lng),
+          radiusMeters: String(NOISE_REPORT_LOOKUP_RADIUS_METERS),
+        });
+
+        const response = await fetch(
+          `${API_BASE_URL}/noise-reports?${params.toString()}`,
+        );
+
+        if (!response.ok) {
+          throw new Error(`Noise reports request failed: ${response.status}`);
+        }
+
+        const reports = (await response.json()) as NoiseReportPin[];
+        setNoiseReportPins(Array.isArray(reports) ? reports : []);
+      } catch (err) {
+        console.error("Failed to load noise reports:", err);
+      }
+    };
+
+    fetchNoiseReports();
+  }, [mapCenter]);
 
   // When a start suggestion is chosen, store both the label and coordinates
   const handleStartSelect = (suggestion: LocationSuggestion) => {
@@ -1562,11 +1872,29 @@ export function Map() {
             }
             routeData={routeData}
             crowdMapData={crowdMapData}
+            noiseReportPins={noiseReportPins}
+            focusedNoiseReportPin={focusedNoiseReportPin}
             allSafeSpaces={visibleAllSafeSpaces}
             isNavigationActive={isNavigationActive}
             selectedSafeSpaceFromPanel={selectedSafeSpaceFromPanel}
             userLocation={userLocation}
+            onMapCenterChange={setMapCenter}
           />
+
+          {isNavigationActive && activeNoiseNotice && (
+            <div className="pointer-events-none absolute left-3 right-3 top-4 z-30 flex justify-center lg:top-24">
+              <NavigationNoiseNotice
+                distanceMeters={activeNoiseNotice.distanceMeters}
+                noiseLevel={activeNoiseNotice.report.noiseLevel}
+                onDismiss={() => {
+                  dismissedNoiseNoticeIdsRef.current.add(
+                    activeNoiseNotice.report.id,
+                  );
+                  setActiveNoiseNotice(null);
+                }}
+              />
+            </div>
+          )}
 
           {/* Mobile collapsed top card */}
           {!isMobileSearchOpen && !routeData && (
@@ -1981,11 +2309,7 @@ export function Map() {
           </>
         }
         onClose={() => setIsHighNoiseAlertOpen(false)}
-        onConfirm={() => {
-          incrementNoiseReports(1);
-          setIsHighNoiseAlertOpen(false);
-          setIsReportSuccessOpen(true);
-        }}
+        onConfirm={handleSubmitNoiseReport}
       />
 
       {/* New Badge Popup */}

@@ -7,6 +7,10 @@ import {
 } from "./amplify/navigation/handler";
 import { handleCrowdMap } from "./amplify/spatialData/handler";
 import { findBestRouteTime } from "./amplify/navigation/bestTime";
+import {
+  handleCreateNoiseReport,
+  handleGetNoiseReports,
+} from "./amplify/spatialData/noiseReportsHandler";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -115,6 +119,30 @@ const safeSpacesHandler = async (
   }
 };
 
+const getNoiseReportsHandler = async (
+  req: express.Request,
+  res: express.Response,
+) => {
+  const result = await handleGetNoiseReports(req.query);
+
+  res
+    .status(result.statusCode)
+    .type("application/json")
+    .send(result.body);
+};
+
+const createNoiseReportHandler = async (
+  req: express.Request,
+  res: express.Response,
+) => {
+  const result = await handleCreateNoiseReport(req.body);
+
+  res
+    .status(result.statusCode)
+    .type("application/json")
+    .send(result.body);
+};
+
 app.post("/api/plan-route", planRouteHandler);
 app.post("/plan-route", planRouteHandler);
 // Keep both route styles.
@@ -129,6 +157,12 @@ app.get("/safe-spaces", safeSpacesHandler);
 
 app.post("/api/best-time", bestTimeHandler);
 app.post("/best-time", bestTimeHandler);
+
+app.get("/api/noise-reports", getNoiseReportsHandler);
+app.get("/noise-reports", getNoiseReportsHandler);
+
+app.post("/api/noise-reports", createNoiseReportHandler);
+app.post("/noise-reports", createNoiseReportHandler);
 
 // Always return JSON for unknown API-style routes
 app.use((_req, res) => {

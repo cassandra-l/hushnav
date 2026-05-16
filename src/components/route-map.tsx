@@ -25,13 +25,24 @@ type UserLocation = {
   accuracy?: number;
 };
 
+type NoiseReportPin = {
+  id: number;
+  lat: number;
+  lng: number;
+  noiseLevel: number | null;
+  createdAt: string;
+};
+
 type RouteMapProps = {
   routeData: PlanRouteResponse | null;
   crowdMapData: CrowdMapFeatureCollection | null;
+  noiseReportPins: NoiseReportPin[];
+  focusedNoiseReportPin: NoiseReportPin | null;
   allSafeSpaces: SafeSpace[];
   isNavigationActive?: boolean;
   selectedSafeSpaceFromPanel?: SafeSpace | null;
   userLocation?: UserLocation | null;
+  onMapCenterChange?: (center: { lat: number; lng: number }) => void;
 };
 
 type SafeSpaceMarkerProps = {
@@ -110,13 +121,40 @@ function UserLocationMarker() {
   );
 }
 
+function NoiseReportMarker({ pin }: { pin: NoiseReportPin }) {
+  const isVeryHighNoise = pin.noiseLevel !== null && pin.noiseLevel >= 75;
+  const isRecent =
+    Date.now() - new Date(pin.createdAt).getTime() < 60 * 60 * 1000;
+  const markerColor = isVeryHighNoise ? "#B84732" : "#C7785A";
+
+  return (
+    <div className="relative flex h-12 w-12 items-center justify-center">
+      <div
+        className={`absolute h-12 w-12 rounded-full ${
+          isRecent ? "animate-pulse" : ""
+        }`}
+        style={{ backgroundColor: `${markerColor}33` }}
+      />
+      <div
+        className="relative flex h-9 w-9 items-center justify-center rounded-full border-2 border-white shadow-lg"
+        style={{ backgroundColor: markerColor }}
+      >
+        <MapPin size={20} className="text-white" />
+      </div>
+    </div>
+  );
+}
+
 export function RouteMap({
   routeData,
   crowdMapData,
+  noiseReportPins,
+  focusedNoiseReportPin,
   allSafeSpaces,
   isNavigationActive = false,
   selectedSafeSpaceFromPanel = null,
   userLocation = null,
+  onMapCenterChange,
 }: RouteMapProps) {
   const mapRef = useRef<MapRef | null>(null);
   const [selectedSafeSpace, setSelectedSafeSpace] =
@@ -212,6 +250,18 @@ const selectedStopNumberById = useMemo(() => {
     });
   }, [userLocation, isNavigationActive]);
 
+  useEffect(() => {
+    if (!mapRef.current || !focusedNoiseReportPin) return;
+
+    mapRef.current.flyTo({
+      center: [focusedNoiseReportPin.lng, focusedNoiseReportPin.lat],
+      zoom: 17,
+      pitch: 0,
+      bearing: 0,
+      duration: 900,
+    });
+  }, [focusedNoiseReportPin]);
+
   // Navigation mode: always zoom into the route's actual start point.
   // This could be the user's live location OR a manually entered start,
   // depending on what was used when the route was planned.
@@ -278,6 +328,13 @@ const selectedStopNumberById = useMemo(() => {
         initialViewState={melbourneCBD}
         mapboxAccessToken={mapboxToken}
         mapStyle="mapbox://styles/mapbox/streets-v12"
+        onMoveEnd={(event) => {
+          const center = event.target.getCenter();
+          onMapCenterChange?.({
+            lat: center.lat,
+            lng: center.lng,
+          });
+        }}
       >
         {/* Crowd / noise road layer. High-crowd roads are shown in red. */}
         {crowdMapData && (
@@ -358,6 +415,17 @@ const selectedStopNumberById = useMemo(() => {
             <UserLocationMarker />
           </Marker>
         )}
+
+        {noiseReportPins.map((pin) => (
+          <Marker
+            key={pin.id}
+            longitude={pin.lng}
+            latitude={pin.lat}
+            anchor="bottom"
+          >
+            <NoiseReportMarker pin={pin} />
+          </Marker>
+        ))}
 
         {routeData && (
           <>
