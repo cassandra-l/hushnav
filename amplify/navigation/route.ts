@@ -37,6 +37,21 @@ export type GraphEdge = {
   isHighCrowd: boolean;
 };
 
+export type GraphTopologyEdge = {
+  edgeId: number;
+  from: number;
+  to: number;
+  length: number;
+};
+
+export type ForecastEdgeCost = {
+  finalCost: number | null;
+  noiseDb: number | null;
+  crowdCount: number | null;
+  isHighCrowd: boolean;
+};
+
+
 export type RouteResult = {
   geojson: LineString;
   totalCost: number;
@@ -56,6 +71,10 @@ let nodeCoordinateCachePromise: Promise<Map<number, NodeRow>> | null = null;
 let graphCache: Map<number, GraphEdge[]> | null = null;
 let graphCachePromise: Promise<Map<number, GraphEdge[]>> | null = null;
 
+
+let graphTopologyCache: Map<number, GraphTopologyEdge[]> | null = null;
+let graphTopologyCachePromise: Promise<Map<number, GraphTopologyEdge[]>> | null =
+  null;
 
 async function loadNodeCoordinateCache(): Promise<Map<number, NodeRow>> {
   const client = await pool.connect();
@@ -124,9 +143,9 @@ function haversineDistanceMeters(a: Coordinate, b: Coordinate): number {
   const h =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1) *
-      Math.cos(lat2) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
+    Math.cos(lat2) *
+    Math.sin(dLng / 2) *
+    Math.sin(dLng / 2);
 
   return 2 * R * Math.asin(Math.sqrt(h));
 }
@@ -202,11 +221,11 @@ function computeEdgeCost(edge: GraphEdge, avoidMode: AvoidMode): number {
 
   // 2. noise + crowd + construction
   if (avoidMode === "both") {
-  const crowdPenalty =
-    edge.crowdCount !== null ? crowdCountToPenaltyDefault(edge.crowdCount) : 0;
+    const crowdPenalty =
+      edge.crowdCount !== null ? crowdCountToPenaltyDefault(edge.crowdCount) : 0;
 
-  const normalCrowdWeight = 1;
-  return edge.length * (1 + noisePenalty + normalCrowdWeight * crowdPenalty);
+    const normalCrowdWeight = 1;
+    return edge.length * (1 + noisePenalty + normalCrowdWeight * crowdPenalty);
   }
 
   // 3. noise + crowd (stronger crowd effect)
@@ -241,6 +260,45 @@ async function getConstructionBlockedEdgeIds(): Promise<Set<number>> {
   }
 }
 
+
+export function computeForecastEdgeCost(
+  topologyEdge: GraphTopologyEdge,
+  forecastCost: ForecastEdgeCost | undefined,
+  avoidMode: AvoidMode
+): number {
+  if (!forecastCost || forecastCost.noiseDb === null) {
+    return forecastCost?.finalCost ?? topologyEdge.length;
+  }
+
+  const noisePenalty = forecastCost.noiseDb / 100;
+
+  if (avoidMode === "construction") {
+    return topologyEdge.length * (1 + noisePenalty);
+  }
+
+  if (avoidMode === "crowd") {
+    const baseCrowdPenalty =
+      forecastCost.crowdCount !== null
+        ? crowdCountToPenaltyStrong(forecastCost.crowdCount)
+        : 0;
+    const extraHighCrowdPenalty = forecastCost.isHighCrowd ? 0.5 : 0;
+    const crowdPenalty = baseCrowdPenalty + extraHighCrowdPenalty;
+
+    return topologyEdge.length * (1 + noisePenalty + 6 * crowdPenalty);
+  }
+
+  const crowdPenalty =
+    forecastCost.crowdCount !== null
+      ? crowdCountToPenaltyDefault(forecastCost.crowdCount)
+      : 0;
+
+  return topologyEdge.length * (1 + noisePenalty + crowdPenalty);
+}
+
+
+export async function getBlockedEdgeIdsForRouting(): Promise<Set<number>> {
+  return getConstructionBlockedEdgeIds();
+}
 
 export async function snapToNearestNode(
   coordinate: Coordinate,
@@ -372,6 +430,50 @@ async function loadGraph(): Promise<Map<number, GraphEdge[]>> {
   }
 }
 
+async function loadGraphTopology(): Promise<Map<number, GraphTopologyEdge[]>> {
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query<{
+      edge_id: number;
+      u: number;
+      v: number;
+      length: number;
+    }>(
+      `
+      SELECT edge_id, u, v, length
+      FROM edge
+      `
+    );
+
+    const graph = new Map<number, GraphTopologyEdge[]>();
+
+    for (const row of result.rows) {
+      const forward: GraphTopologyEdge = {
+        edgeId: Number(row.edge_id),
+        from: Number(row.u),
+        to: Number(row.v),
+        length: Number(row.length),
+      };
+
+      const backward: GraphTopologyEdge = {
+        ...forward,
+        from: Number(row.v),
+        to: Number(row.u),
+      };
+
+      if (!graph.has(forward.from)) graph.set(forward.from, []);
+      if (!graph.has(backward.from)) graph.set(backward.from, []);
+
+      graph.get(forward.from)!.push(forward);
+      graph.get(backward.from)!.push(backward);
+    }
+
+    return graph;
+  } finally {
+    client.release();
+  }
+}
 
 async function getGraphCache(): Promise<Map<number, GraphEdge[]>> {
   if (graphCache) {
@@ -390,10 +492,35 @@ async function getGraphCache(): Promise<Map<number, GraphEdge[]>> {
   }
 }
 
+
+export async function getGraphTopologyCache(): Promise<
+  Map<number, GraphTopologyEdge[]>
+> {
+  if (graphTopologyCache) {
+    return graphTopologyCache;
+  }
+
+  if (!graphTopologyCachePromise) {
+    graphTopologyCachePromise = loadGraphTopology();
+  }
+
+  try {
+    graphTopologyCache = await graphTopologyCachePromise;
+    return graphTopologyCache;
+  } finally {
+    graphTopologyCachePromise = null;
+  }
+}
+
+
 export function clearGraphCache() {
   graphCache = null;
   graphCachePromise = null;
+  graphTopologyCache = null;
+  graphTopologyCachePromise = null;
 }
+
+
 
 
 export async function getRouteGraph(): Promise<Map<number, GraphEdge[]>> {
@@ -432,6 +559,161 @@ async function getNodeCoordinate(nodeId: number): Promise<Coordinate> {
   };
 }
 
+export async function findQuietestRouteCostInGraph(
+  startNodeId: number,
+  endNodeId: number,
+  avoidMode: AvoidMode,
+  routeGraph: Map<number, GraphEdge[]>,
+  blockedEdgeIds: Set<number> = new Set<number>()
+): Promise<number> {
+  startNodeId = Number(startNodeId);
+  endNodeId = Number(endNodeId);
+
+  if (!routeGraph.has(startNodeId)) {
+    throw new Error(`Start node ${startNodeId} has no connected edges.`);
+  }
+
+  if (!routeGraph.has(endNodeId)) {
+    throw new Error(`End node ${endNodeId} has no connected edges.`);
+  }
+
+  const endCoordinate = await getNodeCoordinate(endNodeId);
+
+  const openSet: QueueItem[] = [{ nodeId: startNodeId, fScore: 0 }];
+  const gScore = new Map<number, number>();
+  gScore.set(startNodeId, 0);
+
+  const visited = new Set<number>();
+
+  while (openSet.length > 0) {
+    const current = popLowestFScore(openSet)!;
+
+    if (current.nodeId === endNodeId) {
+      return gScore.get(endNodeId)!;
+    }
+
+    if (visited.has(current.nodeId)) {
+      continue;
+    }
+
+    visited.add(current.nodeId);
+
+    const neighbors = routeGraph.get(Number(current.nodeId)) ?? [];
+
+    for (const edge of neighbors) {
+      if (blockedEdgeIds.has(Number(edge.edgeId))) {
+        continue;
+      }
+
+      const edgeCost = computeEdgeCost(edge, avoidMode);
+      const tentativeG =
+        (gScore.get(Number(current.nodeId)) ?? Number.POSITIVE_INFINITY) +
+        edgeCost;
+
+      if (
+        tentativeG <
+        (gScore.get(Number(edge.to)) ?? Number.POSITIVE_INFINITY)
+      ) {
+        gScore.set(Number(edge.to), tentativeG);
+
+        const neighborCoordinate = await getNodeCoordinate(Number(edge.to));
+        const heuristic = haversineDistanceMeters(
+          neighborCoordinate,
+          endCoordinate
+        );
+
+        openSet.push({
+          nodeId: Number(edge.to),
+          fScore: tentativeG + heuristic,
+        });
+      }
+    }
+  }
+
+  throw new Error("No route found between the selected nodes.");
+}
+
+
+export async function findQuietestRouteCostInTopology(
+  startNodeId: number,
+  endNodeId: number,
+  avoidMode: AvoidMode,
+  topologyGraph: Map<number, GraphTopologyEdge[]>,
+  forecastCosts: Map<number, ForecastEdgeCost>,
+  blockedEdgeIds: Set<number> = new Set<number>()
+): Promise<number> {
+  startNodeId = Number(startNodeId);
+  endNodeId = Number(endNodeId);
+
+  if (!topologyGraph.has(startNodeId)) {
+    throw new Error(`Start node ${startNodeId} has no connected edges.`);
+  }
+
+  if (!topologyGraph.has(endNodeId)) {
+    throw new Error(`End node ${endNodeId} has no connected edges.`);
+  }
+
+  const endCoordinate = await getNodeCoordinate(endNodeId);
+
+  const openSet: QueueItem[] = [{ nodeId: startNodeId, fScore: 0 }];
+  const gScore = new Map<number, number>();
+  gScore.set(startNodeId, 0);
+
+  const visited = new Set<number>();
+
+  while (openSet.length > 0) {
+    const current = popLowestFScore(openSet)!;
+
+    if (current.nodeId === endNodeId) {
+      return gScore.get(endNodeId)!;
+    }
+
+    if (visited.has(current.nodeId)) {
+      continue;
+    }
+
+    visited.add(current.nodeId);
+
+    const neighbors = topologyGraph.get(Number(current.nodeId)) ?? [];
+
+    for (const edge of neighbors) {
+      if (blockedEdgeIds.has(Number(edge.edgeId))) {
+        continue;
+      }
+
+      const edgeCost = computeForecastEdgeCost(
+        edge,
+        forecastCosts.get(Number(edge.edgeId)),
+        avoidMode
+      );
+
+      const tentativeG =
+        (gScore.get(Number(current.nodeId)) ?? Number.POSITIVE_INFINITY) +
+        edgeCost;
+
+      if (
+        tentativeG <
+        (gScore.get(Number(edge.to)) ?? Number.POSITIVE_INFINITY)
+      ) {
+        gScore.set(Number(edge.to), tentativeG);
+
+        const neighborCoordinate = await getNodeCoordinate(Number(edge.to));
+        const heuristic = haversineDistanceMeters(
+          neighborCoordinate,
+          endCoordinate
+        );
+
+        openSet.push({
+          nodeId: Number(edge.to),
+          fScore: tentativeG + heuristic,
+        });
+      }
+    }
+  }
+
+  throw new Error("No route found between the selected nodes.");
+}
+
 
 export async function findQuietestRoute(
   startNodeId: number,
@@ -439,10 +721,12 @@ export async function findQuietestRoute(
   avoidMode: AvoidMode = "both",
   graph?: Map<number, GraphEdge[]>
 ): Promise<RouteResult> {
+
+  const routeStartMs = Date.now();
   startNodeId = Number(startNodeId);
   endNodeId = Number(endNodeId);
 
-  const routeGraph = graph ?? await getGraphCache();
+  const routeGraph = graph ?? (await getGraphCache());
 
   const blockedEdgeIds =
     avoidMode === "construction" || avoidMode === "both"
@@ -483,6 +767,13 @@ export async function findQuietestRoute(
           totalLength += Number(edge.length);
         }
       }
+
+      console.log("route timing: route search complete", {
+        visitedNodes: visited.size,
+        pathNodes: nodeIds.length,
+        pathEdges: edgeIds.length,
+        totalMs: Date.now() - routeStartMs,
+      });
 
       return {
         geojson: buildLineString(routeNodes),

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -6,6 +6,7 @@ import {
   Navigation,
   ChevronDown,
   Wind,
+  Clock3,
   SlidersVertical,
   Mic,
   AlertTriangle,
@@ -41,6 +42,18 @@ import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
 import { ReportSuccess } from "./components/report-success";
 import { Navbar } from "./components/nav-bar";
 import { MobileMenu } from "./components/hamburger-menu";
+import {
+  DepartureEditor,
+  type BestTimeSuggestion,
+  type DepartureConfig,
+} from "./components/departure-editor";
+import {
+  BEST_TIME_DATE_MESSAGE,
+  DEPARTURE_NOW_OR_FUTURE_MESSAGE,
+  isChosenDepartureInPast,
+  isDepartureDateBeforeTodayLocal,
+  parseLocalDepartureMs,
+} from "./departurePast";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -125,6 +138,38 @@ function buildPhotonLabel(feature: PhotonFeature): string {
   ).filter((part) => part.length > 0);
 
   return uniqueParts.join(", ");
+}
+
+function getTodayLocalDateString() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function getCurrentHourMinuteString() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+function toRouteTimeIso(date: string, time: string) {
+  const ms = parseLocalDepartureMs(date, time);
+  if (ms !== null) return new Date(ms).toISOString();
+  return new Date(`${date}T${time}:00`).toISOString();
+}
+
+function formatHourRangeLabel(startHour: number) {
+  const to12h = (hour: number) => {
+    const h = hour % 24;
+    const suffix = h >= 12 ? "PM" : "AM";
+    const value = h % 12 === 0 ? 12 : h % 12;
+    return `${value}:00${suffix}`;
+  };
+  const endHour = (startHour + 1) % 24;
+  return `${to12h(startHour)}-${to12h(endHour)}`;
 }
 
 // Converts a Photon feature into our app's LocationSuggestion format
@@ -347,6 +392,29 @@ export function Map() {
 
   // Final route response shown on the map
   const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
+  const [departureConfig, setDepartureConfig] = useState<DepartureConfig>({
+    enabled: false,
+    date: getTodayLocalDateString(),
+    time: getCurrentHourMinuteString(),
+  });
+  const [isDepartureOpen, setIsDepartureOpen] = useState(false);
+  const [isBestTimeTab, setIsBestTimeTab] = useState(false);
+  const [isBestTimeLoading, setIsBestTimeLoading] = useState(false);
+  const [bestTimeSuggestion, setBestTimeSuggestion] =
+    useState<BestTimeSuggestion | null>(null);
+  const departureSummary = departureConfig.enabled
+    ? `${departureConfig.date} ${departureConfig.time}`
+    : "Now";
+
+  useEffect(() => {
+    setBestTimeSuggestion(null);
+  }, [departureConfig.date]);
+
+  useEffect(() => {
+    if (!routeData) return;
+    setIsDepartureOpen(false);
+    setBestTimeSuggestion(null);
+  }, [routeData]);
 
   const [selectedSafeSpaceTypes, setSelectedSafeSpaceTypes] = useState<
     SafeSpaceType[]
@@ -360,7 +428,7 @@ export function Map() {
 
   // Ordered safe-space stopovers selected by Emily.
   // The array order controls the route order:
-  // start → first stop → second stop → destination.
+  // start â†’ first stop â†’ second stop â†’ destination.
   const [selectedSafeSpaceStops, setSelectedSafeSpaceStops] = useState<
     SafeSpace[]
   >([]);
@@ -381,8 +449,8 @@ export function Map() {
     selectedSafeSpaceTypes.length === 0
       ? []
       : allSafeSpaces.filter((safeSpace) =>
-          selectedSafeSpaceTypes.includes(safeSpace.type),
-        );
+        selectedSafeSpaceTypes.includes(safeSpace.type),
+      );
 
   // Refs for click-outside handling
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
@@ -922,11 +990,152 @@ export function Map() {
     setDestinationSuggestions([]);
   };
 
-  // Sends route request to backend
+  const buildRouteRequestBody = (
+    safeSpaceStops: SafeSpace[],
+    safeSpaceTypes: SafeSpaceType[],
+    avoidMode: AvoidMode,
+  ): PlanRouteRequest => ({
+    start:
+      selectedStart?.center && selectedStart.center.length >= 2
+        ? {
+          lng: selectedStart.center[0],
+          lat: selectedStart.center[1],
+        }
+        : undefined,
+    end:
+      selectedDestination?.center && selectedDestination.center.length >= 2
+        ? {
+          lng: selectedDestination.center[0],
+          lat: selectedDestination.center[1],
+        }
+        : undefined,
+    startQuery: startLocation,
+    endQuery: destination,
+    avoidMode,
+    safeSpaceTypes,
+    stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
+  });
+
+
+  const handleFindBestTime = async () => {
+    setError("");
+    setBestTimeSuggestion(null);
+
+    if (!startLocation.trim() || !destination.trim()) {
+      setError("Please select start and destination before finding best time.");
+      return;
+    }
+    if (!API_BASE_URL) {
+      setError("API base URL not set. Add VITE_API_BASE_URL to your .env file.");
+      return;
+    }
+
+    if (isDepartureDateBeforeTodayLocal(departureConfig.date)) {
+      setError(BEST_TIME_DATE_MESSAGE);
+      return;
+    }
+
+    // Hours 6â€“22; for "today" skip slot starts that are already in the past.
+    const baseCandidateHours = Array.from({ length: 17 }, (_, i) => i + 6);
+    const candidateHours =
+      departureConfig.date === getTodayLocalDateString()
+        ? baseCandidateHours.filter(
+          (hour) =>
+            !isChosenDepartureInPast(
+              departureConfig.date,
+              `${String(hour).padStart(2, "0")}:00`,
+            ),
+        )
+        : baseCandidateHours;
+
+    if (candidateHours.length === 0) {
+      setError(
+        "There are no remaining hours to score for today. Choose a future date.",
+      );
+      return;
+    }
+
+    setIsBestTimeLoading(true);
+    try {
+      const routeTimes = candidateHours.map((hour) => {
+        const time = `${String(hour).padStart(2, "0")}:00`;
+        return toRouteTimeIso(departureConfig.date, time);
+      });
+
+      const response = await fetch(`${API_BASE_URL}/best-time`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          start:
+            selectedStart?.center && selectedStart.center.length >= 2
+              ? {
+                lng: selectedStart.center[0],
+                lat: selectedStart.center[1],
+              }
+              : undefined,
+          end:
+            selectedDestination?.center && selectedDestination.center.length >= 2
+              ? {
+                lng: selectedDestination.center[0],
+                lat: selectedDestination.center[1],
+              }
+              : undefined,
+          startQuery: startLocation,
+          endQuery: destination,
+          avoidMode: selectedAvoidMode,
+          routeTimes,
+          stopSafeSpaceIds: selectedSafeSpaceStops.map((stop) => stop.id),
+        }),
+      });
+
+      if (!response.ok) {
+        let errorMessage = "Could not calculate best time for this date.";
+
+        try {
+          const errorData = (await response.json()) as { error?: string };
+          if (typeof errorData.error === "string" && errorData.error.trim()) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // Keep the generic message if the backend does not return JSON
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      const bestTimeData = (await response.json()) as {
+        bestRouteTime: string;
+        bestCost: number;
+        costs: { routeTime: string; cost: number | null }[];
+      };
+
+      const bestDate = new Date(bestTimeData.bestRouteTime);
+      const bestHour = bestDate.getHours();
+      const routeTimeIso = bestTimeData.bestRouteTime;
+
+      // Label is a one-hour band; forecast still uses the start hour only.
+      setBestTimeSuggestion({
+        startHour: bestHour,
+        endHour: (bestHour + 1) % 24,
+        label: formatHourRangeLabel(bestHour),
+        routeTimeIso,
+      });
+
+    } catch (err) {
+      console.error("Best time recommendation failed:", err);
+      setError("Failed to calculate best time.");
+    } finally {
+      setIsBestTimeLoading(false);
+    }
+  };
+
   const handlePlanRoute = async (
     safeSpaceStops = selectedSafeSpaceStops,
     safeSpaceTypes = selectedSafeSpaceTypes,
     avoidMode = selectedAvoidMode,
+    departureOverride?: DepartureConfig,
   ) => {
     console.log("DEBUG - Start Selection:", selectedStart);
     console.log("DEBUG - Destination Selection:", selectedDestination);
@@ -957,37 +1166,27 @@ export function Map() {
       return;
     }
 
+    const effectiveDeparture = departureOverride ?? departureConfig;
+    if (
+      effectiveDeparture.enabled &&
+      isChosenDepartureInPast(
+        effectiveDeparture.date,
+        effectiveDeparture.time,
+      )
+    ) {
+      setRouteData(null);
+      setError(DEPARTURE_NOW_OR_FUTURE_MESSAGE);
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const requestBody: PlanRouteRequest = {
-        start:
-          selectedStart?.center && selectedStart.center.length >= 2
-            ? {
-                lng: selectedStart.center[0],
-                lat: selectedStart.center[1],
-              }
-            : undefined,
-
-        end:
-          selectedDestination?.center && selectedDestination.center.length >= 2
-            ? {
-                lng: selectedDestination.center[0],
-                lat: selectedDestination.center[1],
-              }
-            : undefined,
-
-        startQuery: startLocation,
-        endQuery: destination,
-
-        avoidMode,
+      const requestBody = buildRouteRequestBody(
+        safeSpaceStops,
         safeSpaceTypes,
-
-        // Send selected safe spaces to the backend in the exact order Emily selected them.
-        // Backend will calculate:
-        // start -> stop 1 -> stop 2 -> ... -> destination
-        stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
-      };
+        avoidMode,
+      );
 
       console.log("Plan route request body:", requestBody);
 
@@ -1150,6 +1349,73 @@ export function Map() {
               }}
             />
 
+            {!routeData && (
+              <div className="mb-3">
+                <button
+                  type="button"
+                  onClick={() => setIsDepartureOpen((open) => !open)}
+                  className="flex w-full items-center justify-between gap-2 rounded-2xl border border-[#DCE7E3] bg-[#F8FBFA] px-4 py-2.5 text-sm text-[#1E2939]"
+                  aria-expanded={isDepartureOpen}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Clock3 size={15} className="shrink-0 text-[#5A9A8E]" />
+                    Departure
+                  </span>
+                  <span className="flex min-w-0 shrink-0 items-center gap-2">
+                    <span className="max-w-[7rem] truncate font-medium text-[#5A9A8E]">
+                      {departureSummary}
+                    </span>
+                    <ChevronDown
+                      size={16}
+                      className={`shrink-0 text-[#6A7282] transition-transform duration-200 ${isDepartureOpen ? "rotate-180" : ""
+                        }`}
+                    />
+                  </span>
+                </button>
+                {isDepartureOpen && (
+                  <div className="mt-2 min-w-0 overflow-hidden rounded-2xl border border-[#E8EEEC] bg-white shadow-sm">
+                    <DepartureEditor
+                      isBestTimeTab={isBestTimeTab}
+                      setIsBestTimeTab={setIsBestTimeTab}
+                      departureConfig={departureConfig}
+                      setDepartureConfig={setDepartureConfig}
+                      bestTimeSuggestion={bestTimeSuggestion}
+                      isBestTimeLoading={isBestTimeLoading}
+                      onCancel={() => {
+                        setIsDepartureOpen(false);
+                        setBestTimeSuggestion(null);
+                      }}
+                      onApplyChooseTime={async () => {
+                        if (
+                          isChosenDepartureInPast(
+                            departureConfig.date,
+                            departureConfig.time,
+                          )
+                        ) {
+                          return;
+                        }
+                        const nextDepartureConfig: DepartureConfig = {
+                          ...departureConfig,
+                          enabled: true,
+                        };
+                        setDepartureConfig(nextDepartureConfig);
+                        setIsDepartureOpen(false);
+                        await handlePlanRoute(
+                          selectedSafeSpaceStops,
+                          selectedSafeSpaceTypes,
+                          selectedAvoidMode,
+                          nextDepartureConfig,
+                        );
+                      }}
+                      onFindBestTime={handleFindBestTime}
+                      getCurrentTimeHm={getCurrentHourMinuteString}
+                      getTodayYmd={getTodayLocalDateString}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
             <button
               onClick={() => handlePlanRoute()}
               disabled={loading}
@@ -1292,7 +1558,7 @@ export function Map() {
                   </p>
                   <p className="truncate text-xs text-[#6A7282]">
                     {startLocation && destination
-                      ? `${startLocation} → ${destination}`
+                      ? `${startLocation} â†’ ${destination}`
                       : "Open search"}
                   </p>
                 </div>
@@ -1481,23 +1747,49 @@ export function Map() {
 
           {/* Mobile route preview panel - Google Maps style bottom sheet */}
           {routeData && !isNavigationActive && (
-            <RoutePreviewPanel
-              routeData={routeData}
-              safeSpaces={routeSafeSpaces}
-              onMoveStopUp={handleMoveSafeSpaceStopUp}
-              onMoveStopDown={handleMoveSafeSpaceStopDown}
-              selectedStops={selectedSafeSpaceStops}
-              isSafeSpacesOpen={isSafeSpacesOpen}
-              isNavigationActive={isNavigationActive}
-              formatRouteLength={formatRouteLength}
-              estimateWalkingMinutes={estimateWalkingMinutes}
-              onOpenFilters={handleOpenFilters}
-              onStartNavigation={handleStartNavigation}
-              onExitRoute={handleExitRoute}
-              onToggleSafeSpaces={() => setIsSafeSpacesOpen((prev) => !prev)}
-              onAddStop={handleAddSafeSpaceStop}
-              onRemoveStop={handleRemoveSafeSpaceStop}
-            />
+            <section className="absolute bottom-3 left-3 right-3 z-10 flex flex-col gap-3 lg:hidden">
+              <div
+                className={`flex shrink-0 items-end justify-between gap-3 px-1 ${isSafeSpacesOpen
+                  ? "pointer-events-none opacity-0 transition-opacity duration-200"
+                  : "opacity-100 transition-opacity duration-200"
+                  }`}
+              >
+                <div className="flex flex-col items-start gap-2">
+                  {isMonitoring && <VolumeBar volume={volume} />}
+                  <MicButton
+                    onClick={
+                      isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)
+                    }
+                    isActive={isMonitoring}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/support")}
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
+                  aria-label="Go to Find Calm page"
+                >
+                  <Wind size={22} />
+                </button>
+              </div>
+              <RoutePreviewPanel
+                routeData={routeData}
+                safeSpaces={routeSafeSpaces}
+                onMoveStopUp={handleMoveSafeSpaceStopUp}
+                onMoveStopDown={handleMoveSafeSpaceStopDown}
+                selectedStops={selectedSafeSpaceStops}
+                isSafeSpacesOpen={isSafeSpacesOpen}
+                isNavigationActive={isNavigationActive}
+                formatRouteLength={formatRouteLength}
+                estimateWalkingMinutes={estimateWalkingMinutes}
+                onOpenFilters={handleOpenFilters}
+                onStartNavigation={handleStartNavigation}
+                onExitRoute={handleExitRoute}
+                onToggleSafeSpaces={() => setIsSafeSpacesOpen((prev) => !prev)}
+                onAddStop={handleAddSafeSpaceStop}
+                onRemoveStop={handleRemoveSafeSpaceStop}
+              />
+            </section>
           )}
 
           {routeData && isNavigationActive && (
@@ -1509,44 +1801,43 @@ export function Map() {
             </button>
           )}
 
-          {/* Mobile mic button + live noise bar */}
-          <div
-            className={`absolute left-4 z-20 transition-all duration-300 lg:hidden ${
-              routeData
-                ? isSafeSpacesOpen
-                  ? "pointer-events-none bottom-44 opacity-0"
-                  : "bottom-[calc(25vh+8px)]"
-                : "bottom-6"
-            }`}
-          >
-            {isMonitoring && <VolumeBar volume={volume} />}
-            <MicButton
-              onClick={
-                isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)
-              }
-              isActive={isMonitoring}
-            />
-          </div>
+          {/* Mobile mic + Find Calm: float only when no preview sheet (search / nav mode) */}
+          {(!routeData || isNavigationActive) && (
+            <>
+              <div
+                className={`absolute left-4 z-20 lg:hidden ${isNavigationActive ? "bottom-[5.75rem]" : "bottom-6"
+                  } ${routeData && isSafeSpacesOpen
+                    ? "pointer-events-none opacity-0 transition-opacity duration-200"
+                    : "opacity-100 transition-opacity duration-200"
+                  }`}
+              >
+                {isMonitoring && <VolumeBar volume={volume} />}
+                <MicButton
+                  onClick={
+                    isMonitoring ? stopMonitoring : () => setIsPopUpOpen(true)
+                  }
+                  isActive={isMonitoring}
+                />
+              </div>
 
-          {/* Mobile find calm button */}
-          <div
-            className={`absolute right-4 z-20 transition-all duration-300 lg:hidden ${
-              routeData
-                ? isSafeSpacesOpen
-                  ? "pointer-events-none bottom-44 opacity-0"
-                  : "bottom-[calc(25vh+8px)]"
-                : "bottom-6"
-            }`}
-          >
-            <button
-              type="button"
-              onClick={() => navigate("/support")}
-              className="flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
-              aria-label="Go to Find Calm page"
-            >
-              <Wind size={22} />
-            </button>
-          </div>
+              <div
+                className={`absolute right-4 z-20 lg:hidden ${isNavigationActive ? "bottom-[5.75rem]" : "bottom-6"
+                  } ${routeData && isSafeSpacesOpen
+                    ? "pointer-events-none opacity-0 transition-opacity duration-200"
+                    : "opacity-100 transition-opacity duration-200"
+                  }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => navigate("/support")}
+                  className="flex h-14 w-14 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
+                  aria-label="Go to Find Calm page"
+                >
+                  <Wind size={22} />
+                </button>
+              </div>
+            </>
+          )}
 
           {/* Desktop mic button + live noise bar */}
           <div className="absolute bottom-6 left-6 z-10 hidden lg:block">
@@ -1572,6 +1863,50 @@ export function Map() {
           </div>
         </div>
       </div>
+
+      {isDepartureOpen && !routeData && (
+        <motion.div className="absolute inset-0 z-40 flex items-end justify-center overflow-x-hidden bg-black/25 p-3 lg:hidden">
+          <motion.div className="w-full min-w-0 max-w-md max-h-[90dvh] overflow-x-hidden overflow-y-auto rounded-3xl border border-white/60 bg-white shadow-xl">
+            <DepartureEditor
+              isBestTimeTab={isBestTimeTab}
+              setIsBestTimeTab={setIsBestTimeTab}
+              departureConfig={departureConfig}
+              setDepartureConfig={setDepartureConfig}
+              bestTimeSuggestion={bestTimeSuggestion}
+              isBestTimeLoading={isBestTimeLoading}
+              onCancel={() => {
+                setIsDepartureOpen(false);
+                setBestTimeSuggestion(null);
+              }}
+              onApplyChooseTime={async () => {
+                if (
+                  isChosenDepartureInPast(
+                    departureConfig.date,
+                    departureConfig.time,
+                  )
+                ) {
+                  return;
+                }
+                const nextDepartureConfig: DepartureConfig = {
+                  ...departureConfig,
+                  enabled: true,
+                };
+                setDepartureConfig(nextDepartureConfig);
+                setIsDepartureOpen(false);
+                await handlePlanRoute(
+                  selectedSafeSpaceStops,
+                  selectedSafeSpaceTypes,
+                  selectedAvoidMode,
+                  nextDepartureConfig,
+                );
+              }}
+              onFindBestTime={handleFindBestTime}
+              getCurrentTimeHm={getCurrentHourMinuteString}
+              getTodayYmd={getTodayLocalDateString}
+            />
+          </motion.div>
+        </motion.div>
+      )}
 
       {/* Microphone permission popup */}
       <PopUp
