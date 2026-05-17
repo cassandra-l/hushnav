@@ -11,7 +11,7 @@ import {
   Mic,
   AlertTriangle,
   Menu,
-  BookmarkPlus,
+  Bookmark,
   Search,
   Star,
 } from "lucide-react";
@@ -925,34 +925,49 @@ export function Map() {
     setDestinationSuggestions([]);
   };
 
+  // Opens the normal search tab and closes any suggestion dropdowns.
+  // Using a dedicated handler keeps desktop and mobile tab behaviour consistent.
+  const handleOpenSearchTab = () => {
+    setActiveSearchTab("search");
+    setIsStartSuggestionsOpen(false);
+    setIsDestinationSuggestionsOpen(false);
+  };
+
+  // Opens the favourites tab and reloads the latest saved routes from localStorage.
+  // This supports AC 4.5.2.
+  const handleOpenFavouritesTab = () => {
+    setFavouriteRoutes(getFavouriteRoutes());
+    setActiveSearchTab("favourites");
+    setIsStartSuggestionsOpen(false);
+    setIsDestinationSuggestionsOpen(false);
+  };
+
   // Saves the current origin and destination as a favourite route.
   // This supports AC 4.5.1.
-    const handleSaveRoute = () => {
-  const origin = startLocation.trim();
-  const savedDestination = destination.trim();
+  const handleSaveRoute = () => {
+    const origin = startLocation.trim();
+    const savedDestination = destination.trim();
 
-  if (!origin || !savedDestination) {
-    setSaveRouteMessage("Please enter both a start location and destination first.");
-    return;
-  }
+    if (!origin || !savedDestination) {
+      setSaveRouteMessage(
+        "Please enter both a start location and destination first.",
+      );
+      return;
+    }
 
-  const result = saveFavouriteRoute(origin, savedDestination);
+    const result = saveFavouriteRoute(origin, savedDestination);
 
-  setFavouriteRoutes(result.routes);
+    setFavouriteRoutes(result.routes);
 
-  if (result.status === "duplicate") {
-    setSaveRouteMessage("This route is already in your favourites.");
-  } else {
+    if (result.status === "duplicate") {
+      setSaveRouteMessage("This route is already in your favourites.");
+      handleOpenFavouritesTab();
+      return;
+    }
+
     setSaveRouteMessage("Route saved to favourites.");
-  }
-
-  // Automatically open the Favourites tab after saving
-  setActiveSearchTab("favourites");
-
-  // Close search suggestion dropdowns so they do not sit over the favourites list
-  setIsStartSuggestionsOpen(false);
-  setIsDestinationSuggestionsOpen(false);
-};
+    handleOpenFavouritesTab();
+  };
 
   // Auto-fills the origin and destination fields when Emily selects a saved route.
   // This supports AC 4.5.2.
@@ -1283,11 +1298,15 @@ export function Map() {
               </div> */}
             </div>
 
-            <div className="mb-3 grid grid-cols-2 rounded-xl bg-[#F7FAF9] p-1">
+            <div className="relative z-50 mb-3 grid grid-cols-2 rounded-xl bg-[#F7FAF9] p-1">
               <button
                 type="button"
-                onClick={() => setActiveSearchTab("search")}
-                className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  handleOpenSearchTab();
+                }}
+                className={`pointer-events-auto flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
                   activeSearchTab === "search"
                     ? "bg-white text-[#5A9A8E] shadow-sm"
                     : "text-[#6A7282] hover:text-[#1E2939]"
@@ -1299,13 +1318,12 @@ export function Map() {
 
               <button
                 type="button"
-               onClick={() => {
-  setFavouriteRoutes(getFavouriteRoutes());
-  setActiveSearchTab("favourites");
-  setIsStartSuggestionsOpen(false);
-  setIsDestinationSuggestionsOpen(false);
-}}
-                className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  handleOpenFavouritesTab();
+                }}
+                className={`pointer-events-auto flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
                   activeSearchTab === "favourites"
                     ? "bg-white text-[#5A9A8E] shadow-sm"
                     : "text-[#6A7282] hover:text-[#1E2939]"
@@ -1447,25 +1465,29 @@ export function Map() {
               </div>
             )}
 
-            <button
-              onClick={() => handlePlanRoute()}
-              disabled={loading}
-              className="cursor-pointer w-full rounded-2xl bg-[#7DB0A6] hover:bg-[#7DB0A6]/90 py-3 font-medium text-white shadow-sm disabled:opacity-70"
-            >
-              {loading ? "Finding Quiet Route..." : "Find Quiet Route"}
-            </button>
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                onClick={() => handlePlanRoute()}
+                disabled={loading}
+                className="cursor-pointer flex-1 rounded-[2rem] bg-[#7DB0A6] py-3.5 text-sm font-bold uppercase tracking-[0.18em] text-white shadow-sm transition hover:bg-[#7DB0A6]/90 disabled:opacity-70"
+              >
+                {loading ? "Finding Quiet Route..." : "Find Quiet Route"}
+              </button>
 
-            <button
-              type="button"
-              onClick={handleSaveRoute}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#DCE7E3] bg-[#F8FBFA] px-4 py-2.5 text-sm font-medium text-[#5A9A8E] shadow-sm transition hover:bg-[#E8F4F1]"
-            >
-              <BookmarkPlus size={16} />
-              Save Route
-            </button>
+              <button
+                type="button"
+                onClick={handleSaveRoute}
+                disabled={!startLocation.trim() || !destination.trim()}
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#F7F7F7] text-[#A8ADB5] shadow-md transition hover:bg-[#F1F5F4] hover:text-[#5A9A8E] disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Save route to favourites"
+                title="Save route to favourites"
+              >
+                <Bookmark size={24} strokeWidth={1.8} />
+              </button>
+            </div>
 
             {saveRouteMessage && (
-              <p className="mt-2 text-sm font-medium text-[#5A9A8E]">
+              <p className="mt-3 text-sm font-medium text-[#5A9A8E]">
                 {saveRouteMessage}
               </p>
             )}
@@ -1665,11 +1687,15 @@ export function Map() {
                 />
 
                 <div className="min-w-0 flex-1 flex-col">
-                  <div className="mb-2 grid grid-cols-2 rounded-xl bg-white/80 p-1 shadow-sm backdrop-blur-sm">
+                  <div className="relative z-50 mb-2 grid grid-cols-2 rounded-xl bg-white/80 p-1 shadow-sm backdrop-blur-sm">
                     <button
                       type="button"
-                      onClick={() => setActiveSearchTab("search")}
-                      className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        handleOpenSearchTab();
+                      }}
+                      className={`pointer-events-auto flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
                         activeSearchTab === "search"
                           ? "bg-white text-[#5A9A8E] shadow-sm"
                           : "text-[#6A7282]"
@@ -1681,13 +1707,12 @@ export function Map() {
 
                     <button
                       type="button"
-                      onClick={() => {
-  setFavouriteRoutes(getFavouriteRoutes());
-  setActiveSearchTab("favourites");
-  setIsStartSuggestionsOpen(false);
-  setIsDestinationSuggestionsOpen(false);
-}}
-                      className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        handleOpenFavouritesTab();
+                      }}
+                      className={`pointer-events-auto flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
                         activeSearchTab === "favourites"
                           ? "bg-white text-[#5A9A8E] shadow-sm"
                           : "text-[#6A7282]"
@@ -1797,30 +1822,34 @@ export function Map() {
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.3, ease: "easeInOut" }}
                       >
-                        <button
-                          onClick={() => handlePlanRoute()}
-                          disabled={loading}
-                          className="mt-2 w-full rounded-2xl bg-[#7DB0A6] py-3 font-medium text-white shadow-md transition-transform active:scale-[0.98] disabled:opacity-70"
-                        >
-                          {loading
-                            ? "Finding Quiet Route..."
-                            : "Find Quiet Route"}
-                        </button>
+                        <div className="mt-2 flex items-center gap-3">
+                          <button
+                            onClick={() => handlePlanRoute()}
+                            disabled={loading}
+                            className="flex-1 rounded-[2rem] bg-[#7DB0A6] py-3.5 text-sm font-bold uppercase tracking-[0.16em] text-white shadow-md transition-transform active:scale-[0.98] disabled:opacity-70"
+                          >
+                            {loading
+                              ? "Finding Quiet Route..."
+                              : "Find Quiet Route"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleSaveRoute}
+                            disabled={!startLocation.trim() || !destination.trim()}
+                            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#F7F7F7] text-[#A8ADB5] shadow-md transition hover:bg-[#F1F5F4] hover:text-[#5A9A8E] disabled:cursor-not-allowed disabled:opacity-50"
+                            aria-label="Save route to favourites"
+                            title="Save route to favourites"
+                          >
+                            <Bookmark size={24} strokeWidth={1.8} />
+                          </button>
+                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
 
-                  <button
-                    type="button"
-                    onClick={handleSaveRoute}
-                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#DCE7E3] bg-white px-4 py-2.5 text-sm font-medium text-[#5A9A8E] shadow-sm"
-                  >
-                    <BookmarkPlus size={16} />
-                    Save Route
-                  </button>
-
                   {saveRouteMessage && (
-                    <p className="mt-2 text-sm font-medium text-[#5A9A8E]">
+                    <p className="mt-3 text-sm font-medium text-[#5A9A8E]">
                       {saveRouteMessage}
                     </p>
                   )}
