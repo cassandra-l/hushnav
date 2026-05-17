@@ -10,6 +10,7 @@ import { safeSpacesFunction } from "./functions/safe-spaces/resource";
 import { verifyPasswordFunction } from "./functions/verify-password/resource";
 import { constructionPipeline } from "./functions/construction-pipeline/resource";
 import { bestTimeFunction } from "./functions/best-time/resource";
+import { geocodeSuggestions } from "./functions/geocode-suggestions/resource";
 
 
 const backend = defineBackend({
@@ -21,6 +22,7 @@ const backend = defineBackend({
   verifyPasswordFunction,
   constructionPipeline,
   bestTimeFunction,
+  geocodeSuggestions,
 });
 
 const apiStack = backend.createStack("api-stack");
@@ -58,6 +60,10 @@ const bestTimeIntegration = new LambdaIntegration(
   backend.bestTimeFunction.resources.lambda
 );
 
+const geocodeSuggestionsIntegration = new LambdaIntegration(
+  backend.geocodeSuggestions.resources.lambda,
+);
+
 const planRoutePath = myRestApi.root.addResource("plan-route");
 planRoutePath.addMethod("POST", planRouteIntegration);
 
@@ -72,6 +78,9 @@ verifyPasswordPath.addMethod("POST", verifyPasswordIntegration);
 
 const bestTimePath = myRestApi.root.addResource("best-time");
 bestTimePath.addMethod("POST", bestTimeIntegration);
+
+const geocodeSuggestionsPath = myRestApi.root.addResource("geocode-suggestions");
+geocodeSuggestionsPath.addMethod("GET", geocodeSuggestionsIntegration);
 
 backend.addOutput({
   custom: {
