@@ -11,8 +11,10 @@ import {
   Mic,
   AlertTriangle,
   Menu,
+  Bookmark,
 } from "lucide-react";
 import { MicButton } from "./components/mic-button";
+
 import { PopUp } from "./components/pop-up";
 import { RouteMap } from "./components/route-map";
 import { SafeSpaceStopoverPanel } from "./components/safe-space-stopover-panel";
@@ -27,6 +29,12 @@ import type {
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
 import { AutocompleteInput } from "./components/map/AutocompleteInput";
+import {
+  getFavouriteRoutes,
+  removeFavouriteRoute,
+  saveFavouriteRoute,
+  type FavouriteRoute,
+} from "./utils/favouriteRoutes";
 
 import type { CrowdMapFeatureCollection } from "./types/noise-map";
 import { AnimatePresence, motion } from "framer-motion";
@@ -256,6 +264,13 @@ export function Map() {
   const [startLocation, setStartLocation] = useState("");
   const [destination, setDestination] = useState("");
 
+  // Message shown after saving the current route to favourites.
+  const [saveRouteMessage, setSaveRouteMessage] = useState("");
+
+  // Favourite routes used by the Favourites tab inside the autocomplete dropdown.
+  // This replaces the old top-level Favourites tab.
+  const [favouriteRoutes, setFavouriteRoutes] = useState<FavouriteRoute[]>([]);
+
   // Selected suggestion objects
   const [selectedStart, setSelectedStart] = useState<LocationSuggestion | null>(
     null,
@@ -310,6 +325,26 @@ export function Map() {
   useEffect(() => {
     setBestTimeSuggestion(null);
   }, [departureConfig.date]);
+
+  // Load favourite routes for the dropdown and refresh them whenever a route is saved.
+  useEffect(() => {
+    const loadFavouriteRoutes = () => {
+      setFavouriteRoutes(getFavouriteRoutes());
+    };
+
+    loadFavouriteRoutes();
+
+    window.addEventListener("hushnav:favourites-updated", loadFavouriteRoutes);
+    window.addEventListener("storage", loadFavouriteRoutes);
+
+    return () => {
+      window.removeEventListener(
+        "hushnav:favourites-updated",
+        loadFavouriteRoutes,
+      );
+      window.removeEventListener("storage", loadFavouriteRoutes);
+    };
+  }, []);
 
   useEffect(() => {
     if (!routeData) return;
@@ -901,6 +936,63 @@ export function Map() {
     setDestinationSuggestions([]);
   };
 
+  // When Emily chooses a favourite route from the autocomplete dropdown,
+  // fill both route fields and let the backend resolve coordinates again.
+  const handleSelectFavouriteRoute = (route: FavouriteRoute) => {
+    setStartLocation(route.origin);
+    setDestination(route.destination);
+
+    // Favourite routes only store text labels, not coordinates.
+    // Coordinates will be resolved again when Emily presses Find Quiet Route.
+    setSelectedStart(null);
+    setSelectedDestination(null);
+    setUserLocation(null);
+
+    setIsStartSuggestionsOpen(false);
+    setIsDestinationSuggestionsOpen(false);
+    setStartSuggestions([]);
+    setDestinationSuggestions([]);
+    setLocationError("");
+    setSaveRouteMessage("Favourite route loaded.");
+  };
+
+  // Removes a saved favourite route from localStorage and refreshes the dropdown.
+  const handleRemoveFavouriteRoute = (routeId: string) => {
+    const updatedRoutes = removeFavouriteRoute(routeId);
+
+    setFavouriteRoutes(updatedRoutes);
+    setSaveRouteMessage("Favourite route removed.");
+
+    window.dispatchEvent(new Event("hushnav:favourites-updated"));
+  };
+
+  // Saves the current origin and destination as a favourite route.
+  // This supports AC 4.5.1.
+  const handleSaveRoute = () => {
+    const origin = startLocation.trim();
+    const savedDestination = destination.trim();
+
+    if (!origin || !savedDestination) {
+      setSaveRouteMessage(
+        "Please enter both a start location and destination first.",
+      );
+      return;
+    }
+
+    const result = saveFavouriteRoute(origin, savedDestination);
+
+    // Keep the dropdown favourites list in sync immediately after saving.
+    setFavouriteRoutes(result.routes);
+    window.dispatchEvent(new Event("hushnav:favourites-updated"));
+
+    if (result.status === "duplicate") {
+      setSaveRouteMessage("This route is already in your favourites.");
+      return;
+    }
+
+    setSaveRouteMessage("Route saved to favourites.");
+  };
+
   // Sends route request to backend
   const buildRouteRequestBody = (
     safeSpaceStops: SafeSpace[],
@@ -1219,13 +1311,14 @@ export function Map() {
               }}
               onSelect={handleStartSelect}
               onFocus={() => {
-                if (startLocation.trim().length >= 2) {
-                  setIsStartSuggestionsOpen(true);
-                }
+                setIsStartSuggestionsOpen(true);
                 setIsDestinationSuggestionsOpen(false);
               }}
               onLocationClick={handleUseCurrentLocation}
               isLocating={isLocatingUser}
+              favouriteRoutes={favouriteRoutes}
+              onSelectFavouriteRoute={handleSelectFavouriteRoute}
+              onRemoveFavouriteRoute={handleRemoveFavouriteRoute}
             />
 
             {/* <button
@@ -1262,11 +1355,12 @@ export function Map() {
               }}
               onSelect={handleDestinationSelect}
               onFocus={() => {
-                if (destination.trim().length >= 2) {
-                  setIsDestinationSuggestionsOpen(true);
-                }
+                setIsDestinationSuggestionsOpen(true);
                 setIsStartSuggestionsOpen(false);
               }}
+              favouriteRoutes={favouriteRoutes}
+              onSelectFavouriteRoute={handleSelectFavouriteRoute}
+              onRemoveFavouriteRoute={handleRemoveFavouriteRoute}
             />
 
             {!routeData && (
@@ -1330,13 +1424,32 @@ export function Map() {
               </div>
             )}
 
-            <button
-              onClick={() => handlePlanRoute()}
-              disabled={loading}
-              className="cursor-pointer w-full rounded-2xl bg-[#7DB0A6] hover:bg-[#7DB0A6]/90 py-3 font-medium text-white shadow-sm disabled:opacity-70"
-            >
-              {loading ? "Finding Quiet Route..." : "Find Quiet Route"}
-            </button>
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                onClick={() => handlePlanRoute()}
+                disabled={loading}
+                className="cursor-pointer flex-1 rounded-[2rem] bg-[#7DB0A6] py-3.5 text-sm font-bold uppercase tracking-[0.18em] text-white shadow-sm transition hover:bg-[#7DB0A6]/90 disabled:opacity-70"
+              >
+                {loading ? "Finding Quiet Route..." : "Find Quiet Route"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveRoute}
+                disabled={!startLocation.trim() || !destination.trim()}
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#F7F7F7] text-[#A8ADB5] shadow-md transition hover:bg-[#F1F5F4] hover:text-[#5A9A8E] disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Save route to favourites"
+                title="Save route to favourites"
+              >
+                <Bookmark size={24} strokeWidth={1.8} />
+              </button>
+            </div>
+
+            {saveRouteMessage && (
+              <p className="mt-3 text-sm font-medium text-[#5A9A8E]">
+                {saveRouteMessage}
+              </p>
+            )}
 
             {error && (
               <p className="mt-3 text-sm font-medium text-red-600">{error}</p>
@@ -1542,13 +1655,14 @@ export function Map() {
                       }}
                       onSelect={handleStartSelect}
                       onFocus={() => {
-                        if (startLocation.trim().length >= 2) {
-                          setIsStartSuggestionsOpen(true);
-                        }
+                        setIsStartSuggestionsOpen(true);
                         setIsDestinationSuggestionsOpen(false);
                       }}
                       onLocationClick={handleUseCurrentLocation}
                       isLocating={isLocatingUser}
+                      favouriteRoutes={favouriteRoutes}
+                      onSelectFavouriteRoute={handleSelectFavouriteRoute}
+                      onRemoveFavouriteRoute={handleRemoveFavouriteRoute}
                     />
 
                     {/* <button
@@ -1590,11 +1704,12 @@ export function Map() {
                       }}
                       onSelect={handleDestinationSelect}
                       onFocus={() => {
-                        if (destination.trim().length >= 2) {
-                          setIsDestinationSuggestionsOpen(true);
-                        }
+                        setIsDestinationSuggestionsOpen(true);
                         setIsStartSuggestionsOpen(false);
                       }}
+                      favouriteRoutes={favouriteRoutes}
+                      onSelectFavouriteRoute={handleSelectFavouriteRoute}
+                      onRemoveFavouriteRoute={handleRemoveFavouriteRoute}
                     />
                   </div>
 
@@ -1620,18 +1735,37 @@ export function Map() {
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.3, ease: "easeInOut" }}
                       >
-                        <button
-                          onClick={() => handlePlanRoute()}
-                          disabled={loading}
-                          className="mt-2 w-full rounded-2xl bg-[#7DB0A6] py-3 font-medium text-white shadow-md transition-transform active:scale-[0.98] disabled:opacity-70"
-                        >
-                          {loading
-                            ? "Finding Quiet Route..."
-                            : "Find Quiet Route"}
-                        </button>
+                        <div className="mt-2 flex items-center gap-3">
+                          <button
+                            onClick={() => handlePlanRoute()}
+                            disabled={loading}
+                            className="flex-1 rounded-[2rem] bg-[#7DB0A6] py-3.5 text-sm font-bold uppercase tracking-[0.16em] text-white shadow-md transition-transform active:scale-[0.98] disabled:opacity-70"
+                          >
+                            {loading
+                              ? "Finding Quiet Route..."
+                              : "Find Quiet Route"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleSaveRoute}
+                            disabled={!startLocation.trim() || !destination.trim()}
+                            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#F7F7F7] text-[#A8ADB5] shadow-md transition hover:bg-[#F1F5F4] hover:text-[#5A9A8E] disabled:cursor-not-allowed disabled:opacity-50"
+                            aria-label="Save route to favourites"
+                            title="Save route to favourites"
+                          >
+                            <Bookmark size={24} strokeWidth={1.8} />
+                          </button>
+                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
+
+                  {saveRouteMessage && (
+                    <p className="mt-3 text-sm font-medium text-[#5A9A8E]">
+                      {saveRouteMessage}
+                    </p>
+                  )}
 
                   {error && (
                     <p className="mt-3 text-sm font-medium text-red-600">
