@@ -77,7 +77,10 @@ export function Soundscape() {
     <div className="flex flex-col h-dvh overflow-hidden font-sans text-[#101828]">
       <MobileMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
 
-      <div className="fixed inset-0 -z-10 bg-[#EAF5F2]" aria-hidden="true" />
+      <div
+        className="fixed inset-0 -z-10 bg-linear-to-b from-[#ffffff] via-[#d5e8e5] to-[#cfe3df]"
+        aria-hidden="true"
+      />
 
       <Navbar
         className="left-1/2 -translate-x-1/2 top-8 w-auto hidden lg:flex"
@@ -139,8 +142,8 @@ export function Soundscape() {
                     isPlaying
                       ? "bg-white shadow-md border-white/80 backdrop-blur-3xl" // Solid white when active
                       : isHovered
-                        ? "bg-white/60 border-white/60 shadow-sm backdrop-blur-3xl" // Brighter on hover
-                        : "bg-white/40 border-white/30 backdrop-blur-3xl" // Standard
+                        ? "bg-white/60 border-white/80 shadow-sm backdrop-blur-3xl" // Brighter on hover
+                        : "bg-white/40 border-white/50 backdrop-blur-3xl shadow-sm" // Standard
                   }`}
                 >
                   {/* Action Area */}

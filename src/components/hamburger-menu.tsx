@@ -83,7 +83,7 @@ export function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
         {
           label: "Sensory Profile",
           icon: UserCircle,
-          path: "/self-discovery",
+          path: "/sensory-profile",
           desc: "Discover your hearing",
         },
         {
