@@ -25,9 +25,14 @@ export type BestTimeResponse = {
 };
 
 type ForecastCostRow = {
-    route_time: Date | string;
+    forecast_time: Date | string;
     edge_id: number;
-    cost: number | null;
+    cost: number | string | null;
+};
+
+type ForecastRunTimeRow = {
+    run_id: number;
+    forecast_time: Date | string;
 };
 
 function isValidCoordinate(value: unknown): value is Coordinate {
@@ -58,95 +63,187 @@ async function resolveCoordinate(
     );
 }
 
+function getMelbourneTimeKey(value: Date): string {
+    const parts = new Intl.DateTimeFormat("en-AU", {
+        timeZone: "Australia/Melbourne",
+        weekday: "short",
+        hour: "2-digit",
+        hourCycle: "h23",
+    }).formatToParts(value);
+
+    const weekday =
+        parts.find((part) => part.type === "weekday")?.value ?? "unknown";
+
+    const hour =
+        parts.find((part) => part.type === "hour")?.value ?? "00";
+
+    return `${weekday}-${hour}`;
+}
+
+function resolveForecastTimes(
+    routeTimes: string[],
+    availableForecastTimes: string[],
+): Map<string, string> {
+    const exactByIso = new Map<string, string>();
+    const latestByMelbourneKey = new Map<string, string>();
+
+    for (const forecastTime of availableForecastTimes) {
+        const forecastDate = new Date(forecastTime);
+        const forecastIso = forecastDate.toISOString();
+
+        exactByIso.set(forecastIso, forecastIso);
+
+        const key = getMelbourneTimeKey(forecastDate);
+        const existing = latestByMelbourneKey.get(key);
+
+        if (!existing || forecastDate.getTime() > new Date(existing).getTime()) {
+            latestByMelbourneKey.set(key, forecastIso);
+        }
+    }
+
+    const resolved = new Map<string, string>();
+
+    for (const routeTime of routeTimes) {
+        const routeIso = new Date(routeTime).toISOString();
+
+        const exactMatch = exactByIso.get(routeIso);
+
+        if (exactMatch) {
+            resolved.set(routeIso, exactMatch);
+            continue;
+        }
+
+        const key = getMelbourneTimeKey(new Date(routeIso));
+        const fallbackMatch = latestByMelbourneKey.get(key);
+
+        if (!fallbackMatch) {
+            throw new Error(`No forecast time found for ${routeIso}.`);
+        }
+
+        resolved.set(routeIso, fallbackMatch);
+    }
+
+    return resolved;
+}
+
 async function loadForecastCostsForTimes(
     routeTimes: string[],
 ): Promise<Map<string, Map<number, number>>> {
     const client = await pool.connect();
 
     try {
-        const result = await client.query<ForecastCostRow>(
+        const forecastTimesStartMs = Date.now();
+
+        const timeResult = await client.query<ForecastRunTimeRow>(
             `
-            WITH requested_times AS (
-              SELECT UNNEST($1::timestamptz[]) AS route_time
-            ),
-            latest_succeeded_run AS (
-              SELECT
-                fr.run_id,
-                fr.horizon_start,
-                fr.horizon_end
+            WITH latest_succeeded_run AS (
+              SELECT fr.run_id
               FROM forecast_runs fr
               WHERE fr.status = 'succeeded'
               ORDER BY fr.generated_at DESC
               LIMIT 1
-            ),
-            forecast_slots AS (
-              SELECT generate_series(
-                date_trunc('hour', lsr.horizon_start),
-                date_trunc('hour', lsr.horizon_end),
-                interval '1 hour'
-              ) AS forecast_time
-              FROM latest_succeeded_run lsr
-            ),
-            resolved_times AS (
-              SELECT
-                rt.route_time,
-                COALESCE(
-                  (
-                    SELECT fs.forecast_time
-                    FROM forecast_slots fs
-                    WHERE fs.forecast_time = rt.route_time
-                    LIMIT 1
-                  ),
-                  (
-                    SELECT fs.forecast_time
-                    FROM forecast_slots fs
-                    WHERE EXTRACT(ISODOW FROM (fs.forecast_time AT TIME ZONE 'Australia/Melbourne')) =
-                          EXTRACT(ISODOW FROM (rt.route_time AT TIME ZONE 'Australia/Melbourne'))
-                      AND EXTRACT(HOUR FROM (fs.forecast_time AT TIME ZONE 'Australia/Melbourne')) =
-                          EXTRACT(HOUR FROM (rt.route_time AT TIME ZONE 'Australia/Melbourne'))
-                    ORDER BY fs.forecast_time DESC
-                    LIMIT 1
-                  )
-                ) AS resolved_forecast_time
-              FROM requested_times rt
             )
-            SELECT
-              rt.route_time,
-              f.edge_id,
-              COALESCE(NULLIF(f.final_cost, 0), e.length) AS cost
-            FROM resolved_times rt
-            JOIN latest_succeeded_run lsr
-              ON TRUE
+            SELECT DISTINCT
+              lsr.run_id,
+              f.forecast_time
+            FROM latest_succeeded_run lsr
             JOIN edge_forecasts f
               ON f.run_id = lsr.run_id
-              AND f.forecast_time = rt.resolved_forecast_time
-            JOIN edge e
-              ON e.edge_id = f.edge_id
+            ORDER BY f.forecast_time
             `,
-            [routeTimes],
         );
 
-        const costsByTime = new Map<string, Map<number, number>>();
-
-        for (const routeTime of routeTimes) {
-            costsByTime.set(routeTime, new Map<number, number>());
+        if (timeResult.rows.length === 0) {
+            throw new Error("No forecast times found for the latest succeeded run.");
         }
 
-        for (const row of result.rows) {
-            const routeTimeKey = new Date(row.route_time).toISOString();
+        const runId = Number(timeResult.rows[0].run_id);
 
-            if (!costsByTime.has(routeTimeKey)) {
-                costsByTime.set(routeTimeKey, new Map<number, number>());
+        const availableForecastTimes = timeResult.rows.map((row) =>
+            new Date(row.forecast_time).toISOString(),
+        );
+
+        console.log("best-time timing: available forecast times loaded", {
+            runId,
+            count: availableForecastTimes.length,
+            ms: Date.now() - forecastTimesStartMs,
+        });
+
+        const routeTimeToForecastTime = resolveForecastTimes(
+            routeTimes,
+            availableForecastTimes,
+        );
+
+        const selectedForecastTimes = Array.from(
+            new Set(routeTimeToForecastTime.values()),
+        );
+
+        console.log("best-time timing: forecast times resolved", {
+            routeTimesCount: routeTimes.length,
+            selectedForecastTimesCount: selectedForecastTimes.length,
+            selectedForecastTimes,
+        });
+
+        const costQueryStartMs = Date.now();
+
+        const result = await client.query<ForecastCostRow>(
+            `
+            SELECT
+              f.forecast_time AS forecast_time,
+              f.edge_id,
+              COALESCE(NULLIF(f.final_cost, 0), e.length) AS cost
+            FROM edge_forecasts f
+            JOIN edge e
+              ON e.edge_id = f.edge_id
+            WHERE f.run_id = $1
+              AND f.forecast_time = ANY($2::timestamptz[])
+            `,
+            [runId, selectedForecastTimes],
+        );
+
+        console.log("best-time timing: forecast edge costs query complete", {
+            rows: result.rows.length,
+            ms: Date.now() - costQueryStartMs,
+        });
+
+        const costsByForecastTime = new Map<string, Map<number, number>>();
+
+        for (const row of result.rows) {
+            const forecastTimeKey = new Date(row.forecast_time).toISOString();
+
+            if (!costsByForecastTime.has(forecastTimeKey)) {
+                costsByForecastTime.set(forecastTimeKey, new Map<number, number>());
             }
 
             if (row.cost !== null && row.cost !== undefined) {
-                costsByTime
-                    .get(routeTimeKey)!
+                costsByForecastTime
+                    .get(forecastTimeKey)!
                     .set(Number(row.edge_id), Number(row.cost));
             }
         }
 
-        return costsByTime;
+        const costsByRouteTime = new Map<string, Map<number, number>>();
+
+        for (const routeTime of routeTimes) {
+            const routeTimeKey = new Date(routeTime).toISOString();
+            const forecastTimeKey = routeTimeToForecastTime.get(routeTimeKey);
+
+            if (!forecastTimeKey) {
+                throw new Error(`Could not resolve forecast time for ${routeTimeKey}.`);
+            }
+
+            const edgeCosts = costsByForecastTime.get(forecastTimeKey);
+
+            if (!edgeCosts) {
+                throw new Error(
+                    `Forecast edge costs not found for resolved time ${forecastTimeKey}.`,
+                );
+            }
+
+            costsByRouteTime.set(routeTimeKey, edgeCosts);
+        }
+
+        return costsByRouteTime;
     } finally {
         client.release();
     }
