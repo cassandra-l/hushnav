@@ -1,5 +1,5 @@
 import { defineBackend } from "@aws-amplify/backend";
-import { Stack } from "aws-cdk-lib";
+import { Duration, Stack } from "aws-cdk-lib";
 import { Cors, LambdaIntegration, RestApi } from "aws-cdk-lib/aws-apigateway";
 
 import { auth } from "./auth/resource";
@@ -57,7 +57,10 @@ const verifyPasswordIntegration = new LambdaIntegration(
 );
 
 const bestTimeIntegration = new LambdaIntegration(
-  backend.bestTimeFunction.resources.lambda
+  backend.bestTimeFunction.resources.lambda,
+  {
+    timeout: Duration.seconds(100),
+  },
 );
 
 const geocodeSuggestionsIntegration = new LambdaIntegration(
