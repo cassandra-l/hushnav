@@ -513,62 +513,70 @@ async function loadGraphForForecast(
   try {
     const result = await client.query<EdgeRow>(
       `
-      WITH latest_succeeded_run AS (
-        SELECT fr.run_id
-        FROM forecast_runs fr
-        WHERE fr.status = 'succeeded'
-        ORDER BY fr.generated_at DESC
-        LIMIT 1
-      )
-      SELECT
-        e.edge_id,
-        e.u,
-        e.v,
-        e.length,
-        e.is_indoor,
-        ew.final_cost AS live_final_cost,
-        ew.noise_db AS live_noise_db,
-        ew.crowd_count AS live_crowd_count,
-        fw.final_cost AS forecast_final_cost,
-        fw.predicted_noise_db AS forecast_noise_db,
-        fw.predicted_crowd_count AS forecast_crowd_count,
-        COALESCE(fw.final_cost, ew.final_cost) AS final_cost,
-        COALESCE(fw.predicted_noise_db, ew.noise_db) AS noise_db,
-        COALESCE(fw.predicted_crowd_count, ew.crowd_count) AS crowd_count,
-        COALESCE(fw.is_high_crowd, ew.is_high_crowd) AS is_high_crowd
-      FROM edge e
-      LEFT JOIN edge_weight ew
-        ON e.edge_id = ew.edge_id
-      LEFT JOIN LATERAL (
-        SELECT
-          f.final_cost,
-          f.predicted_noise_db,
-          f.predicted_crowd_count,
-          f.is_high_crowd
-        FROM edge_forecasts f
-        WHERE f.edge_id = e.edge_id
-          AND f.run_id = (SELECT run_id FROM latest_succeeded_run)
-          AND (
-            -- Exact slot match when requested time is inside stored horizon.
-            f.forecast_time = $1
-            OR
-            -- Fallback for dates beyond horizon:
-            -- use same Melbourne weekday + hour from the latest forecast week.
-            (
+        WITH latest_succeeded_run AS (
+          SELECT fr.run_id
+          FROM forecast_runs fr
+          WHERE fr.status = 'succeeded'
+          ORDER BY fr.generated_at DESC
+          LIMIT 1
+        ),
+        requested_time AS (
+          SELECT $1::timestamptz AS route_time
+        ),
+        resolved_forecast_time AS (
+          SELECT f.forecast_time
+          FROM edge_forecasts f
+          JOIN latest_succeeded_run lsr
+            ON f.run_id = lsr.run_id
+          CROSS JOIN requested_time rt
+          WHERE
+            f.forecast_time = rt.route_time
+            OR (
               EXTRACT(ISODOW FROM (f.forecast_time AT TIME ZONE 'Australia/Melbourne')) =
-              EXTRACT(ISODOW FROM ($1::timestamptz AT TIME ZONE 'Australia/Melbourne'))
+              EXTRACT(ISODOW FROM (rt.route_time AT TIME ZONE 'Australia/Melbourne'))
               AND EXTRACT(HOUR FROM (f.forecast_time AT TIME ZONE 'Australia/Melbourne')) =
-              EXTRACT(HOUR FROM ($1::timestamptz AT TIME ZONE 'Australia/Melbourne'))
+              EXTRACT(HOUR FROM (rt.route_time AT TIME ZONE 'Australia/Melbourne'))
             )
-          )
-        ORDER BY
-          CASE
-            WHEN f.forecast_time = $1 THEN 0
-            ELSE 1
-          END
-        LIMIT 1
-      ) fw ON TRUE
-      `,
+          ORDER BY
+            CASE WHEN f.forecast_time = rt.route_time THEN 0 ELSE 1 END,
+            f.forecast_time DESC
+          LIMIT 1
+        ),
+        forecast_for_time AS (
+          SELECT
+            f.edge_id,
+            f.final_cost,
+            f.predicted_noise_db,
+            f.predicted_crowd_count,
+            f.is_high_crowd
+          FROM edge_forecasts f
+          JOIN latest_succeeded_run lsr
+            ON f.run_id = lsr.run_id
+          JOIN resolved_forecast_time rft
+            ON f.forecast_time = rft.forecast_time
+        )
+        SELECT
+          e.edge_id,
+          e.u,
+          e.v,
+          e.length,
+          e.is_indoor,
+          ew.final_cost AS live_final_cost,
+          ew.noise_db AS live_noise_db,
+          ew.crowd_count AS live_crowd_count,
+          fw.final_cost AS forecast_final_cost,
+          fw.predicted_noise_db AS forecast_noise_db,
+          fw.predicted_crowd_count AS forecast_crowd_count,
+          COALESCE(fw.final_cost, ew.final_cost) AS final_cost,
+          COALESCE(fw.predicted_noise_db, ew.noise_db) AS noise_db,
+          COALESCE(fw.predicted_crowd_count, ew.crowd_count) AS crowd_count,
+          COALESCE(fw.is_high_crowd, ew.is_high_crowd) AS is_high_crowd
+        FROM edge e
+        LEFT JOIN edge_weight ew
+          ON e.edge_id = ew.edge_id
+        LEFT JOIN forecast_for_time fw
+          ON e.edge_id = fw.edge_id
+        `,
       [forecastBucket.toISOString()]
     );
 
