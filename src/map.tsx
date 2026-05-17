@@ -12,8 +12,6 @@ import {
   AlertTriangle,
   Menu,
   Bookmark,
-  Search,
-  Star,
 } from "lucide-react";
 import { MicButton } from "./components/mic-button";
 
@@ -31,7 +29,6 @@ import type {
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
 import { AutocompleteInput } from "./components/map/AutocompleteInput";
-import { FavouriteRoutesList } from "./components/favourite-routes-list";
 import {
   getFavouriteRoutes,
   removeFavouriteRoute,
@@ -267,13 +264,12 @@ export function Map() {
   const [startLocation, setStartLocation] = useState("");
   const [destination, setDestination] = useState("");
 
-  // Favourites tab state for AC 4.5.1 and AC 4.5.2.
-  // Search shows the existing route form. Favourites shows saved origin/destination pairs.
-  const [activeSearchTab, setActiveSearchTab] = useState<"search" | "favourites">(
-    "search",
-  );
-  const [favouriteRoutes, setFavouriteRoutes] = useState<FavouriteRoute[]>([]);
+  // Message shown after saving the current route to favourites.
   const [saveRouteMessage, setSaveRouteMessage] = useState("");
+
+  // Favourite routes used by the Favourites tab inside the autocomplete dropdown.
+  // This replaces the old top-level Favourites tab.
+  const [favouriteRoutes, setFavouriteRoutes] = useState<FavouriteRoute[]>([]);
 
   // Selected suggestion objects
   const [selectedStart, setSelectedStart] = useState<LocationSuggestion | null>(
@@ -326,14 +322,29 @@ export function Map() {
     ? `${departureConfig.date} ${departureConfig.time}`
     : "Now";
 
-  // Loads Emily's previously saved favourite routes from localStorage.
-  useEffect(() => {
-    setFavouriteRoutes(getFavouriteRoutes());
-  }, []);
-
   useEffect(() => {
     setBestTimeSuggestion(null);
   }, [departureConfig.date]);
+
+  // Load favourite routes for the dropdown and refresh them whenever a route is saved.
+  useEffect(() => {
+    const loadFavouriteRoutes = () => {
+      setFavouriteRoutes(getFavouriteRoutes());
+    };
+
+    loadFavouriteRoutes();
+
+    window.addEventListener("hushnav:favourites-updated", loadFavouriteRoutes);
+    window.addEventListener("storage", loadFavouriteRoutes);
+
+    return () => {
+      window.removeEventListener(
+        "hushnav:favourites-updated",
+        loadFavouriteRoutes,
+      );
+      window.removeEventListener("storage", loadFavouriteRoutes);
+    };
+  }, []);
 
   useEffect(() => {
     if (!routeData) return;
@@ -925,21 +936,34 @@ export function Map() {
     setDestinationSuggestions([]);
   };
 
-  // Opens the normal search tab and closes any suggestion dropdowns.
-  // Using a dedicated handler keeps desktop and mobile tab behaviour consistent.
-  const handleOpenSearchTab = () => {
-    setActiveSearchTab("search");
+  // When Emily chooses a favourite route from the autocomplete dropdown,
+  // fill both route fields and let the backend resolve coordinates again.
+  const handleSelectFavouriteRoute = (route: FavouriteRoute) => {
+    setStartLocation(route.origin);
+    setDestination(route.destination);
+
+    // Favourite routes only store text labels, not coordinates.
+    // Coordinates will be resolved again when Emily presses Find Quiet Route.
+    setSelectedStart(null);
+    setSelectedDestination(null);
+    setUserLocation(null);
+
     setIsStartSuggestionsOpen(false);
     setIsDestinationSuggestionsOpen(false);
+    setStartSuggestions([]);
+    setDestinationSuggestions([]);
+    setLocationError("");
+    setSaveRouteMessage("Favourite route loaded.");
   };
 
-  // Opens the favourites tab and reloads the latest saved routes from localStorage.
-  // This supports AC 4.5.2.
-  const handleOpenFavouritesTab = () => {
-    setFavouriteRoutes(getFavouriteRoutes());
-    setActiveSearchTab("favourites");
-    setIsStartSuggestionsOpen(false);
-    setIsDestinationSuggestionsOpen(false);
+  // Removes a saved favourite route from localStorage and refreshes the dropdown.
+  const handleRemoveFavouriteRoute = (routeId: string) => {
+    const updatedRoutes = removeFavouriteRoute(routeId);
+
+    setFavouriteRoutes(updatedRoutes);
+    setSaveRouteMessage("Favourite route removed.");
+
+    window.dispatchEvent(new Event("hushnav:favourites-updated"));
   };
 
   // Saves the current origin and destination as a favourite route.
@@ -957,45 +981,16 @@ export function Map() {
 
     const result = saveFavouriteRoute(origin, savedDestination);
 
+    // Keep the dropdown favourites list in sync immediately after saving.
     setFavouriteRoutes(result.routes);
+    window.dispatchEvent(new Event("hushnav:favourites-updated"));
 
     if (result.status === "duplicate") {
       setSaveRouteMessage("This route is already in your favourites.");
-      handleOpenFavouritesTab();
       return;
     }
 
     setSaveRouteMessage("Route saved to favourites.");
-    handleOpenFavouritesTab();
-  };
-
-  // Auto-fills the origin and destination fields when Emily selects a saved route.
-  // This supports AC 4.5.2.
-  const handleSelectFavouriteRoute = (route: FavouriteRoute) => {
-    setStartLocation(route.origin);
-    setDestination(route.destination);
-
-    // The saved route stores the display names. Coordinates will be resolved again
-    // when Emily presses Find Quiet Route.
-    setSelectedStart(null);
-    setSelectedDestination(null);
-    setUserLocation(null);
-
-    setIsStartSuggestionsOpen(false);
-    setIsDestinationSuggestionsOpen(false);
-    setStartSuggestions([]);
-    setDestinationSuggestions([]);
-    setLocationError("");
-    setActiveSearchTab("search");
-    setSaveRouteMessage("Favourite route loaded.");
-  };
-
-  // Removes a route from the favourites list.
-  const handleRemoveFavouriteRoute = (routeId: string) => {
-    const updatedRoutes = removeFavouriteRoute(routeId);
-
-    setFavouriteRoutes(updatedRoutes);
-    setSaveRouteMessage("Favourite route removed.");
   };
 
   // Sends route request to backend
@@ -1298,44 +1293,6 @@ export function Map() {
               </div> */}
             </div>
 
-            <div className="relative z-50 mb-3 grid grid-cols-2 rounded-xl bg-[#F7FAF9] p-1">
-              <button
-                type="button"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  handleOpenSearchTab();
-                }}
-                className={`pointer-events-auto flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                  activeSearchTab === "search"
-                    ? "bg-white text-[#5A9A8E] shadow-sm"
-                    : "text-[#6A7282] hover:text-[#1E2939]"
-                }`}
-              >
-                <Search size={15} />
-                Search
-              </button>
-
-              <button
-                type="button"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  handleOpenFavouritesTab();
-                }}
-                className={`pointer-events-auto flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                  activeSearchTab === "favourites"
-                    ? "bg-white text-[#5A9A8E] shadow-sm"
-                    : "text-[#6A7282] hover:text-[#1E2939]"
-                }`}
-              >
-                <Star size={15} />
-                Favourites
-              </button>
-            </div>
-
-            {activeSearchTab === "search" && (
-              <>
             <AutocompleteInput
               id="desktopStartLocation"
               label="Start"
@@ -1354,13 +1311,14 @@ export function Map() {
               }}
               onSelect={handleStartSelect}
               onFocus={() => {
-                if (startLocation.trim().length >= 2) {
-                  setIsStartSuggestionsOpen(true);
-                }
+                setIsStartSuggestionsOpen(true);
                 setIsDestinationSuggestionsOpen(false);
               }}
               onLocationClick={handleUseCurrentLocation}
               isLocating={isLocatingUser}
+              favouriteRoutes={favouriteRoutes}
+              onSelectFavouriteRoute={handleSelectFavouriteRoute}
+              onRemoveFavouriteRoute={handleRemoveFavouriteRoute}
             />
 
             {/* <button
@@ -1397,11 +1355,12 @@ export function Map() {
               }}
               onSelect={handleDestinationSelect}
               onFocus={() => {
-                if (destination.trim().length >= 2) {
-                  setIsDestinationSuggestionsOpen(true);
-                }
+                setIsDestinationSuggestionsOpen(true);
                 setIsStartSuggestionsOpen(false);
               }}
+              favouriteRoutes={favouriteRoutes}
+              onSelectFavouriteRoute={handleSelectFavouriteRoute}
+              onRemoveFavouriteRoute={handleRemoveFavouriteRoute}
             />
 
             {!routeData && (
@@ -1494,16 +1453,6 @@ export function Map() {
 
             {error && (
               <p className="mt-3 text-sm font-medium text-red-600">{error}</p>
-            )}
-              </>
-            )}
-
-            {activeSearchTab === "favourites" && (
-              <FavouriteRoutesList
-                favouriteRoutes={favouriteRoutes}
-                onSelectRoute={handleSelectFavouriteRoute}
-                onRemoveRoute={handleRemoveFavouriteRoute}
-              />
             )}
           </div>
 
@@ -1687,44 +1636,6 @@ export function Map() {
                 />
 
                 <div className="min-w-0 flex-1 flex-col">
-                  <div className="relative z-50 mb-2 grid grid-cols-2 rounded-xl bg-white/80 p-1 shadow-sm backdrop-blur-sm">
-                    <button
-                      type="button"
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        handleOpenSearchTab();
-                      }}
-                      className={`pointer-events-auto flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                        activeSearchTab === "search"
-                          ? "bg-white text-[#5A9A8E] shadow-sm"
-                          : "text-[#6A7282]"
-                      }`}
-                    >
-                      <Search size={15} />
-                      Search
-                    </button>
-
-                    <button
-                      type="button"
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        handleOpenFavouritesTab();
-                      }}
-                      className={`pointer-events-auto flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                        activeSearchTab === "favourites"
-                          ? "bg-white text-[#5A9A8E] shadow-sm"
-                          : "text-[#6A7282]"
-                      }`}
-                    >
-                      <Star size={15} />
-                      Favourites
-                    </button>
-                  </div>
-
-                  {activeSearchTab === "search" && (
-                    <>
                   <div className="min-w-0 flex-1 overflow-visible rounded-3xl border border-white/80 bg-white/95 shadow-md backdrop-blur-sm">
                     <AutocompleteInput
                       id="mobileStartLocation"
@@ -1744,13 +1655,14 @@ export function Map() {
                       }}
                       onSelect={handleStartSelect}
                       onFocus={() => {
-                        if (startLocation.trim().length >= 2) {
-                          setIsStartSuggestionsOpen(true);
-                        }
+                        setIsStartSuggestionsOpen(true);
                         setIsDestinationSuggestionsOpen(false);
                       }}
                       onLocationClick={handleUseCurrentLocation}
                       isLocating={isLocatingUser}
+                      favouriteRoutes={favouriteRoutes}
+                      onSelectFavouriteRoute={handleSelectFavouriteRoute}
+                      onRemoveFavouriteRoute={handleRemoveFavouriteRoute}
                     />
 
                     {/* <button
@@ -1792,11 +1704,12 @@ export function Map() {
                       }}
                       onSelect={handleDestinationSelect}
                       onFocus={() => {
-                        if (destination.trim().length >= 2) {
-                          setIsDestinationSuggestionsOpen(true);
-                        }
+                        setIsDestinationSuggestionsOpen(true);
                         setIsStartSuggestionsOpen(false);
                       }}
+                      favouriteRoutes={favouriteRoutes}
+                      onSelectFavouriteRoute={handleSelectFavouriteRoute}
+                      onRemoveFavouriteRoute={handleRemoveFavouriteRoute}
                     />
                   </div>
 
@@ -1858,18 +1771,6 @@ export function Map() {
                     <p className="mt-3 text-sm font-medium text-red-600">
                       {error}
                     </p>
-                  )}
-                    </>
-                  )}
-
-                  {activeSearchTab === "favourites" && (
-                    <div className="rounded-3xl border border-white/80 bg-white/95 p-3 shadow-md backdrop-blur-sm">
-                      <FavouriteRoutesList
-                        favouriteRoutes={favouriteRoutes}
-                        onSelectRoute={handleSelectFavouriteRoute}
-                        onRemoveRoute={handleRemoveFavouriteRoute}
-                      />
-                    </div>
                   )}
                 </div>
               </div>
