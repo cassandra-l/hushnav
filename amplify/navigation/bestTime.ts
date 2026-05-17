@@ -31,7 +31,7 @@ type ForecastCostRow = {
 };
 
 type ForecastRunTimeRow = {
-    run_id: number;
+    run_id: string;
     forecast_time: Date | string;
 };
 
@@ -157,7 +157,7 @@ async function loadForecastCostsForTimes(
             throw new Error("No forecast times found for the latest succeeded run.");
         }
 
-        const runId = Number(timeResult.rows[0].run_id);
+        const runId = String(timeResult.rows[0].run_id);
 
         const availableForecastTimes = timeResult.rows.map((row) =>
             new Date(row.forecast_time).toISOString(),
