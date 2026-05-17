@@ -177,28 +177,34 @@ function normalisePhotonFeature(
   };
 }
 
-// Calls Photon API to fetch live search suggestions
+let photonUnavailableUntil = 0;
+const PHOTON_RETRY_DELAY_MS = 5 * 60 * 1000;
+
+// Fetch search suggestions through our backend proxy.
+// The backend will call Photon first, then fall back to Gisgraphy.
 async function fetchPhotonSuggestions(
   query: string,
   signal?: AbortSignal,
 ): Promise<LocationSuggestion[]> {
   const trimmed = query.trim();
 
-  if (trimmed.length < 2) {
+  if (trimmed.length < 2 || trimmed === "Current Location") {
+    return [];
+  }
+
+  if (!API_BASE_URL) {
+    console.error("API base URL not set. Add VITE_API_BASE_URL to your .env file.");
     return [];
   }
 
   const params = new URLSearchParams({
     q: trimmed,
-    limit: "8",
-    lang: "en",
-    lat: String(CBD_CENTER.lat),
-    lon: String(CBD_CENTER.lng),
-    bbox: MELBOURNE_INNER_BBOX,
   });
 
+  const baseUrl = API_BASE_URL.replace(/\/$/, "");
+
   const response = await fetch(
-    `https://photon.komoot.io/api/?${params.toString()}`,
+    `${baseUrl}/geocode-suggestions?${params.toString()}`,
     {
       signal,
     },
@@ -206,16 +212,15 @@ async function fetchPhotonSuggestions(
 
   if (!response.ok) {
     const body = await response.text();
-    console.error("Photon search failed:", response.status, body);
-    throw new Error(`Photon request failed with status ${response.status}`);
+    console.error("Geocode suggestions failed:", response.status, body);
+    return [];
   }
 
-  const data = (await response.json()) as PhotonResponse;
-  const features = Array.isArray(data.features) ? data.features : [];
+  const data = (await response.json()) as {
+    suggestions?: LocationSuggestion[];
+  };
 
-  return features
-    .map((feature, index) => normalisePhotonFeature(feature, index))
-    .filter((item): item is LocationSuggestion => item !== null);
+  return Array.isArray(data.suggestions) ? data.suggestions : [];
 }
 
 // Noise monitoring configuration
