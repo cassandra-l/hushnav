@@ -8,6 +8,13 @@ const headers = {
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   try {
+    if (event.httpMethod === "OPTIONS") {
+      return {
+        statusCode: 204,
+        headers,
+        body: "",
+      };
+    }
     const body = event.body ? JSON.parse(event.body) : {};
 
     const { findBestRouteTime } = await import("../../navigation/bestTime");
