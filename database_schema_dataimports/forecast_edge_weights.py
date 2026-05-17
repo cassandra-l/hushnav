@@ -87,10 +87,9 @@ def fetch_dataset_all(
     limit: int = 100,
     max_pages: int = 500,
 ) -> List[dict]:
-    # Generic paginator for Melbourne Open Data API responses.
     rows: List[dict] = []
     offset = 0
-    # This API can reject very high offsets, so pagination is capped and stopped safely.
+    # API rejects very high offsets, so pagination is capped and stopped safely.
     max_safe_offset = int(os.getenv("MELB_API_MAX_OFFSET", "9900"))
 
     for _ in range(max_pages):
@@ -108,16 +107,16 @@ def fetch_dataset_all(
             timeout=30,
         )
         if resp.status_code == 400 and offset > 0:
-            # Treat this as end-of-pagination instead of failing the run.
+            # Treat this as end-of-pagination instead run fail.
             break
         resp.raise_for_status()
         page_rows = resp.json().get("results", [])
         if not page_rows:
-            # No more data.
+            # break when there is no more data.
             break
         rows.extend(page_rows)
         if len(page_rows) < limit:
-            # Last page.
+            # last page.
             break
         offset += limit
 
@@ -125,14 +124,14 @@ def fetch_dataset_all(
 
 
 def load_noise_history(days_back: int) -> pd.DataFrame:
-    # Build a "from this time onward" boundary.
+    # Build a from this time onward boundary.
     start_ts = (
         (utc_now() - timedelta(days=days_back))
         .replace(microsecond=0)
         .isoformat()
         .replace("+00:00", "Z")
     )
-    # Only fetch fields needed by this pipeline.
+    # only fetch fields needed by this pipeline.
     rows = fetch_dataset_all(
         MICROCLIMATE_API,
         params={
@@ -142,10 +141,10 @@ def load_noise_history(days_back: int) -> pd.DataFrame:
         },
     )
     if not rows:
-        # Keep a stable empty schema so downstream code is simpler.
+        # keep a stable empty dataframe for simpler downstream code
         return pd.DataFrame(columns=["sensor_key", "timestamp", "value"])
 
-    # Normalize and clean into our internal shape.
+    # normalize and clean - drop NAs and match the expected columns
     df = pd.DataFrame(rows)
     df = df.dropna(subset=["device_id", "received_at", "noise"]).copy()
     df["timestamp"] = pd.to_datetime(df["received_at"], utc=True, errors="coerce")
@@ -156,7 +155,7 @@ def load_noise_history(days_back: int) -> pd.DataFrame:
 
 
 def load_pedestrian_history(days_back: int) -> pd.DataFrame:
-    # Same fetch pattern, but for pedestrian counts.
+    # same fetch, but for pedestrian counts.
     start_ts = (
         (utc_now() - timedelta(days=days_back))
         .replace(microsecond=0)
@@ -174,7 +173,7 @@ def load_pedestrian_history(days_back: int) -> pd.DataFrame:
     if not rows:
         return pd.DataFrame(columns=["sensor_key", "timestamp", "value"])
 
-    # Normalize to the same columns as noise history.
+    # normalize to the same columns
     df = pd.DataFrame(rows)
     df = df.dropna(subset=["location_id", "sensing_datetime", "total_of_directions"]).copy()
     df["timestamp"] = pd.to_datetime(df["sensing_datetime"], utc=True, errors="coerce")
@@ -185,7 +184,7 @@ def load_pedestrian_history(days_back: int) -> pd.DataFrame:
 
 
 def load_pedestrian_history_hourly(days_back: int) -> pd.DataFrame:
-    # Preferred source: longer hourly history gives better weekly patterns.
+    # using hourly history to get better weekly patterns.
     start_ts = (
         (utc_now() - timedelta(days=days_back))
         .replace(microsecond=0)
@@ -216,8 +215,7 @@ def load_pedestrian_history_with_fallback(
     days_back: int, preferred_source: str
 ) -> Tuple[pd.DataFrame, str]:
     """
-    Try the richer hourly source first (by default), then fallback to past-hour source.
-    Returns both dataframe and the source name actually used.
+    Try the hourly source for that particular hour, then fallback to past-hour if there is none.
     """
     preferred = preferred_source.strip().lower()
 
@@ -225,13 +223,13 @@ def load_pedestrian_history_with_fallback(
         df = load_pedestrian_history(days_back=days_back)
         return df, "past_hour"
 
-    # Default path: use hourly history.
+    # use hourly history.
     try:
         hourly_df = load_pedestrian_history_hourly(days_back=days_back)
         if not hourly_df.empty:
             return hourly_df, "hourly"
     except Exception:
-        # If hourly fails, keep the run alive with fallback data.
+        # otherwise use the past-hour data.
         pass
 
     fallback_df = load_pedestrian_history(days_back=days_back)
@@ -239,13 +237,13 @@ def load_pedestrian_history_with_fallback(
 
 
 def aggregate_to_hourly(df: pd.DataFrame) -> pd.DataFrame:
-    # Convert irregular readings into regular hourly buckets.
+    # convert irregular readings into regular hourly buckets.
     if df.empty:
         return df
     out_frames: List[pd.DataFrame] = []
     for sensor_key, group in df.groupby("sensor_key"):
         g = group.set_index("timestamp").sort_index()
-        # If multiple readings land in the same hour, average them.
+        # if multiple readings land in the same hour, average them.
         rolled = g["value"].resample(FREQ).mean().to_frame(name="value")
         rolled["sensor_key"] = sensor_key
         out_frames.append(rolled.reset_index())
@@ -253,8 +251,7 @@ def aggregate_to_hourly(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def seasonal_naive_forecast(series: pd.Series, steps: int, season_len: int = 24) -> np.ndarray:
-    # Fallback model: repeat the last daily pattern (24 hourly slots).
-    # Not fancy, but very reliable when data is sparse.
+    # if there are issues with sparse data we just repeat the last daily pattern 
     values = series.to_numpy(dtype=float)
     if len(values) == 0:
         return np.zeros(steps, dtype=float)
@@ -269,12 +266,12 @@ def weekly_profile_forecast_with_meta(
     series: pd.Series, steps: int
 ) -> Tuple[np.ndarray, bool, str]:
     """
-    Primary model: per-sensor weekly profile using average of daily maxima.
+    per-sensor weekly profile using average of daily maxima.
     For each (weekday, hour slot):
     1) take max value for each historical date
     2) average those date-level maxima
 
-    Fallback chain for each future slot:
+    fallback chain for each future slot:
     1) exact weekday+slot profile
     2) slot-only profile (all weekdays combined)
     3) global series max
@@ -332,11 +329,8 @@ def weekly_profile_forecast(series: pd.Series, steps: int) -> np.ndarray:
 
 
 def make_sensor_forecasts(df_hourly: pd.DataFrame, steps: int) -> List[ForecastPoint]:
-    # Build per-sensor forecast rows for the next N hours.
-    #
-    # Output shape:
-    # - one row per (sensor, future_time_slot)
-    # - for 168 steps, each sensor gets one week of hourly predictions.
+    # build per-sensor forecast rows for the next N hours.
+    # build one row per (sensor, future_time_slot) for 168 steps, each sensor gets one week of hourly predictions.
     if df_hourly.empty:
         return []
 
@@ -384,12 +378,12 @@ def crowd_count_to_penalty(count: float) -> float:
 
 
 def is_high_crowd(count: float) -> bool:
-    # Same threshold used in live routing.
+    # aame threshold used in live routing.
     return count >= 30
 
 
 def create_run(conn, run_id: str, horizon_start: datetime, horizon_end: datetime) -> None:
-    # Write run metadata first for easier traceability.
+    # write run metadata first for easier traceability.
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -404,7 +398,7 @@ def create_run(conn, run_id: str, horizon_start: datetime, horizon_end: datetime
 
 
 def mark_run(conn, run_id: str, status: str, error_message: Optional[str] = None) -> None:
-    # Mark final run status for quick monitoring.
+    # mark final run status for quick monitoring.
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -420,7 +414,6 @@ def mark_run(conn, run_id: str, status: str, error_message: Optional[str] = None
 def ensure_edge_sensor_maps(conn) -> None:
     """
     Build and cache edge->nearest sensor mapping.
-    This geometric step is expensive, so only run it when cache tables are empty.
     """
     with conn.cursor() as cur:
         cur.execute("SELECT COUNT(*) FROM edge_noise_map")
@@ -494,7 +487,7 @@ def load_edge_base_and_maps(
 
 
 def index_forecasts(points: List[ForecastPoint]) -> Dict[Tuple[str, datetime], float]:
-    # Dict lookup keeps edge materialization fast.
+    # dict lookup keeps edge materialization fast.
     return {(p.sensor_key, p.forecast_time): p.predicted_value for p in points}
 
 
@@ -573,13 +566,7 @@ def parse_args() -> dict:
 
 
 def main() -> int:
-    # Full pipeline orchestration in one place.
-    # Steps:
-    # A) read config
-    # B) fetch + clean history
-    # C) build one-week hourly forecasts
-    # D) map forecasts to edges and compute costs
-    # E) write rows + mark run status
+    # read config
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
         print("DATABASE_URL is required.", file=sys.stderr)
@@ -639,7 +626,17 @@ def main() -> int:
         mark_run(conn, run_id=run_id, status="succeeded")
         conn.close()
 
-        # Machine-readable summary for logs/CI.
+      # once the new data has been stores - we will prune the previous historical data outside of the active window
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM edge_forecasts
+                WHERE forecast_time < NOW() - INTERVAL '1 day';
+                """
+            )
+        conn.commit()
+
+        # summary for logs/CI.
         print(
             json.dumps(
                 {
@@ -657,7 +654,7 @@ def main() -> int:
         return 0
     except Exception as exc:
         try:
-            # Best effort: mark run as failed for visibility.
+            # mark run as failed for visibility.
             conn = psycopg2.connect(database_url, sslmode="require")
             mark_run(conn, run_id=run_id, status="failed", error_message=str(exc))
             conn.close()
