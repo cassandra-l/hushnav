@@ -11,8 +11,12 @@ import {
   Mic,
   AlertTriangle,
   Menu,
+  BookmarkPlus,
+  Search,
+  Star,
 } from "lucide-react";
 import { MicButton } from "./components/mic-button";
+
 import { PopUp } from "./components/pop-up";
 import { RouteMap } from "./components/route-map";
 import { SafeSpaceStopoverPanel } from "./components/safe-space-stopover-panel";
@@ -27,6 +31,13 @@ import type {
 import { useAudioMonitor } from "./hook/useAudioMonitor";
 import { VolumeBar } from "./components/noise-volume-bar";
 import { AutocompleteInput } from "./components/map/AutocompleteInput";
+import { FavouriteRoutesList } from "./components/favourite-routes-list";
+import {
+  getFavouriteRoutes,
+  removeFavouriteRoute,
+  saveFavouriteRoute,
+  type FavouriteRoute,
+} from "./utils/favouriteRoutes";
 
 import type { CrowdMapFeatureCollection } from "./types/noise-map";
 import { AnimatePresence, motion } from "framer-motion";
@@ -256,6 +267,14 @@ export function Map() {
   const [startLocation, setStartLocation] = useState("");
   const [destination, setDestination] = useState("");
 
+  // Favourites tab state for AC 4.5.1 and AC 4.5.2.
+  // Search shows the existing route form. Favourites shows saved origin/destination pairs.
+  const [activeSearchTab, setActiveSearchTab] = useState<"search" | "favourites">(
+    "search",
+  );
+  const [favouriteRoutes, setFavouriteRoutes] = useState<FavouriteRoute[]>([]);
+  const [saveRouteMessage, setSaveRouteMessage] = useState("");
+
   // Selected suggestion objects
   const [selectedStart, setSelectedStart] = useState<LocationSuggestion | null>(
     null,
@@ -306,6 +325,11 @@ export function Map() {
   const departureSummary = departureConfig.enabled
     ? `${departureConfig.date} ${departureConfig.time}`
     : "Now";
+
+  // Loads Emily's previously saved favourite routes from localStorage.
+  useEffect(() => {
+    setFavouriteRoutes(getFavouriteRoutes());
+  }, []);
 
   useEffect(() => {
     setBestTimeSuggestion(null);
@@ -901,6 +925,64 @@ export function Map() {
     setDestinationSuggestions([]);
   };
 
+  // Saves the current origin and destination as a favourite route.
+  // This supports AC 4.5.1.
+    const handleSaveRoute = () => {
+  const origin = startLocation.trim();
+  const savedDestination = destination.trim();
+
+  if (!origin || !savedDestination) {
+    setSaveRouteMessage("Please enter both a start location and destination first.");
+    return;
+  }
+
+  const result = saveFavouriteRoute(origin, savedDestination);
+
+  setFavouriteRoutes(result.routes);
+
+  if (result.status === "duplicate") {
+    setSaveRouteMessage("This route is already in your favourites.");
+  } else {
+    setSaveRouteMessage("Route saved to favourites.");
+  }
+
+  // Automatically open the Favourites tab after saving
+  setActiveSearchTab("favourites");
+
+  // Close search suggestion dropdowns so they do not sit over the favourites list
+  setIsStartSuggestionsOpen(false);
+  setIsDestinationSuggestionsOpen(false);
+};
+
+  // Auto-fills the origin and destination fields when Emily selects a saved route.
+  // This supports AC 4.5.2.
+  const handleSelectFavouriteRoute = (route: FavouriteRoute) => {
+    setStartLocation(route.origin);
+    setDestination(route.destination);
+
+    // The saved route stores the display names. Coordinates will be resolved again
+    // when Emily presses Find Quiet Route.
+    setSelectedStart(null);
+    setSelectedDestination(null);
+    setUserLocation(null);
+
+    setIsStartSuggestionsOpen(false);
+    setIsDestinationSuggestionsOpen(false);
+    setStartSuggestions([]);
+    setDestinationSuggestions([]);
+    setLocationError("");
+    setActiveSearchTab("search");
+    setSaveRouteMessage("Favourite route loaded.");
+  };
+
+  // Removes a route from the favourites list.
+  const handleRemoveFavouriteRoute = (routeId: string) => {
+    const updatedRoutes = removeFavouriteRoute(routeId);
+
+    setFavouriteRoutes(updatedRoutes);
+    setSaveRouteMessage("Favourite route removed.");
+  };
+
   // Sends route request to backend
   const buildRouteRequestBody = (
     safeSpaceStops: SafeSpace[],
@@ -1201,6 +1283,41 @@ export function Map() {
               </div> */}
             </div>
 
+            <div className="mb-3 grid grid-cols-2 rounded-xl bg-[#F7FAF9] p-1">
+              <button
+                type="button"
+                onClick={() => setActiveSearchTab("search")}
+                className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                  activeSearchTab === "search"
+                    ? "bg-white text-[#5A9A8E] shadow-sm"
+                    : "text-[#6A7282] hover:text-[#1E2939]"
+                }`}
+              >
+                <Search size={15} />
+                Search
+              </button>
+
+              <button
+                type="button"
+               onClick={() => {
+  setFavouriteRoutes(getFavouriteRoutes());
+  setActiveSearchTab("favourites");
+  setIsStartSuggestionsOpen(false);
+  setIsDestinationSuggestionsOpen(false);
+}}
+                className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                  activeSearchTab === "favourites"
+                    ? "bg-white text-[#5A9A8E] shadow-sm"
+                    : "text-[#6A7282] hover:text-[#1E2939]"
+                }`}
+              >
+                <Star size={15} />
+                Favourites
+              </button>
+            </div>
+
+            {activeSearchTab === "search" && (
+              <>
             <AutocompleteInput
               id="desktopStartLocation"
               label="Start"
@@ -1338,8 +1455,33 @@ export function Map() {
               {loading ? "Finding Quiet Route..." : "Find Quiet Route"}
             </button>
 
+            <button
+              type="button"
+              onClick={handleSaveRoute}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#DCE7E3] bg-[#F8FBFA] px-4 py-2.5 text-sm font-medium text-[#5A9A8E] shadow-sm transition hover:bg-[#E8F4F1]"
+            >
+              <BookmarkPlus size={16} />
+              Save Route
+            </button>
+
+            {saveRouteMessage && (
+              <p className="mt-2 text-sm font-medium text-[#5A9A8E]">
+                {saveRouteMessage}
+              </p>
+            )}
+
             {error && (
               <p className="mt-3 text-sm font-medium text-red-600">{error}</p>
+            )}
+              </>
+            )}
+
+            {activeSearchTab === "favourites" && (
+              <FavouriteRoutesList
+                favouriteRoutes={favouriteRoutes}
+                onSelectRoute={handleSelectFavouriteRoute}
+                onRemoveRoute={handleRemoveFavouriteRoute}
+              />
             )}
           </div>
 
@@ -1523,6 +1665,41 @@ export function Map() {
                 />
 
                 <div className="min-w-0 flex-1 flex-col">
+                  <div className="mb-2 grid grid-cols-2 rounded-xl bg-white/80 p-1 shadow-sm backdrop-blur-sm">
+                    <button
+                      type="button"
+                      onClick={() => setActiveSearchTab("search")}
+                      className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                        activeSearchTab === "search"
+                          ? "bg-white text-[#5A9A8E] shadow-sm"
+                          : "text-[#6A7282]"
+                      }`}
+                    >
+                      <Search size={15} />
+                      Search
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+  setFavouriteRoutes(getFavouriteRoutes());
+  setActiveSearchTab("favourites");
+  setIsStartSuggestionsOpen(false);
+  setIsDestinationSuggestionsOpen(false);
+}}
+                      className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                        activeSearchTab === "favourites"
+                          ? "bg-white text-[#5A9A8E] shadow-sm"
+                          : "text-[#6A7282]"
+                      }`}
+                    >
+                      <Star size={15} />
+                      Favourites
+                    </button>
+                  </div>
+
+                  {activeSearchTab === "search" && (
+                    <>
                   <div className="min-w-0 flex-1 overflow-visible rounded-3xl border border-white/80 bg-white/95 shadow-md backdrop-blur-sm">
                     <AutocompleteInput
                       id="mobileStartLocation"
@@ -1633,10 +1810,37 @@ export function Map() {
                     )}
                   </AnimatePresence>
 
+                  <button
+                    type="button"
+                    onClick={handleSaveRoute}
+                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#DCE7E3] bg-white px-4 py-2.5 text-sm font-medium text-[#5A9A8E] shadow-sm"
+                  >
+                    <BookmarkPlus size={16} />
+                    Save Route
+                  </button>
+
+                  {saveRouteMessage && (
+                    <p className="mt-2 text-sm font-medium text-[#5A9A8E]">
+                      {saveRouteMessage}
+                    </p>
+                  )}
+
                   {error && (
                     <p className="mt-3 text-sm font-medium text-red-600">
                       {error}
                     </p>
+                  )}
+                    </>
+                  )}
+
+                  {activeSearchTab === "favourites" && (
+                    <div className="rounded-3xl border border-white/80 bg-white/95 p-3 shadow-md backdrop-blur-sm">
+                      <FavouriteRoutesList
+                        favouriteRoutes={favouriteRoutes}
+                        onSelectRoute={handleSelectFavouriteRoute}
+                        onRemoveRoute={handleRemoveFavouriteRoute}
+                      />
+                    </div>
                   )}
                 </div>
               </div>
