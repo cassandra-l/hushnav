@@ -119,6 +119,7 @@ export function RouteMap({
   userLocation = null,
 }: RouteMapProps) {
   const mapRef = useRef<MapRef | null>(null);
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [selectedSafeSpace, setSelectedSafeSpace] =
     useState<SafeSpace | null>(null);
 
@@ -164,9 +165,11 @@ const selectedStopNumberById = useMemo(() => {
 
   const safeSpaces = routeData ? routeData.safeSpaces : allSafeSpaces;
 
-  // Fit full route in preview mode.
+  // Preview mode: fit the full route in view once the map is ready.
   useEffect(() => {
-    if (!mapRef.current || !routeData || isNavigationActive) return;
+    if (!isMapLoaded || !mapRef.current || !routeData || isNavigationActive) {
+      return;
+    }
 
     const coords = routeData.route.geojson.coordinates;
     if (!coords?.length) return;
@@ -176,12 +179,19 @@ const selectedStopNumberById = useMemo(() => {
     let maxLng = coords[0][0];
     let maxLat = coords[0][1];
 
-    for (const [lng, lat] of coords) {
+    const includePoint = (lng: number, lat: number) => {
       if (lng < minLng) minLng = lng;
       if (lng > maxLng) maxLng = lng;
       if (lat < minLat) minLat = lat;
       if (lat > maxLat) maxLat = lat;
+    };
+
+    for (const [lng, lat] of coords) {
+      includePoint(lng, lat);
     }
+
+    includePoint(routeData.start.lng, routeData.start.lat);
+    includePoint(routeData.end.lng, routeData.end.lat);
 
     const hasMultipleStops = selectedStopovers.length > 1;
 
@@ -191,17 +201,24 @@ const selectedStopNumberById = useMemo(() => {
         [maxLng, maxLat],
       ],
       {
-        // Extra padding helps stop labels stay visible.
         padding: hasMultipleStops ? 120 : 80,
         duration: 1200,
       },
     );
-  }, [routeData, isNavigationActive, selectedStopovers.length]);
+  }, [routeData, isNavigationActive, isMapLoaded, selectedStopovers.length]);
 
   // When Emily taps "Use Current Location", move the map to her location.
-  // This works in preview/search mode before navigation starts.
+  // Only in search mode — skip once a route is loaded so preview fit is preserved.
   useEffect(() => {
-    if (!mapRef.current || !userLocation || isNavigationActive) return;
+    if (
+      !isMapLoaded ||
+      !mapRef.current ||
+      !userLocation ||
+      isNavigationActive ||
+      routeData
+    ) {
+      return;
+    }
 
     mapRef.current.flyTo({
       center: [userLocation.lng, userLocation.lat],
@@ -210,13 +227,15 @@ const selectedStopNumberById = useMemo(() => {
       bearing: 0,
       duration: 1000,
     });
-  }, [userLocation, isNavigationActive]);
+  }, [userLocation, isNavigationActive, routeData, isMapLoaded]);
 
   // Navigation mode: always zoom into the route's actual start point.
   // This could be the user's live location OR a manually entered start,
   // depending on what was used when the route was planned.
   useEffect(() => {
-    if (!mapRef.current || !routeData || !isNavigationActive) return;
+    if (!isMapLoaded || !mapRef.current || !routeData || !isNavigationActive) {
+      return;
+    }
 
     mapRef.current.flyTo({
       center: [routeData.start.lng, routeData.start.lat],
@@ -225,7 +244,7 @@ const selectedStopNumberById = useMemo(() => {
       bearing: 0,
       duration: 1200,
     });
-  }, [isNavigationActive, routeData]);
+  }, [isNavigationActive, routeData, isMapLoaded]);
 
   // Keep following the live location only when the planned route actually starts
   // from the user's current location.
@@ -278,6 +297,7 @@ const selectedStopNumberById = useMemo(() => {
         initialViewState={melbourneCBD}
         mapboxAccessToken={mapboxToken}
         mapStyle="mapbox://styles/mapbox/streets-v12"
+        onLoad={() => setIsMapLoaded(true)}
       >
         {/* Crowd / noise road layer. High-crowd roads are shown in red. */}
         {crowdMapData && (
