@@ -117,26 +117,25 @@ export function SensoryProfile({
                 hasSavedResult ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"
               }`}
             >
-              {/* Primary Action Button */}
-              <button
-                type="button"
-                onClick={onStart}
-                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#5A9A8E] px-6 py-4 text-xs md:text-sm font-bold text-white shadow-md hover:bg-[#5A9A8E]/90 transition-colors cursor-pointer"
-              >
-                {hasSavedResult ? "Retake Quiz" : "Start Self Discovery"}
-              </button>
-
               {/* Conditional Secondary Action Button */}
               {hasSavedResult && (
                 <button
                   type="button"
-                  onClick={onSeeResult}
+                  onClick={onStart}
                   className="w-full flex items-center justify-center gap-2 rounded-2xl bg-white border border-[#5A9A8E] px-6 py-4 text-xs md:text-sm font-bold text-[#5A9A8E] shadow-sm hover:bg-gray-50 transition-colors cursor-pointer"
                 >
-                  <Eye size={15} />
-                  See Previous Result
+                  {hasSavedResult ? "Retake Quiz" : "Start Self Discovery"}
                 </button>
               )}
+              {/* Primary Action Button */}
+              <button
+                type="button"
+                onClick={onSeeResult}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#5A9A8E] px-6 py-4 text-xs md:text-sm font-bold text-white shadow-md hover:bg-[#5A9A8E]/90 transition-colors cursor-pointer"
+              >
+                <Eye size={15} />
+                See Previous Result
+              </button>
             </div>
 
             {/* Privacy Notice Footnote */}
