@@ -50,22 +50,43 @@ type SafeSpaceMarkerProps = {
   onClick: () => void;
   stopNumber?: number;
   isSelectedStop?: boolean;
+  scale: number;
+  visible: boolean;
 };
 
-function renderSafeSpaceIcon(type: SafeSpace["type"]) {
+const SAFE_SPACE_ICON_MIN_ZOOM = 11;
+const SAFE_SPACE_ICON_FULL_ZOOM = 16;
+
+function getSafeSpaceMarkerScale(zoom: number) {
+  if (zoom <= SAFE_SPACE_ICON_MIN_ZOOM) {
+    return { visible: false, scale: 0 };
+  }
+
+  if (zoom >= SAFE_SPACE_ICON_FULL_ZOOM) {
+    return { visible: true, scale: 1 };
+  }
+
+  const scale =
+    (zoom - SAFE_SPACE_ICON_MIN_ZOOM) /
+    (SAFE_SPACE_ICON_FULL_ZOOM - SAFE_SPACE_ICON_MIN_ZOOM);
+
+  return { visible: true, scale };
+}
+
+function renderSafeSpaceIcon(type: SafeSpace["type"], iconSize = 18) {
   switch (type) {
     case "park":
-      return <TreePine size={18} className="text-[#5A9A8E]" />;
+      return <TreePine size={iconSize} className="text-[#5A9A8E]" />;
     case "library":
-      return <Book size={18} className="text-[#5A9A8E]" />;
+      return <Book size={iconSize} className="text-[#5A9A8E]" />;
     case "museum":
-      return <Landmark size={18} className="text-[#5A9A8E]" />;
+      return <Landmark size={iconSize} className="text-[#5A9A8E]" />;
     case "church":
-      return <Church size={18} className="text-[#5A9A8E]" />;
+      return <Church size={iconSize} className="text-[#5A9A8E]" />;
     case "synagogue":
-      return <Building2 size={18} className="text-[#5A9A8E]" />;
+      return <Building2 size={iconSize} className="text-[#5A9A8E]" />;
     default:
-      return <MapPin size={18} className="text-[#5A9A8E]" />;
+      return <MapPin size={iconSize} className="text-[#5A9A8E]" />;
   }
 }
 
@@ -74,7 +95,18 @@ function SafeSpaceMarker({
   onClick,
   stopNumber,
   isSelectedStop = false,
+  scale,
+  visible,
 }: SafeSpaceMarkerProps) {
+  if (!visible) {
+    return null;
+  }
+
+  const markerStyle = {
+    transform: `scale(${scale})`,
+    transformOrigin: "center center",
+  };
+
   // Selected stopovers are shown as numbered markers.
   // This makes the route order clearer: Stop 1 -> Stop 2 -> Stop 3.
   if (isSelectedStop && stopNumber !== undefined) {
@@ -82,6 +114,7 @@ function SafeSpaceMarker({
       <button
         type="button"
         onClick={onClick}
+        style={markerStyle}
         className="relative flex h-12 w-12 items-center justify-center rounded-full border-4 border-white bg-[#5A9A8E] text-white shadow-lg"
         aria-label={`Stop ${stopNumber}: ${safeSpace.name}`}
       >
@@ -98,6 +131,7 @@ function SafeSpaceMarker({
     <button
       type="button"
       onClick={onClick}
+      style={markerStyle}
       className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-md"
       aria-label={safeSpace.name}
     >
@@ -175,6 +209,12 @@ export function RouteMap({
     latitude: -37.8136,
     zoom: 14.5,
   };
+
+  const [mapZoom, setMapZoom] = useState(melbourneCBD.zoom);
+  const safeSpaceMarkerScale = useMemo(
+    () => getSafeSpaceMarkerScale(mapZoom),
+    [mapZoom],
+  );
 
   const routeGeoJson = useMemo(() => {
     if (!routeData) return null;
@@ -355,7 +395,13 @@ export function RouteMap({
         mapboxAccessToken={mapboxToken}
         mapStyle="mapbox://styles/mapbox/streets-v12"
 
+        onMove={(event) => {
+          setMapZoom(event.viewState.zoom);
+        }}
+
         onMoveEnd={(event) => {
+          setMapZoom(event.viewState.zoom);
+
           const center = event.target.getCenter();
           onMapCenterChange?.({
             lat: center.lat,
@@ -363,7 +409,10 @@ export function RouteMap({
           });
         }}
 
-        onLoad={() => setIsMapLoaded(true)}
+        onLoad={(event) => {
+          setIsMapLoaded(true);
+          setMapZoom(event.target.getZoom());
+        }}
       >
         {/* Crowd / noise road layer. High-crowd roads are shown in red. */}
         {crowdMapData && (
@@ -463,8 +512,8 @@ export function RouteMap({
               latitude={routeData.start.lat}
               anchor="bottom"
             >
-              <div className="flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#D4B896] shadow-lg">
-                <Navigation size={22} className="text-white" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-[#D4B896] shadow-lg">
+                <Navigation size={18} className="text-white" />
               </div>
             </Marker>
 
@@ -473,35 +522,38 @@ export function RouteMap({
               latitude={routeData.end.lat}
               anchor="bottom"
             >
-              <div className="flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#7DB0A6] shadow-lg">
-                <MapPin size={22} className="text-white" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-[#7DB0A6] shadow-lg">
+                <MapPin size={18} className="text-white" />
               </div>
             </Marker>
           </>
         )}
 
-        {safeSpaces.map((safeSpace) => {
-          const stopNumber = selectedStopNumberById.get(safeSpace.id);
-          const isSelectedStop = stopNumber !== undefined;
+        {safeSpaceMarkerScale.visible &&
+          safeSpaces.map((safeSpace) => {
+            const stopNumber = selectedStopNumberById.get(safeSpace.id);
+            const isSelectedStop = stopNumber !== undefined;
 
-          return (
-            <Marker
-              key={safeSpace.id}
-              longitude={safeSpace.lng}
-              latitude={safeSpace.lat}
-              anchor="center"
-            >
-              <SafeSpaceMarker
-                safeSpace={safeSpace}
-                stopNumber={stopNumber}
-                isSelectedStop={isSelectedStop}
-                onClick={() => setSelectedSafeSpace(safeSpace)}
-              />
-            </Marker>
-          );
-        })}
+            return (
+              <Marker
+                key={safeSpace.id}
+                longitude={safeSpace.lng}
+                latitude={safeSpace.lat}
+                anchor="center"
+              >
+                <SafeSpaceMarker
+                  safeSpace={safeSpace}
+                  stopNumber={stopNumber}
+                  isSelectedStop={isSelectedStop}
+                  scale={safeSpaceMarkerScale.scale}
+                  visible={safeSpaceMarkerScale.visible}
+                  onClick={() => setSelectedSafeSpace(safeSpace)}
+                />
+              </Marker>
+            );
+          })}
 
-        {selectedSafeSpace && (
+        {selectedSafeSpace && safeSpaceMarkerScale.visible && (
           <Popup
             longitude={selectedSafeSpace.lng}
             latitude={selectedSafeSpace.lat}
