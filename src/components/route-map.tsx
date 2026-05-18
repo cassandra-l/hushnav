@@ -265,11 +265,12 @@ export function RouteMap({
     () => getNoiseReportMarkerScale(mapZoom),
     [mapZoom],
   );
-
-  useEffect(() => {
-    if (!noiseReportMarkerScale.visible && selectedNoiseReportPin) {
-      setSelectedNoiseReportPin(null);
+  const visibleNoiseReportPin = useMemo(() => {
+    if (!noiseReportMarkerScale.visible || !selectedNoiseReportPin) {
+      return null;
     }
+
+    return selectedNoiseReportPin;
   }, [noiseReportMarkerScale.visible, selectedNoiseReportPin]);
 
   const routeGeoJson = useMemo(() => {
@@ -571,10 +572,10 @@ export function RouteMap({
             </Marker>
           ))}
 
-        {noiseReportMarkerScale.visible && selectedNoiseReportPin && (
+        {visibleNoiseReportPin && (
           <Popup
-            longitude={selectedNoiseReportPin.lng}
-            latitude={selectedNoiseReportPin.lat}
+            longitude={visibleNoiseReportPin.lng}
+            latitude={visibleNoiseReportPin.lat}
             anchor="top"
             closeOnClick={false}
             onClose={() => setSelectedNoiseReportPin(null)}
