@@ -571,7 +571,10 @@ export function Map() {
   };
 
   useEffect(() => {
-    const state = location.state as { restoreRoutePreview?: boolean } | null;
+    const state = location.state as {
+      restoreRoutePreview?: boolean;
+      replanAfterFilter?: boolean;
+    } | null;
     if (!state?.restoreRoutePreview) return;
 
     const raw = sessionStorage.getItem(FILTER_PREVIEW_STATE_KEY);
@@ -593,7 +596,10 @@ export function Map() {
       setError("");
       setSelectedSafeSpaceTypes(readSelectedSafeSpaceTypes());
       setSelectedAvoidMode(readSelectedAvoidMode());
-      setShouldReplanAfterFilter(true);
+
+      if (state.replanAfterFilter) {
+        setShouldReplanAfterFilter(true);
+      }
     } catch {
       // Ignore malformed snapshots.
     } finally {

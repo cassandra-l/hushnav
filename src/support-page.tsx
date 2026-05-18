@@ -51,7 +51,7 @@ export function SupportPage() {
       desc: "Breathe in quietly through your nose, expanding your diaphragm.",
     },
     {
-      duration: "8s",
+      duration: "6s",
       label: "Exhale",
       desc: "Release slowly through your mouth, emptying your lungs fully.",
     },
