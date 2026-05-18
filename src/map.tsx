@@ -2149,10 +2149,10 @@ export function Map() {
                 <button
                   type="button"
                   onClick={() => navigate("/support")}
-                  className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
                   aria-label="Go to Find Calm page"
                 >
-                  <Wind size={28} />
+                  <Wind size={24} />
                 </button>
               </div>
               <RoutePreviewPanel
