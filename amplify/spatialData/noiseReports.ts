@@ -61,7 +61,7 @@ export async function getNoiseReports(
       `
       SELECT report_id, lat, lng, noise_level, created_at
       FROM noise_report
-      WHERE created_at >= NOW() - INTERVAL '7 days'
+      WHERE created_at >= NOW() - INTERVAL '30 minutes'
         AND ST_DWithin(
           geom::geography,
           ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
@@ -76,7 +76,7 @@ export async function getNoiseReports(
       `
       SELECT report_id, lat, lng, noise_level, created_at
       FROM noise_report
-      WHERE created_at >= NOW() - INTERVAL '7 days'
+      WHERE created_at >= NOW() - INTERVAL '30 minutes'
       ORDER BY created_at DESC
       LIMIT 500
       `,
