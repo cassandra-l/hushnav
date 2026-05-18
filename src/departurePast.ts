@@ -16,7 +16,7 @@ export const DEPARTURE_BEST_TIME_DATE_HINT =
 
 /** Best-time slot before Find returns a window. */
 export const BEST_TIME_TAP_FIND_MESSAGE =
-  "Tap Find to get the best hour to travel.";
+  "Tap Find to get the best hour to travel. Please ensure your start and destination are selected and check the relevant location websites for their opening times.";
 
 /** Local calendar instant from YYYY-MM-DD + HH:mm; null if malformed. */
 export function parseLocalDepartureMs(

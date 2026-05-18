@@ -121,18 +121,23 @@ function UserLocationMarker() {
   );
 }
 
-function NoiseReportMarker({ pin }: { pin: NoiseReportPin }) {
+function NoiseReportMarker({
+  pin,
+  nowMs,
+}: {
+  pin: NoiseReportPin;
+  nowMs: number;
+}) {
   const isVeryHighNoise = pin.noiseLevel !== null && pin.noiseLevel >= 75;
   const isRecent =
-    Date.now() - new Date(pin.createdAt).getTime() < 60 * 60 * 1000;
+    nowMs - new Date(pin.createdAt).getTime() < 60 * 60 * 1000;
   const markerColor = isVeryHighNoise ? "#B84732" : "#C7785A";
 
   return (
     <div className="relative flex h-12 w-12 items-center justify-center">
       <div
-        className={`absolute h-12 w-12 rounded-full ${
-          isRecent ? "animate-pulse" : ""
-        }`}
+        className={`absolute h-12 w-12 rounded-full ${isRecent ? "animate-pulse" : ""
+          }`}
         style={{ backgroundColor: `${markerColor}33` }}
       />
       <div
@@ -157,10 +162,13 @@ export function RouteMap({
   onMapCenterChange,
 }: RouteMapProps) {
   const mapRef = useRef<MapRef | null>(null);
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [selectedSafeSpace, setSelectedSafeSpace] =
     useState<SafeSpace | null>(null);
 
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+
+  const [nowMs] = useState(() => Date.now());
 
   const melbourneCBD = {
     longitude: 144.9631,
@@ -182,29 +190,31 @@ export function RouteMap({
   }, [routeData]);
 
   // Selected stopovers returned by the backend.
-// These are the stops the user has added to the route.
-// useMemo prevents a new empty array being created on every render.
-const selectedStopovers = useMemo(() => {
-  return routeData?.stopovers ?? [];
-}, [routeData?.stopovers]);
+  // These are the stops the user has added to the route.
+  // useMemo prevents a new empty array being created on every render.
+  const selectedStopovers = useMemo(() => {
+    return routeData?.stopovers ?? [];
+  }, [routeData?.stopovers]);
 
-// Map each selected safe space id to its stop number.
-// Example: { 12 -> 1, 19 -> 2 }
-const selectedStopNumberById = useMemo(() => {
-  const stopMap = new Map<number, number>();
+  // Map each selected safe space id to its stop number.
+  // Example: { 12 -> 1, 19 -> 2 }
+  const selectedStopNumberById = useMemo(() => {
+    const stopMap = new Map<number, number>();
 
-  selectedStopovers.forEach((stopover, index) => {
-    stopMap.set(stopover.id, index + 1);
-  });
+    selectedStopovers.forEach((stopover, index) => {
+      stopMap.set(stopover.id, index + 1);
+    });
 
-  return stopMap;
-}, [selectedStopovers]);
+    return stopMap;
+  }, [selectedStopovers]);
 
   const safeSpaces = routeData ? routeData.safeSpaces : allSafeSpaces;
 
-  // Fit full route in preview mode.
+  // Preview mode: fit the full route in view once the map is ready.
   useEffect(() => {
-    if (!mapRef.current || !routeData || isNavigationActive) return;
+    if (!isMapLoaded || !mapRef.current || !routeData || isNavigationActive) {
+      return;
+    }
 
     const coords = routeData.route.geojson.coordinates;
     if (!coords?.length) return;
@@ -214,12 +224,19 @@ const selectedStopNumberById = useMemo(() => {
     let maxLng = coords[0][0];
     let maxLat = coords[0][1];
 
-    for (const [lng, lat] of coords) {
+    const includePoint = (lng: number, lat: number) => {
       if (lng < minLng) minLng = lng;
       if (lng > maxLng) maxLng = lng;
       if (lat < minLat) minLat = lat;
       if (lat > maxLat) maxLat = lat;
+    };
+
+    for (const [lng, lat] of coords) {
+      includePoint(lng, lat);
     }
+
+    includePoint(routeData.start.lng, routeData.start.lat);
+    includePoint(routeData.end.lng, routeData.end.lat);
 
     const hasMultipleStops = selectedStopovers.length > 1;
 
@@ -229,17 +246,24 @@ const selectedStopNumberById = useMemo(() => {
         [maxLng, maxLat],
       ],
       {
-        // Extra padding helps stop labels stay visible.
         padding: hasMultipleStops ? 120 : 80,
         duration: 1200,
       },
     );
-  }, [routeData, isNavigationActive, selectedStopovers.length]);
+  }, [routeData, isNavigationActive, isMapLoaded, selectedStopovers.length]);
 
   // When Emily taps "Use Current Location", move the map to her location.
-  // This works in preview/search mode before navigation starts.
+  // Only in search mode — skip once a route is loaded so preview fit is preserved.
   useEffect(() => {
-    if (!mapRef.current || !userLocation || isNavigationActive) return;
+    if (
+      !isMapLoaded ||
+      !mapRef.current ||
+      !userLocation ||
+      isNavigationActive ||
+      routeData
+    ) {
+      return;
+    }
 
     mapRef.current.flyTo({
       center: [userLocation.lng, userLocation.lat],
@@ -248,7 +272,7 @@ const selectedStopNumberById = useMemo(() => {
       bearing: 0,
       duration: 1000,
     });
-  }, [userLocation, isNavigationActive]);
+  }, [userLocation, isNavigationActive, routeData, isMapLoaded]);
 
   useEffect(() => {
     if (!mapRef.current || !focusedNoiseReportPin) return;
@@ -266,7 +290,9 @@ const selectedStopNumberById = useMemo(() => {
   // This could be the user's live location OR a manually entered start,
   // depending on what was used when the route was planned.
   useEffect(() => {
-    if (!mapRef.current || !routeData || !isNavigationActive) return;
+    if (!isMapLoaded || !mapRef.current || !routeData || !isNavigationActive) {
+      return;
+    }
 
     mapRef.current.flyTo({
       center: [routeData.start.lng, routeData.start.lat],
@@ -275,7 +301,7 @@ const selectedStopNumberById = useMemo(() => {
       bearing: 0,
       duration: 1200,
     });
-  }, [isNavigationActive, routeData]);
+  }, [isNavigationActive, routeData, isMapLoaded]);
 
   // Keep following the live location only when the planned route actually starts
   // from the user's current location.
@@ -328,6 +354,7 @@ const selectedStopNumberById = useMemo(() => {
         initialViewState={melbourneCBD}
         mapboxAccessToken={mapboxToken}
         mapStyle="mapbox://styles/mapbox/streets-v12"
+
         onMoveEnd={(event) => {
           const center = event.target.getCenter();
           onMapCenterChange?.({
@@ -335,6 +362,8 @@ const selectedStopNumberById = useMemo(() => {
             lng: center.lng,
           });
         }}
+
+        onLoad={() => setIsMapLoaded(true)}
       >
         {/* Crowd / noise road layer. High-crowd roads are shown in red. */}
         {crowdMapData && (
@@ -423,7 +452,7 @@ const selectedStopNumberById = useMemo(() => {
             latitude={pin.lat}
             anchor="bottom"
           >
-            <NoiseReportMarker pin={pin} />
+            <NoiseReportMarker pin={pin} nowMs={nowMs} />
           </Marker>
         ))}
 

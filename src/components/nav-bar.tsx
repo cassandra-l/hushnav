@@ -74,7 +74,7 @@ export function Navbar({
           <DropdownNav
             label="Profile"
             active={
-              location.pathname === "/self-discovery" ||
+              location.pathname === "/sensory-profile" ||
               location.pathname.startsWith("/achievements")
             }
           >
@@ -82,7 +82,7 @@ export function Navbar({
               Icon={UserCircle}
               title="Sensory Profile"
               desc="Discover how you experience the city sounds."
-              to="/self-discovery"
+              to="/sensory-profile"
             />
             <DropdownItem
               Icon={Trophy}

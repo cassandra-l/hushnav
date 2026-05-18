@@ -513,62 +513,70 @@ async function loadGraphForForecast(
   try {
     const result = await client.query<EdgeRow>(
       `
-      WITH latest_succeeded_run AS (
-        SELECT fr.run_id
-        FROM forecast_runs fr
-        WHERE fr.status = 'succeeded'
-        ORDER BY fr.generated_at DESC
-        LIMIT 1
-      )
-      SELECT
-        e.edge_id,
-        e.u,
-        e.v,
-        e.length,
-        e.is_indoor,
-        ew.final_cost AS live_final_cost,
-        ew.noise_db AS live_noise_db,
-        ew.crowd_count AS live_crowd_count,
-        fw.final_cost AS forecast_final_cost,
-        fw.predicted_noise_db AS forecast_noise_db,
-        fw.predicted_crowd_count AS forecast_crowd_count,
-        COALESCE(fw.final_cost, ew.final_cost) AS final_cost,
-        COALESCE(fw.predicted_noise_db, ew.noise_db) AS noise_db,
-        COALESCE(fw.predicted_crowd_count, ew.crowd_count) AS crowd_count,
-        COALESCE(fw.is_high_crowd, ew.is_high_crowd) AS is_high_crowd
-      FROM edge e
-      LEFT JOIN edge_weight ew
-        ON e.edge_id = ew.edge_id
-      LEFT JOIN LATERAL (
-        SELECT
-          f.final_cost,
-          f.predicted_noise_db,
-          f.predicted_crowd_count,
-          f.is_high_crowd
-        FROM edge_forecasts f
-        WHERE f.edge_id = e.edge_id
-          AND f.run_id = (SELECT run_id FROM latest_succeeded_run)
-          AND (
-            -- Exact slot match when requested time is inside stored horizon.
-            f.forecast_time = $1
-            OR
-            -- Fallback for dates beyond horizon:
-            -- use same Melbourne weekday + hour from the latest forecast week.
-            (
+        WITH latest_succeeded_run AS (
+          SELECT fr.run_id
+          FROM forecast_runs fr
+          WHERE fr.status = 'succeeded'
+          ORDER BY fr.generated_at DESC
+          LIMIT 1
+        ),
+        requested_time AS (
+          SELECT $1::timestamptz AS route_time
+        ),
+        resolved_forecast_time AS (
+          SELECT f.forecast_time
+          FROM edge_forecasts f
+          JOIN latest_succeeded_run lsr
+            ON f.run_id = lsr.run_id
+          CROSS JOIN requested_time rt
+          WHERE
+            f.forecast_time = rt.route_time
+            OR (
               EXTRACT(ISODOW FROM (f.forecast_time AT TIME ZONE 'Australia/Melbourne')) =
-              EXTRACT(ISODOW FROM ($1::timestamptz AT TIME ZONE 'Australia/Melbourne'))
+              EXTRACT(ISODOW FROM (rt.route_time AT TIME ZONE 'Australia/Melbourne'))
               AND EXTRACT(HOUR FROM (f.forecast_time AT TIME ZONE 'Australia/Melbourne')) =
-              EXTRACT(HOUR FROM ($1::timestamptz AT TIME ZONE 'Australia/Melbourne'))
+              EXTRACT(HOUR FROM (rt.route_time AT TIME ZONE 'Australia/Melbourne'))
             )
-          )
-        ORDER BY
-          CASE
-            WHEN f.forecast_time = $1 THEN 0
-            ELSE 1
-          END
-        LIMIT 1
-      ) fw ON TRUE
-      `,
+          ORDER BY
+            CASE WHEN f.forecast_time = rt.route_time THEN 0 ELSE 1 END,
+            f.forecast_time DESC
+          LIMIT 1
+        ),
+        forecast_for_time AS (
+          SELECT
+            f.edge_id,
+            f.final_cost,
+            f.predicted_noise_db,
+            f.predicted_crowd_count,
+            f.is_high_crowd
+          FROM edge_forecasts f
+          JOIN latest_succeeded_run lsr
+            ON f.run_id = lsr.run_id
+          JOIN resolved_forecast_time rft
+            ON f.forecast_time = rft.forecast_time
+        )
+        SELECT
+          e.edge_id,
+          e.u,
+          e.v,
+          e.length,
+          e.is_indoor,
+          ew.final_cost AS live_final_cost,
+          ew.noise_db AS live_noise_db,
+          ew.crowd_count AS live_crowd_count,
+          fw.final_cost AS forecast_final_cost,
+          fw.predicted_noise_db AS forecast_noise_db,
+          fw.predicted_crowd_count AS forecast_crowd_count,
+          COALESCE(fw.final_cost, ew.final_cost) AS final_cost,
+          COALESCE(fw.predicted_noise_db, ew.noise_db) AS noise_db,
+          COALESCE(fw.predicted_crowd_count, ew.crowd_count) AS crowd_count,
+          COALESCE(fw.is_high_crowd, ew.is_high_crowd) AS is_high_crowd
+        FROM edge e
+        LEFT JOIN edge_weight ew
+          ON e.edge_id = ew.edge_id
+        LEFT JOIN forecast_for_time fw
+          ON e.edge_id = fw.edge_id
+        `,
       [forecastBucket.toISOString()]
     );
 
@@ -727,6 +735,22 @@ async function getNodeCoordinate(nodeId: number): Promise<Coordinate> {
   };
 }
 
+function getNodeCoordinateFromCache(
+  nodesById: Map<number, NodeRow>,
+  nodeId: number,
+): Coordinate {
+  const row = nodesById.get(Number(nodeId));
+
+  if (!row) {
+    throw new Error(`Node ${nodeId} not found.`);
+  }
+
+  return {
+    lat: Number(row.lat),
+    lng: Number(row.lon),
+  };
+}
+
 export async function findQuietestRouteCostInGraph(
   startNodeId: number,
   endNodeId: number,
@@ -745,7 +769,8 @@ export async function findQuietestRouteCostInGraph(
     throw new Error(`End node ${endNodeId} has no connected edges.`);
   }
 
-  const endCoordinate = await getNodeCoordinate(endNodeId);
+  const nodesById = await getNodeCoordinateCache();
+  const endCoordinate = getNodeCoordinateFromCache(nodesById, endNodeId);
 
   const openSet: QueueItem[] = [{ nodeId: startNodeId, fScore: 0 }];
   const gScore = new Map<number, number>();
@@ -784,7 +809,10 @@ export async function findQuietestRouteCostInGraph(
       ) {
         gScore.set(Number(edge.to), tentativeG);
 
-        const neighborCoordinate = await getNodeCoordinate(Number(edge.to));
+        const neighborCoordinate = getNodeCoordinateFromCache(
+          nodesById,
+          Number(edge.to),
+        );
         const heuristic = haversineDistanceMeters(
           neighborCoordinate,
           endCoordinate
@@ -869,6 +897,103 @@ export async function findQuietestRouteCostInTopology(
         const heuristic = haversineDistanceMeters(
           neighborCoordinate,
           endCoordinate
+        );
+
+        openSet.push({
+          nodeId: Number(edge.to),
+          fScore: tentativeG + heuristic,
+        });
+      }
+    }
+  }
+
+  throw new Error("No route found between the selected nodes.");
+}
+
+
+export async function findLowestCostRouteInTopology(
+  startNodeId: number,
+  endNodeId: number,
+  topologyGraph: Map<number, GraphTopologyEdge[]>,
+  edgeCosts: Map<number, number>,
+): Promise<number> {
+  startNodeId = Number(startNodeId);
+  endNodeId = Number(endNodeId);
+
+  if (!topologyGraph.has(startNodeId)) {
+    throw new Error(`Start node ${startNodeId} has no connected edges.`);
+  }
+
+  if (!topologyGraph.has(endNodeId)) {
+    throw new Error(`End node ${endNodeId} has no connected edges.`);
+  }
+
+  const nodesById = await getNodeCoordinateCache();
+
+  const endRow = nodesById.get(endNodeId);
+
+  if (!endRow) {
+    throw new Error(`End node ${endNodeId} not found.`);
+  }
+
+  const endCoordinate: Coordinate = {
+    lat: Number(endRow.lat),
+    lng: Number(endRow.lon),
+  };
+
+  const openSet: QueueItem[] = [{ nodeId: startNodeId, fScore: 0 }];
+  const gScore = new Map<number, number>();
+  gScore.set(startNodeId, 0);
+
+  const visited = new Set<number>();
+
+  while (openSet.length > 0) {
+    const current = popLowestFScore(openSet)!;
+
+    if (current.nodeId === endNodeId) {
+      return gScore.get(endNodeId)!;
+    }
+
+    if (visited.has(current.nodeId)) {
+      continue;
+    }
+
+    visited.add(current.nodeId);
+
+    const neighbors = topologyGraph.get(Number(current.nodeId)) ?? [];
+
+    for (const edge of neighbors) {
+      const storedCost = edgeCosts.get(Number(edge.edgeId));
+
+      const edgeCost =
+        typeof storedCost === "number" && Number.isFinite(storedCost) && storedCost > 0
+          ? storedCost
+          : Number(edge.length);
+
+      const tentativeG =
+        (gScore.get(Number(current.nodeId)) ?? Number.POSITIVE_INFINITY) +
+        edgeCost;
+
+      if (
+        tentativeG <
+        (gScore.get(Number(edge.to)) ?? Number.POSITIVE_INFINITY)
+      ) {
+        gScore.set(Number(edge.to), tentativeG);
+
+        const neighborRow = nodesById.get(Number(edge.to));
+
+        if (!neighborRow) {
+          continue;
+        }
+
+        const neighborCoordinate: Coordinate = {
+          lat: Number(neighborRow.lat),
+          lng: Number(neighborRow.lon),
+        };
+
+        const heuristic = haversineDistanceMeters(
+          neighborCoordinate,
+          endCoordinate,
         );
 
         openSet.push({

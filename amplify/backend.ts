@@ -1,6 +1,11 @@
 import { defineBackend } from "@aws-amplify/backend";
-import { Stack } from "aws-cdk-lib";
-import { Cors, LambdaIntegration, RestApi } from "aws-cdk-lib/aws-apigateway";
+import { Duration, Stack } from "aws-cdk-lib";
+import {
+  Cors,
+  EndpointType,
+  LambdaIntegration,
+  RestApi,
+} from "aws-cdk-lib/aws-apigateway";
 
 import { auth } from "./auth/resource";
 import { data } from "./data/resource";
@@ -11,6 +16,7 @@ import { verifyPasswordFunction } from "./functions/verify-password/resource";
 import { constructionPipeline } from "./functions/construction-pipeline/resource";
 import { bestTimeFunction } from "./functions/best-time/resource";
 import { noiseReportsFunction } from "./functions/noise-reports/resource";
+import { geocodeSuggestions } from "./functions/geocode-suggestions/resource";
 
 
 const backend = defineBackend({
@@ -23,6 +29,7 @@ const backend = defineBackend({
   constructionPipeline,
   bestTimeFunction,
   noiseReportsFunction,
+  geocodeSuggestions,
 });
 
 const apiStack = backend.createStack("api-stack");
@@ -32,6 +39,9 @@ const myRestApi = new RestApi(apiStack, "NavigationRestApi", {
   deploy: true,
   deployOptions: {
     stageName: "dev",
+  },
+  endpointConfiguration: {
+    types: [EndpointType.REGIONAL],
   },
   defaultCorsPreflightOptions: {
     allowOrigins: Cors.ALL_ORIGINS,
@@ -57,7 +67,14 @@ const verifyPasswordIntegration = new LambdaIntegration(
 );
 
 const bestTimeIntegration = new LambdaIntegration(
-  backend.bestTimeFunction.resources.lambda
+  backend.bestTimeFunction.resources.lambda,
+  {
+    timeout: Duration.seconds(100),
+  },
+);
+
+const geocodeSuggestionsIntegration = new LambdaIntegration(
+  backend.geocodeSuggestions.resources.lambda,
 );
 
 const noiseReportsIntegration = new LambdaIntegration(
@@ -79,9 +96,15 @@ verifyPasswordPath.addMethod("POST", verifyPasswordIntegration);
 const bestTimePath = myRestApi.root.addResource("best-time");
 bestTimePath.addMethod("POST", bestTimeIntegration);
 
+
+const geocodeSuggestionsPath = myRestApi.root.addResource("geocode-suggestions");
+geocodeSuggestionsPath.addMethod("GET", geocodeSuggestionsIntegration);
+
+
 const noiseReportsPath = myRestApi.root.addResource("noise-reports");
 noiseReportsPath.addMethod("GET", noiseReportsIntegration);
 noiseReportsPath.addMethod("POST", noiseReportsIntegration);
+
 
 backend.addOutput({
   custom: {

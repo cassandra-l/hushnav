@@ -1,13 +1,9 @@
 import { pool } from "./db";
 import { geocodePlace } from "./geocode";
-import { getSafeSpaceById } from "./safeSpaces";
 import {
-    findQuietestRouteCostInTopology,
-    getBlockedEdgeIdsForRouting,
+    findLowestCostRouteInTopology,
     getGraphTopologyCache,
     snapToNearestNode,
-    type AvoidMode,
-    type ForecastEdgeCost,
 } from "./route";
 import type { Coordinate } from "./planRoute";
 
@@ -16,9 +12,7 @@ export type BestTimeRequest = {
     end?: Coordinate;
     startQuery?: string;
     endQuery?: string;
-    avoidMode?: AvoidMode;
     routeTimes: string[];
-    stopSafeSpaceIds?: number[];
 };
 
 export type BestTimeResponse = {
@@ -31,12 +25,14 @@ export type BestTimeResponse = {
 };
 
 type ForecastCostRow = {
-    route_time: Date | string;
+    forecast_time: Date | string;
     edge_id: number;
-    final_cost: number | null;
-    predicted_noise_db: number | null;
-    predicted_crowd_count: number | null;
-    is_high_crowd: boolean | null;
+    cost: number | string | null;
+};
+
+type ForecastRunTimeRow = {
+    run_id: string;
+    forecast_time: Date | string;
 };
 
 function isValidCoordinate(value: unknown): value is Coordinate {
@@ -67,109 +63,187 @@ async function resolveCoordinate(
     );
 }
 
+function getMelbourneTimeKey(value: Date): string {
+    const parts = new Intl.DateTimeFormat("en-AU", {
+        timeZone: "Australia/Melbourne",
+        weekday: "short",
+        hour: "2-digit",
+        hourCycle: "h23",
+    }).formatToParts(value);
+
+    const weekday =
+        parts.find((part) => part.type === "weekday")?.value ?? "unknown";
+
+    const hour =
+        parts.find((part) => part.type === "hour")?.value ?? "00";
+
+    return `${weekday}-${hour}`;
+}
+
+function resolveForecastTimes(
+    routeTimes: string[],
+    availableForecastTimes: string[],
+): Map<string, string> {
+    const exactByIso = new Map<string, string>();
+    const latestByMelbourneKey = new Map<string, string>();
+
+    for (const forecastTime of availableForecastTimes) {
+        const forecastDate = new Date(forecastTime);
+        const forecastIso = forecastDate.toISOString();
+
+        exactByIso.set(forecastIso, forecastIso);
+
+        const key = getMelbourneTimeKey(forecastDate);
+        const existing = latestByMelbourneKey.get(key);
+
+        if (!existing || forecastDate.getTime() > new Date(existing).getTime()) {
+            latestByMelbourneKey.set(key, forecastIso);
+        }
+    }
+
+    const resolved = new Map<string, string>();
+
+    for (const routeTime of routeTimes) {
+        const routeIso = new Date(routeTime).toISOString();
+
+        const exactMatch = exactByIso.get(routeIso);
+
+        if (exactMatch) {
+            resolved.set(routeIso, exactMatch);
+            continue;
+        }
+
+        const key = getMelbourneTimeKey(new Date(routeIso));
+        const fallbackMatch = latestByMelbourneKey.get(key);
+
+        if (!fallbackMatch) {
+            throw new Error(`No forecast time found for ${routeIso}.`);
+        }
+
+        resolved.set(routeIso, fallbackMatch);
+    }
+
+    return resolved;
+}
+
 async function loadForecastCostsForTimes(
     routeTimes: string[],
-): Promise<Map<string, Map<number, ForecastEdgeCost>>> {
+): Promise<Map<string, Map<number, number>>> {
     const client = await pool.connect();
 
     try {
-        const result = await client.query<ForecastCostRow>(
-            `
-      WITH requested_times AS (
-  SELECT UNNEST($1::timestamptz[]) AS route_time
-),
-latest_succeeded_run AS (
-  SELECT
-    fr.run_id,
-    fr.horizon_start,
-    fr.horizon_end
-  FROM forecast_runs fr
-  WHERE fr.status = 'succeeded'
-  ORDER BY fr.generated_at DESC
-  LIMIT 1
-),
-forecast_slots AS (
-  SELECT generate_series(
-    date_trunc('hour', lsr.horizon_start),
-    date_trunc('hour', lsr.horizon_end),
-    interval '1 hour'
-  ) AS forecast_time
-  FROM latest_succeeded_run lsr
-),
-resolved_times AS (
-  SELECT
-    rt.route_time,
-    COALESCE(
-      (
-        SELECT fs.forecast_time
-        FROM forecast_slots fs
-        WHERE fs.forecast_time = rt.route_time
-        LIMIT 1
-      ),
-      (
-        SELECT fs.forecast_time
-        FROM forecast_slots fs
-        WHERE EXTRACT(ISODOW FROM (fs.forecast_time AT TIME ZONE 'Australia/Melbourne')) =
-              EXTRACT(ISODOW FROM (rt.route_time AT TIME ZONE 'Australia/Melbourne'))
-          AND EXTRACT(HOUR FROM (fs.forecast_time AT TIME ZONE 'Australia/Melbourne')) =
-              EXTRACT(HOUR FROM (rt.route_time AT TIME ZONE 'Australia/Melbourne'))
-        ORDER BY fs.forecast_time DESC
-        LIMIT 1
-      )
-    ) AS resolved_forecast_time
-  FROM requested_times rt
-)
-SELECT
-  rt.route_time,
-  f.edge_id,
-  f.final_cost,
-  f.predicted_noise_db,
-  f.predicted_crowd_count,
-  f.is_high_crowd
-FROM resolved_times rt
-JOIN latest_succeeded_run lsr
-  ON TRUE
-JOIN edge_forecasts f
-  ON f.run_id = lsr.run_id
-  AND f.forecast_time = rt.resolved_forecast_time
+        const forecastTimesStartMs = Date.now();
 
-      `,
-            [routeTimes],
+        const timeResult = await client.query<ForecastRunTimeRow>(
+            `
+            WITH latest_succeeded_run AS (
+              SELECT fr.run_id
+              FROM forecast_runs fr
+              WHERE fr.status = 'succeeded'
+              ORDER BY fr.generated_at DESC
+              LIMIT 1
+            )
+            SELECT DISTINCT
+              lsr.run_id,
+              f.forecast_time
+            FROM latest_succeeded_run lsr
+            JOIN edge_forecasts f
+              ON f.run_id = lsr.run_id
+            ORDER BY f.forecast_time
+            `,
         );
 
-        const costsByTime = new Map<string, Map<number, ForecastEdgeCost>>();
-
-        for (const routeTime of routeTimes) {
-            costsByTime.set(routeTime, new Map<number, ForecastEdgeCost>());
+        if (timeResult.rows.length === 0) {
+            throw new Error("No forecast times found for the latest succeeded run.");
         }
+
+        const runId = String(timeResult.rows[0].run_id);
+
+        const availableForecastTimes = timeResult.rows.map((row) =>
+            new Date(row.forecast_time).toISOString(),
+        );
+
+        console.log("best-time timing: available forecast times loaded", {
+            runId,
+            count: availableForecastTimes.length,
+            ms: Date.now() - forecastTimesStartMs,
+        });
+
+        const routeTimeToForecastTime = resolveForecastTimes(
+            routeTimes,
+            availableForecastTimes,
+        );
+
+        const selectedForecastTimes = Array.from(
+            new Set(routeTimeToForecastTime.values()),
+        );
+
+        console.log("best-time timing: forecast times resolved", {
+            routeTimesCount: routeTimes.length,
+            selectedForecastTimesCount: selectedForecastTimes.length,
+            selectedForecastTimes,
+        });
+
+        const costQueryStartMs = Date.now();
+
+        const result = await client.query<ForecastCostRow>(
+            `
+            SELECT
+              f.forecast_time AS forecast_time,
+              f.edge_id,
+              COALESCE(NULLIF(f.final_cost, 0), e.length) AS cost
+            FROM edge_forecasts f
+            JOIN edge e
+              ON e.edge_id = f.edge_id
+            WHERE f.run_id = $1
+              AND f.forecast_time = ANY($2::timestamptz[])
+            `,
+            [runId, selectedForecastTimes],
+        );
+
+        console.log("best-time timing: forecast edge costs query complete", {
+            rows: result.rows.length,
+            ms: Date.now() - costQueryStartMs,
+        });
+
+        const costsByForecastTime = new Map<string, Map<number, number>>();
 
         for (const row of result.rows) {
-            const routeTimeKey = new Date(row.route_time).toISOString();
+            const forecastTimeKey = new Date(row.forecast_time).toISOString();
 
-            if (!costsByTime.has(routeTimeKey)) {
-                costsByTime.set(routeTimeKey, new Map<number, ForecastEdgeCost>());
+            if (!costsByForecastTime.has(forecastTimeKey)) {
+                costsByForecastTime.set(forecastTimeKey, new Map<number, number>());
             }
 
-            costsByTime.get(routeTimeKey)!.set(Number(row.edge_id), {
-                finalCost:
-                    row.final_cost !== null && row.final_cost !== undefined
-                        ? Number(row.final_cost)
-                        : null,
-                noiseDb:
-                    row.predicted_noise_db !== null &&
-                        row.predicted_noise_db !== undefined
-                        ? Number(row.predicted_noise_db)
-                        : null,
-                crowdCount:
-                    row.predicted_crowd_count !== null &&
-                        row.predicted_crowd_count !== undefined
-                        ? Number(row.predicted_crowd_count)
-                        : null,
-                isHighCrowd: Boolean(row.is_high_crowd),
-            });
+            if (row.cost !== null && row.cost !== undefined) {
+                costsByForecastTime
+                    .get(forecastTimeKey)!
+                    .set(Number(row.edge_id), Number(row.cost));
+            }
         }
 
-        return costsByTime;
+        const costsByRouteTime = new Map<string, Map<number, number>>();
+
+        for (const routeTime of routeTimes) {
+            const routeTimeKey = new Date(routeTime).toISOString();
+            const forecastTimeKey = routeTimeToForecastTime.get(routeTimeKey);
+
+            if (!forecastTimeKey) {
+                throw new Error(`Could not resolve forecast time for ${routeTimeKey}.`);
+            }
+
+            const edgeCosts = costsByForecastTime.get(forecastTimeKey);
+
+            if (!edgeCosts) {
+                throw new Error(
+                    `Forecast edge costs not found for resolved time ${forecastTimeKey}.`,
+                );
+            }
+
+            costsByRouteTime.set(routeTimeKey, edgeCosts);
+        }
+
+        return costsByRouteTime;
     } finally {
         client.release();
     }
@@ -178,14 +252,14 @@ JOIN edge_forecasts f
 export async function findBestRouteTime(
     body: BestTimeRequest,
 ): Promise<BestTimeResponse> {
+    const bestTimeStartMs = Date.now();
+
     const {
         start,
         end,
         startQuery,
         endQuery,
-        avoidMode = "both",
         routeTimes,
-        stopSafeSpaceIds = [],
     } = body;
 
     if (!Array.isArray(routeTimes) || routeTimes.length === 0) {
@@ -196,71 +270,81 @@ export async function findBestRouteTime(
         new Date(routeTime).toISOString(),
     );
 
+    console.log("best-time timing: start", {
+        routeTimesCount: normalizedRouteTimes.length,
+        first: normalizedRouteTimes[0],
+        last: normalizedRouteTimes[normalizedRouteTimes.length - 1],
+    });
+
+    const resolveStartMs = Date.now();
+
     const startCoordinate = await resolveCoordinate(start, startQuery, "start");
     const endCoordinate = await resolveCoordinate(end, endQuery, "end");
 
-    const selectedSafeSpaces = await Promise.all(
-        Array.from(new Set(stopSafeSpaceIds)).map(async (id) => {
-            const safeSpace = await getSafeSpaceById(id);
+    console.log("best-time timing: coordinates resolved", {
+        ms: Date.now() - resolveStartMs,
+    });
 
-            if (!safeSpace) {
-                throw new Error(`Safe space ${id} not found.`);
-            }
+    const snapStartMs = Date.now();
 
-            return safeSpace;
-        }),
-    );
+    const startNode = await snapToNearestNode(startCoordinate);
+    const endNode = await snapToNearestNode(endCoordinate);
 
-    const waypointCoordinates: Coordinate[] = [
-        startCoordinate,
-        ...selectedSafeSpaces.map((safeSpace) => ({
-            lat: safeSpace.lat,
-            lng: safeSpace.lng,
-        })),
-        endCoordinate,
-    ];
+    console.log("best-time timing: snapped start and end", {
+        startNodeId: startNode.node_id,
+        endNodeId: endNode.node_id,
+        ms: Date.now() - snapStartMs,
+    });
 
-    const waypointNodes = await Promise.all(
-        waypointCoordinates.map((coordinate) => snapToNearestNode(coordinate)),
-    );
-
-    const waypointNodeIds = waypointNodes.map((node) => node.node_id);
+    const topologyStartMs = Date.now();
 
     const topologyGraph = await getGraphTopologyCache();
+
+    console.log("best-time timing: topology graph loaded", {
+        nodes: topologyGraph.size,
+        ms: Date.now() - topologyStartMs,
+    });
+
+    const forecastCostsStartMs = Date.now();
+
     const costsByTime = await loadForecastCostsForTimes(normalizedRouteTimes);
 
-    const blockedEdgeIds =
-        avoidMode === "construction" || avoidMode === "both"
-            ? await getBlockedEdgeIdsForRouting()
-            : new Set<number>();
+    console.log("best-time timing: forecast costs loaded", {
+        routeTimesCount: normalizedRouteTimes.length,
+        costMaps: costsByTime.size,
+        ms: Date.now() - forecastCostsStartMs,
+    });
 
     const costs: BestTimeResponse["costs"] = [];
 
     for (const routeTime of normalizedRouteTimes) {
-        try {
-            const forecastCosts = costsByTime.get(routeTime);
+        const candidateStartMs = Date.now();
 
-            if (!forecastCosts) {
+        try {
+            const edgeCosts = costsByTime.get(routeTime);
+
+            if (!edgeCosts) {
                 throw new Error(`Forecast costs not found for ${routeTime}.`);
             }
 
-            let totalCost = 0;
+            const totalCost = await findLowestCostRouteInTopology(
+                Number(startNode.node_id),
+                Number(endNode.node_id),
+                topologyGraph,
+                edgeCosts,
+            );
 
-            for (let i = 0; i < waypointNodeIds.length - 1; i++) {
-                totalCost += await findQuietestRouteCostInTopology(
-                    waypointNodeIds[i],
-                    waypointNodeIds[i + 1],
-                    avoidMode,
-                    topologyGraph,
-                    forecastCosts,
-                    blockedEdgeIds,
-                );
-            }
+            console.log("best-time timing: candidate complete", {
+                routeTime,
+                cost: totalCost,
+                ms: Date.now() - candidateStartMs,
+            });
 
             costs.push({ routeTime, cost: totalCost });
         } catch (error) {
             console.error("Best time candidate failed:", {
                 routeTime,
+                ms: Date.now() - candidateStartMs,
                 error,
             });
 
@@ -280,6 +364,14 @@ export async function findBestRouteTime(
     const best = validCosts.reduce((currentBest, item) =>
         item.cost < currentBest.cost ? item : currentBest,
     );
+
+    console.log("best-time timing: complete", {
+        routeTimesCount: normalizedRouteTimes.length,
+        validCount: validCosts.length,
+        bestRouteTime: best.routeTime,
+        bestCost: best.cost,
+        totalMs: Date.now() - bestTimeStartMs,
+    });
 
     return {
         bestRouteTime: best.routeTime,
