@@ -81,7 +81,6 @@ type UserLocation = {
   accuracy?: number;
 };
 
-
 // Fetch search suggestions through our backend proxy.
 // The backend will call Photon first, then fall back to Gisgraphy.
 async function fetchPhotonSuggestions(
@@ -95,7 +94,9 @@ async function fetchPhotonSuggestions(
   }
 
   if (!API_BASE_URL) {
-    console.error("API base URL not set. Add VITE_API_BASE_URL to your .env file.");
+    console.error(
+      "API base URL not set. Add VITE_API_BASE_URL to your .env file.",
+    );
     return [];
   }
 
@@ -385,8 +386,8 @@ export function Map() {
     selectedSafeSpaceTypes.length === 0
       ? []
       : allSafeSpaces.filter((safeSpace) =>
-        selectedSafeSpaceTypes.includes(safeSpace.type),
-      );
+          selectedSafeSpaceTypes.includes(safeSpace.type),
+        );
 
   // Refs for click-outside handling
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
@@ -1004,16 +1005,16 @@ export function Map() {
     start:
       selectedStart?.center && selectedStart.center.length >= 2
         ? {
-          lng: selectedStart.center[0],
-          lat: selectedStart.center[1],
-        }
+            lng: selectedStart.center[0],
+            lat: selectedStart.center[1],
+          }
         : undefined,
     end:
       selectedDestination?.center && selectedDestination.center.length >= 2
         ? {
-          lng: selectedDestination.center[0],
-          lat: selectedDestination.center[1],
-        }
+            lng: selectedDestination.center[0],
+            lat: selectedDestination.center[1],
+          }
         : undefined,
     startQuery: startLocation,
     endQuery: destination,
@@ -1024,7 +1025,6 @@ export function Map() {
     stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
   });
 
-
   const handleFindBestTime = async () => {
     setError("");
     setBestTimeSuggestion(null);
@@ -1034,7 +1034,9 @@ export function Map() {
       return;
     }
     if (!API_BASE_URL) {
-      setError("API base URL not set. Add VITE_API_BASE_URL to your .env file.");
+      setError(
+        "API base URL not set. Add VITE_API_BASE_URL to your .env file.",
+      );
       return;
     }
 
@@ -1048,12 +1050,12 @@ export function Map() {
     const candidateHours =
       departureConfig.date === getTodayLocalDateString()
         ? baseCandidateHours.filter(
-          (hour) =>
-            !isChosenDepartureInPast(
-              departureConfig.date,
-              `${String(hour).padStart(2, "0")}:00`,
-            ),
-        )
+            (hour) =>
+              !isChosenDepartureInPast(
+                departureConfig.date,
+                `${String(hour).padStart(2, "0")}:00`,
+              ),
+          )
         : baseCandidateHours;
 
     if (candidateHours.length === 0) {
@@ -1079,16 +1081,17 @@ export function Map() {
           start:
             selectedStart?.center && selectedStart.center.length >= 2
               ? {
-                lng: selectedStart.center[0],
-                lat: selectedStart.center[1],
-              }
+                  lng: selectedStart.center[0],
+                  lat: selectedStart.center[1],
+                }
               : undefined,
           end:
-            selectedDestination?.center && selectedDestination.center.length >= 2
+            selectedDestination?.center &&
+            selectedDestination.center.length >= 2
               ? {
-                lng: selectedDestination.center[0],
-                lat: selectedDestination.center[1],
-              }
+                  lng: selectedDestination.center[0],
+                  lat: selectedDestination.center[1],
+                }
               : undefined,
           startQuery: startLocation,
           endQuery: destination,
@@ -1130,7 +1133,6 @@ export function Map() {
         label: formatHourRangeLabel(bestHour),
         routeTimeIso,
       });
-
     } catch (err) {
       console.error("Best time recommendation failed:", err);
       setError("Failed to calculate best time.");
@@ -1381,8 +1383,9 @@ export function Map() {
                     </span>
                     <ChevronDown
                       size={16}
-                      className={`shrink-0 text-[#6A7282] transition-transform duration-200 ${isDepartureOpen ? "rotate-180" : ""
-                        }`}
+                      className={`shrink-0 text-[#6A7282] transition-transform duration-200 ${
+                        isDepartureOpen ? "rotate-180" : ""
+                      }`}
                     />
                   </span>
                 </button>
@@ -1749,7 +1752,9 @@ export function Map() {
                           <button
                             type="button"
                             onClick={handleSaveRoute}
-                            disabled={!startLocation.trim() || !destination.trim()}
+                            disabled={
+                              !startLocation.trim() || !destination.trim()
+                            }
                             className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#F7F7F7] text-[#A8ADB5] shadow-md transition hover:bg-[#F1F5F4] hover:text-[#5A9A8E] disabled:cursor-not-allowed disabled:opacity-50"
                             aria-label="Save route to favourites"
                             title="Save route to favourites"
@@ -1820,10 +1825,11 @@ export function Map() {
           {routeData && !isNavigationActive && (
             <section className="absolute bottom-3 left-3 right-3 z-10 flex flex-col gap-3 lg:hidden">
               <div
-                className={`flex shrink-0 items-end justify-between gap-3 px-1 ${isSafeSpacesOpen
-                  ? "pointer-events-none opacity-0 transition-opacity duration-200"
-                  : "opacity-100 transition-opacity duration-200"
-                  }`}
+                className={`flex shrink-0 items-end justify-between gap-3 px-1 ${
+                  isSafeSpacesOpen
+                    ? "pointer-events-none opacity-0 transition-opacity duration-200"
+                    : "opacity-100 transition-opacity duration-200"
+                }`}
               >
                 <div className="flex flex-col items-start gap-2">
                   {isMonitoring && <VolumeBar volume={volume} />}
@@ -1876,11 +1882,13 @@ export function Map() {
           {(!routeData || isNavigationActive) && (
             <>
               <div
-                className={`absolute left-4 z-20 lg:hidden ${isNavigationActive ? "bottom-[5.75rem]" : "bottom-6"
-                  } ${routeData && isSafeSpacesOpen
+                className={`absolute left-4 z-20 lg:hidden ${
+                  isNavigationActive ? "bottom-[5.75rem]" : "bottom-6"
+                } ${
+                  routeData && isSafeSpacesOpen
                     ? "pointer-events-none opacity-0 transition-opacity duration-200"
                     : "opacity-100 transition-opacity duration-200"
-                  }`}
+                }`}
               >
                 {isMonitoring && <VolumeBar volume={volume} />}
                 <MicButton
@@ -1892,11 +1900,13 @@ export function Map() {
               </div>
 
               <div
-                className={`absolute right-4 z-20 lg:hidden ${isNavigationActive ? "bottom-[5.75rem]" : "bottom-6"
-                  } ${routeData && isSafeSpacesOpen
+                className={`absolute right-4 z-20 lg:hidden ${
+                  isNavigationActive ? "bottom-[5.75rem]" : "bottom-6"
+                } ${
+                  routeData && isSafeSpacesOpen
                     ? "pointer-events-none opacity-0 transition-opacity duration-200"
                     : "opacity-100 transition-opacity duration-200"
-                  }`}
+                }`}
               >
                 <button
                   type="button"
@@ -2042,7 +2052,6 @@ export function Map() {
           navigate("/achievements");
         }}
       />
-
     </main>
   );
 }
