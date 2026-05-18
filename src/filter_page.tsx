@@ -180,20 +180,19 @@ export default function FilterScreen() {
     "synagogue",
   ];
 
-  const [selectedSafeSpaces, setSelectedSafeSpaces] =
-    useState<string[]>(() => {
-      const storedSafeSpaces = localStorage.getItem(SAFE_SPACES_STORAGE_KEY);
+  const [selectedSafeSpaces, setSelectedSafeSpaces] = useState<string[]>(() => {
+    const storedSafeSpaces = localStorage.getItem(SAFE_SPACES_STORAGE_KEY);
 
-      if (!storedSafeSpaces) {
-        return defaultSafeSpaceIds;
-      }
+    if (!storedSafeSpaces) {
+      return defaultSafeSpaceIds;
+    }
 
-      try {
-        return JSON.parse(storedSafeSpaces) as string[];
-      } catch {
-        return defaultSafeSpaceIds;
-      }
-    });
+    try {
+      return JSON.parse(storedSafeSpaces) as string[];
+    } catch {
+      return defaultSafeSpaceIds;
+    }
+  });
 
   const [selectedSensitivity, setSelectedSensitivity] = useState<string>(() => {
     const recommendedSensitivity = localStorage.getItem(
@@ -205,9 +204,7 @@ export default function FilterScreen() {
     );
 
     return (
-      recommendedSensitivity ||
-      previouslySelectedSensitivity ||
-      "standard"
+      recommendedSensitivity || previouslySelectedSensitivity || "standard"
     );
   });
 
@@ -216,10 +213,17 @@ export default function FilterScreen() {
 
   const toggleSafeSpace = (id: string) => {
     setSelectedSafeSpaces((prev) =>
-      prev.includes(id)
-        ? prev.filter((item) => item !== id)
-        : [...prev, id],
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
+  };
+
+  const handleGoBack = () => {
+    navigate("/map", {
+      state: {
+        restoreRoutePreview: true,
+        replanAfterFilter: false,
+      },
+    });
   };
 
   const handleApplyFilters = () => {
@@ -246,6 +250,7 @@ export default function FilterScreen() {
     navigate("/map", {
       state: {
         restoreRoutePreview: true,
+        replanAfterFilter: true,
         appliedSensitivity: selectedSensitivity,
       },
     });
@@ -256,7 +261,7 @@ export default function FilterScreen() {
       initial={{ x: "100%" }}
       animate={{ x: 0 }}
       exit={{ x: "100%" }}
-      transition={{ type: "spring", damping: 25, stiffness: 200 }}
+      transition={{ type: "spring", damping: 25, stiffness: 120 }}
       className="fixed inset-0 flex min-h-screen flex-col items-center overflow-y-auto bg-linear-to-b from-[#F0F4F3] via-[#EDF2F1] to-[#EBF0EE] px-6 py-8"
     >
       <div className="w-full max-w-5xl">
@@ -265,7 +270,7 @@ export default function FilterScreen() {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             className="cursor-pointer rounded-full bg-white p-3 shadow-sm ring-1 ring-slate-100 transition-all hover:bg-gray-50"
-            onClick={() => navigate(-1)}
+            onClick={handleGoBack}
           >
             <ChevronLeft size={24} className="text-[#2D3142]" />
           </motion.button>

@@ -571,7 +571,10 @@ export function Map() {
   };
 
   useEffect(() => {
-    const state = location.state as { restoreRoutePreview?: boolean } | null;
+    const state = location.state as {
+      restoreRoutePreview?: boolean;
+      replanAfterFilter?: boolean;
+    } | null;
     if (!state?.restoreRoutePreview) return;
 
     const raw = sessionStorage.getItem(FILTER_PREVIEW_STATE_KEY);
@@ -593,7 +596,10 @@ export function Map() {
       setError("");
       setSelectedSafeSpaceTypes(readSelectedSafeSpaceTypes());
       setSelectedAvoidMode(readSelectedAvoidMode());
-      setShouldReplanAfterFilter(true);
+
+      if (state.replanAfterFilter) {
+        setShouldReplanAfterFilter(true);
+      }
     } catch {
       // Ignore malformed snapshots.
     } finally {
@@ -2149,10 +2155,10 @@ export function Map() {
                 <button
                   type="button"
                   onClick={() => navigate("/support")}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
                   aria-label="Go to Find Calm page"
                 >
-                  <Wind size={22} />
+                  <Wind size={24} />
                 </button>
               </div>
               <RoutePreviewPanel
@@ -2213,10 +2219,10 @@ export function Map() {
                 <button
                   type="button"
                   onClick={() => navigate("/support")}
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
+                  className="flex h-14 w-14 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
                   aria-label="Go to Find Calm page"
                 >
-                  <Wind size={22} />
+                  <Wind size={24} />
                 </button>
               </div>
             </>
@@ -2238,10 +2244,10 @@ export function Map() {
             <button
               type="button"
               onClick={() => navigate("/support")}
-              className="cursor-pointer flex h-11 w-11 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
+              className="cursor-pointer flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
               aria-label="Go to Find Calm page"
             >
-              <Wind size={22} />
+              <Wind size={24} />
             </button>
           </div>
         </div>

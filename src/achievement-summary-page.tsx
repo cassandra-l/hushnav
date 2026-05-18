@@ -16,7 +16,6 @@ function clamp(n: number, min: number, max: number) {
 }
 
 export function AchievementSummaryPage() {
-  // const navigate = useNavigate();
   const [state, setState] = useState<AchievementsState>(() =>
     loadAchievementsState(),
   );
@@ -71,201 +70,61 @@ export function AchievementSummaryPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
-    <main className="min-h-screen w-full pb-12 lg:overflow-hidden lg:h-screen">
+    <div className="flex flex-col h-dvh overflow-hidden font-sans text-[#101828]">
       <MobileMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+
       <div
         className="fixed inset-0 -z-10 bg-linear-to-b from-[#ffffff] via-[#d5e8e5] to-[#cfe3df]"
         aria-hidden="true"
       />
+
       <Navbar
         className="left-1/2 -translate-x-1/2 top-8 w-auto hidden lg:flex"
         showLogo={false}
       />
 
-      {/* Header - Mobile Only */}
-      <header className="lg:hidden sticky top-0 z-20 flex items-center border-b border-slate-200 bg-white px-5 py-4">
+      {/* Mobile Header */}
+      <header className="lg:hidden sticky top-0 z-20 flex items-center px-5 py-4">
         <button
-          className="p-4 bg-white/40 backdrop-blur-md rounded-full border border-white/20 text-[#1E2939] shadow-sm"
           onClick={() => setIsMenuOpen(true)}
+          className="p-4 bg-white/60 backdrop-blur-xl rounded-full border border-white/40 text-[#1E2939] shadow-sm"
         >
-          <Menu size={20} />
+          <Menu size={20} className="text-[#5A9A8E]" />
         </button>
-        <h1 className="flex-1 text-center text-lg font-semibold text-[#1e293b] mr-10">
-          Achievements
-        </h1>
       </header>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        transition={{ duration: 1 }}
-        className=" w-full"
-      >
-        <div className="mx-auto max-w-[450px] px-5 pt-6 sm:mt-20 lg:max-w-6xl lg:px-8 lg:pt-10">
-          {/* Mobile Layout */}
-          <div className="lg:hidden">
-            {/* Level Card */}
-            <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
-              <div className="mb-1 text-[11px] font-bold tracking-widest text-slate-400 uppercase">
-                Current Level
+
+      {/* Core Adaptive Main View */}
+      <main className="flex-1 overflow-y-auto pt-6 md:pt-35 pb-10 px-6">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="max-w-5xl mx-auto"
+        >
+          {/* Grid Layout */}
+          <div className="flex flex-col lg:flex-row gap-8 lg:items-start lg:justify-center">
+            {/* Left Side Column: Achievements Typography & Level Dashboard Cards */}
+            <div className="w-full lg:w-[380px] shrink-0 space-y-4">
+              {/* Main Typography Header Block */}
+              <div className="text-left mb-6 lg:mb-8">
+                <h1 className="text-5xl md:text-6xl font- tracking-tight mb-2 text-[#1E2939]">
+                  Achievements
+                </h1>
+                <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.3em] md:tracking-[0.4em] opacity-60 text-[#5A9A8E]">
+                  YOUR JOURNEY TOWARD URBAN SERENITY
+                </p>
               </div>
-              <h2 className="mb-6 text-2xl font-bold text-slate-800">
-                {levelSteps[activeLevelIndex]?.name}
-              </h2>
 
-              <div className="flex items-center justify-between px-1">
-                {levelSteps.map((step, idx) => {
-                  const isDone = idx < prefixUnlocked;
-                  const isCurrent = idx === activeLevelIndex;
-                  const isLocked = totalCollectedBadges < step.minBadges;
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setSelectedLevelIndex(idx)}
-                      className="relative"
-                      aria-label={`View details for ${step.name}`}
-                    >
-                      <div
-                        className={`flex h-12 w-12 items-center justify-center rounded-full border-2 transition-all
-                      ${isDone || isCurrent ? "border-[#7CA9A0] bg-[#f0f7f6]" : "border-slate-100 bg-slate-50"}`}
-                      >
-                        <span
-                          className={`text-xl ${isLocked ? "grayscale opacity-40" : ""}`}
-                        >
-                          {step.emoji}
-                        </span>
-                      </div>
-                      {isDone && (
-                        <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#7CA9A0] text-white ring-2 ring-white">
-                          <Check size={10} strokeWidth={4} />
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* Badge totals */}
-            <section className="mb-8 grid grid-cols-2 gap-3">
-              <article className="rounded-2xl bg-white p-4 text-center shadow-sm ring-1 ring-slate-100">
-                <p className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.02em] text-slate-400">
-                  Total Badges Unlocked
-                </p>
-                <p className="mt-2 text-2xl font-bold text-slate-700">
-                  {totalCollectedBadges}
-                </p>
-              </article>
-
-              <article className="rounded-2xl bg-white p-4 text-center shadow-sm ring-1 ring-slate-100">
-                <p className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.02em] text-slate-400">
-                  Total Badges Locked
-                </p>
-                <p className="mt-2 text-2xl font-bold text-slate-700">
-                  {totalLockedBadges}
-                </p>
-              </article>
-            </section>
-
-            {/* Section Header */}
-            <div className="mb-4 flex items-center justify-between px-1">
-              <h3 className="text-lg font-bold text-slate-800">
-                Badges Earned
-              </h3>
-              <Link
-                to="/achievements/badges"
-                className="flex items-center text-sm font-medium text-[#5A9A8E] hover:opacity-80"
-              >
-                See All
-                <ChevronRight size={16} className="ml-0.5" strokeWidth={2} />
-              </Link>
-            </div>
-
-            {/* Categories List */}
-            <div className="space-y-4">
-              {categories.map((cat) => {
-                const total = BADGE_DEFINITIONS.filter(
-                  (b) => b.category === cat.id,
-                ).length;
-                const unlocked = BADGE_DEFINITIONS.filter(
-                  (b) => b.category === cat.id && b.requirement(state),
-                ).length;
-                const progress = (unlocked / total) * 100;
-
-                return (
-                  <div
-                    key={cat.id}
-                    className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-100"
-                  >
-                    <div className="flex gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-50 text-2xl ring-1 ring-slate-100">
-                        {cat.emoji}
-                      </div>
-
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-bold text-slate-700">
-                            {cat.title}
-                          </span>
-                          <span className="text-xs font-bold text-slate-400">
-                            {unlocked}/{total}
-                          </span>
-                        </div>
-
-                        {/* Progress Bar */}
-                        <div className="h-2 w-full rounded-full bg-slate-100">
-                          <div
-                            className="h-full rounded-full bg-[#7CA9A0] transition-all duration-1000"
-                            style={{ width: `${progress}%` }}
-                          />
-                        </div>
-
-                        {/* Milestone Checkmarks */}
-                        <div className="mt-3 flex gap-2.5">
-                          {Array.from({ length: total }).map((_, idx) => {
-                            const active = idx < unlocked;
-                            return (
-                              <div
-                                key={idx}
-                                className={`flex h-8 w-8 items-center justify-center rounded-full border transition-all
-                              ${active ? "border-[#7CA9A0] bg-[#f0f7f6]" : "border-slate-100 bg-white"}`}
-                              >
-                                {active ? (
-                                  <Check
-                                    size={14}
-                                    className="text-[#7CA9A0]"
-                                    strokeWidth={3}
-                                  />
-                                ) : (
-                                  <div className="h-1.5 w-1.5 rounded-full bg-slate-200" />
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Desktop Layout */}
-          <div className="hidden lg:flex lg:gap-10 lg:items-start lg:justify-center">
-            {/* Left Column */}
-            <div className="w-100 shrink-0">
-              {/* Level Card */}
-              <section className="mb-6 rounded-3xl bg-white p-7 shadow-sm ring-1 ring-slate-100">
-                <div className="mb-1 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+              {/* Level Profile Card */}
+              <section className="rounded-2xl bg-white/40 border border-white/50 backdrop-blur-3xl p-6 shadow-sm">
+                <div className="mb-1 text-[10px] font-mono font-bold uppercase tracking-[0.15em] text-[#1E2939]/50">
                   Current Level
                 </div>
-                <h2 className="mb-8 text-[28px] font-bold leading-tight text-slate-800">
+                <h2 className="mb-6 text-2xl font-black tracking-tight text-[#1E2939]">
                   {levelSteps[activeLevelIndex]?.name}
                 </h2>
 
-                {/* Level Icons  */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-1">
                   {levelSteps.map((step, idx) => {
                     const isDone = idx < prefixUnlocked;
                     const isCurrent = idx === activeLevelIndex;
@@ -275,20 +134,21 @@ export function AchievementSummaryPage() {
                         key={idx}
                         type="button"
                         onClick={() => setSelectedLevelIndex(idx)}
-                        className="relative shrink-0"
+                        className="relative shrink-0 transition-transform active:scale-95"
+                        aria-label={`View details for ${step.name}`}
                       >
                         <div
-                          className={`flex h-12 w-12 items-center justify-center rounded-full border-2 transition-all
-                ${isDone || isCurrent ? "border-[#7CA9A0] bg-[#f0f7f6]" : "border-slate-100 bg-slate-50"}`}
+                          className={`flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-300
+                            ${isDone || isCurrent ? "border-[#7CA9A0] bg-white" : "border-white/40 bg-white/20"}`}
                         >
                           <span
-                            className={`text-xl ${isLocked ? "grayscale opacity-40" : ""}`}
+                            className={`text-lg ${isLocked ? "grayscale opacity-30" : ""}`}
                           >
                             {step.emoji}
                           </span>
                         </div>
                         {isDone && (
-                          <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#7CA9A0] text-white ring-2 ring-white">
+                          <div className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[#7CA9A0] text-white ring-2 ring-white">
                             <Check size={9} strokeWidth={4} />
                           </div>
                         )}
@@ -298,44 +158,50 @@ export function AchievementSummaryPage() {
                 </div>
               </section>
 
-              {/* Badge totals */}
+              {/* Badge Stats */}
               <section className="grid grid-cols-2 gap-3">
-                <article className="rounded-2xl bg-white p-4 text-center shadow-sm ring-1 ring-slate-100">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                    Total Badges Unlocked
+                <article className="rounded-2xl bg-white/40 border border-white/50 backdrop-blur-3xl p-4 text-center shadow-sm">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-[#1E2939]/60">
+                    Unlocked
                   </p>
-                  <p className="mt-1 text-2xl font-bold text-slate-700">
+                  <p className="mt-1 text-3xl font-black text-[#5A9A8E]">
                     {totalCollectedBadges}
                   </p>
                 </article>
 
-                <article className="rounded-2xl bg-white p-4 text-center shadow-sm ring-1 ring-slate-100">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                    Total Badges Locked
+                <article className="rounded-2xl bg-white/50 border border-white/70 backdrop-blur-3xl p-4 text-center shadow-sm">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-[#1E2939]/60">
+                    Locked
                   </p>
-                  <p className="mt-1 text-2xl font-bold text-slate-700">
+                  <p className="mt-1 text-3xl font-black text-slate-400">
                     {totalLockedBadges}
                   </p>
                 </article>
               </section>
             </div>
 
-            {/* Right Column */}
-            <div className="flex-1 min-w-0 max-w-4xl">
-              <div className="mb-6 flex items-center justify-between px-1">
-                <h3 className="text-xl font-bold text-slate-800">
+            {/* Right Side Column */}
+            <div className="flex-1 min-w-0 w-full lg:pt-3">
+              {/* Badges Earned Header */}
+              <div className="mb-5 md:mb-7 flex items-center justify-between px-2 lg:pt-2">
+                <span className="text-[12px] font-mono font-bold uppercase tracking-[0.15em] text-[#1E2939]/50">
                   Badges Earned
-                </h3>
+                </span>
                 <Link
                   to="/achievements/badges"
-                  className="flex items-center text-sm font-medium text-[#5A9A8E] hover:opacity-80"
+                  className="flex items-center text-xs font-mono font-bold uppercase tracking-[0.1em] text-[#5A9A8E] hover:opacity-80 transition-opacity"
                 >
                   See All
-                  <ChevronRight size={16} className="ml-1" strokeWidth={2} />
+                  <ChevronRight
+                    size={14}
+                    className="ml-0.5"
+                    strokeWidth={2.5}
+                  />
                 </Link>
               </div>
 
-              <div className="space-y-4">
+              {/* Tracking cards */}
+              <div className="space-y-3">
                 {categories.map((cat) => {
                   const total = BADGE_DEFINITIONS.filter(
                     (b) => b.category === cat.id,
@@ -348,55 +214,53 @@ export function AchievementSummaryPage() {
                   return (
                     <div
                       key={cat.id}
-                      className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-100"
+                      className="p-4 rounded-2xl bg-white/50 border border-white/70 backdrop-blur-3xl shadow-sm"
                     >
-                      <div className="flex gap-6 items-start ">
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-50 text-3xl ring-1 ring-slate-100">
-                          {cat.emoji}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-lg font-bold text-slate-700 truncate">
-                              {cat.title}
-                            </span>
-                            <span className="text-xs font-bold text-slate-400 shrink-0 bg-slate-50 px-2 py-1 rounded-md">
-                              {unlocked} / {total}
-                            </span>
+                      {/* Top row: Icon, Title and Progress Fraction Counter Text */}
+                      <div className=" flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/60 text-xl border border-white shadow-inner">
+                            {cat.emoji}
                           </div>
+                          <h3 className="text-[15px] font-black tracking-tight text-[#1E2939]">
+                            {cat.title}
+                          </h3>
+                        </div>
+                        <span className="text-xs font-mono font-bold text-slate-400">
+                          {unlocked} / {total}
+                        </span>
+                      </div>
 
-                          {/* Progress Bar */}
-                          <div className="h-2.5 w-full rounded-full bg-slate-100 mb-5">
+                      {/* Continuous progress bar line right below the titles */}
+                      <div className="h-1.5 w-full rounded-full bg-black/5 overflow-hidden mb-4">
+                        <div
+                          className="h-full rounded-full bg-[#7CA9A0] transition-all duration-1000 ease-out"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+
+                      {/* Checkmark sub-nodes directly under the progress bar line */}
+                      <div className="flex items-center gap-1.5">
+                        {Array.from({ length: total }).map((_, idx) => {
+                          const active = idx < unlocked;
+                          return (
                             <div
-                              className="h-full rounded-full bg-[#7CA9A0] transition-all duration-1000 shadow-sm"
-                              style={{ width: `${progress}%` }}
-                            />
-                          </div>
-
-                          {/* Milestone Checkmarks */}
-                          <div className="flex flex-wrap gap-3">
-                            {Array.from({ length: total }).map((_, idx) => {
-                              const active = idx < unlocked;
-                              return (
-                                <div
-                                  key={idx}
-                                  className={`flex h-9 w-9 items-center justify-center rounded-full border transition-all shrink-0
-                        ${active ? "border-[#7CA9A0] bg-[#f0f7f6]" : "border-slate-100 bg-white"}`}
-                                >
-                                  {active ? (
-                                    <Check
-                                      size={16}
-                                      className="text-[#7CA9A0]"
-                                      strokeWidth={3}
-                                    />
-                                  ) : (
-                                    <div className="h-1.5 w-1.5 rounded-full bg-slate-200" />
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
+                              key={idx}
+                              className={`flex h-7 w-7 items-center justify-center rounded-full border transition-all duration-300
+                                ${active ? "border-[#7CA9A0] bg-white shadow-xs" : "border-white/60 bg-white/10"}`}
+                            >
+                              {active ? (
+                                <Check
+                                  size={12}
+                                  className="text-[#7CA9A0]"
+                                  strokeWidth={3}
+                                />
+                              ) : (
+                                <div className="h-1 w-1 rounded-full bg-[#1E2939]/10" />
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
@@ -404,49 +268,46 @@ export function AchievementSummaryPage() {
               </div>
             </div>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      </main>
 
+      {/* Level Modal / Detail Drawer Sheet Dialog */}
       {selectedLevelIndex !== null && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px] px-8"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-md px-6"
           onClick={() => setSelectedLevelIndex(null)}
         >
           <div
-            className="w-full max-w-[340px] rounded-[32px] bg-white px-6 pb-8 pt-10 shadow-xl"
+            className="w-full max-w-[350px] rounded-[28px] bg-white/90 border border-white/80 backdrop-blur-2xl p-6 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            {/* Level Emoji Circle */}
-            <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-[#E8EDF1] text-4xl shadow-inner">
+            <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-inner text-3xl border border-white">
               <span
                 className={
                   totalCollectedBadges >=
                   levelSteps[selectedLevelIndex].minBadges
                     ? ""
-                    : "grayscale opacity-50"
+                    : "grayscale opacity-30"
                 }
               >
                 {levelSteps[selectedLevelIndex].emoji}
               </span>
             </div>
 
-            {/* Title */}
-            <h3 className="text-center text-2xl font-bold tracking-tight text-[#0f172a]">
+            <h3 className="text-center text-xl font-black tracking-tight text-[#1E2939]">
               {levelSteps[selectedLevelIndex].name}
             </h3>
 
-            {/* Requirement Description */}
-            <p className="mt-1 text-center text-[15px] font-medium text-slate-500">
+            <p className="mt-1.5 text-center text-[13px] font-medium text-slate-500 leading-normal">
               {selectedLevelIndex === 0
                 ? "This is your starting level"
                 : `Collect ${levelSteps[selectedLevelIndex].minBadges} badges to reach this level`}
             </p>
 
-            {/* Dynamic Status Box */}
-            <div className="mt-8 rounded-[20px] bg-[#f8fafb] px-4 py-4 text-center text-[13px] font-medium text-slate-500 ring-1 ring-slate-100 whitespace-pre-line">
+            <div className="mt-6 rounded-xl bg-white/50 border border-white/60 p-4 text-center text-xs font-medium text-slate-500 whitespace-pre-line">
               {totalCollectedBadges >=
               levelSteps[selectedLevelIndex].minBadges ? (
-                <span className="text-[#7CA9A0]">
+                <span className="text-[#5A9A8E] font-bold">
                   {selectedLevelIndex === 0
                     ? "You start here!\nKeep earning badges to level up!"
                     : "You have reached this level!"}
@@ -454,7 +315,7 @@ export function AchievementSummaryPage() {
               ) : (
                 <span>
                   You need{" "}
-                  <span className="font-bold text-slate-700">
+                  <span className="font-bold text-[#1E2939]">
                     {levelSteps[selectedLevelIndex].minBadges -
                       totalCollectedBadges}
                   </span>{" "}
@@ -469,17 +330,16 @@ export function AchievementSummaryPage() {
               )}
             </div>
 
-            {/* Close Button */}
             <button
               type="button"
               onClick={() => setSelectedLevelIndex(null)}
-              className="mt-8 w-full rounded-full bg-[#84B0A7] py-3.5 text-[16px] font-bold text-white shadow-lg shadow-teal-900/10 active:scale-[0.98] transition-transform"
+              className="mt-6 w-full rounded-full bg-[#5A9A8E] py-3 text-sm font-bold text-white shadow-md hover:opacity-95 transition-opacity"
             >
               Close
             </button>
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }

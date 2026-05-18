@@ -66,7 +66,7 @@ export default function SensoryProfilePage() {
   const springTransition = {
     type: "spring",
     damping: 25,
-    stiffness: 200,
+    stiffness: 120,
   } as const;
 
   return (
