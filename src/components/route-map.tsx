@@ -14,6 +14,7 @@ import {
   Landmark,
   Church,
   Building2,
+  TriangleAlert,
 } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { PlanRouteResponse, SafeSpace } from "../types/route";
@@ -54,23 +55,40 @@ type SafeSpaceMarkerProps = {
   visible: boolean;
 };
 
+// setting up the zoom levels for the safe space and noise report icons
 const SAFE_SPACE_ICON_MIN_ZOOM = 11;
 const SAFE_SPACE_ICON_FULL_ZOOM = 16;
+const NOISE_REPORT_ICON_MIN_ZOOM = 11;
+const NOISE_REPORT_ICON_FULL_ZOOM = 16;
 
-function getSafeSpaceMarkerScale(zoom: number) {
-  if (zoom <= SAFE_SPACE_ICON_MIN_ZOOM) {
+function getMarkerScale(zoom: number, minZoom: number, fullZoom: number) {
+  if (zoom <= minZoom) {
     return { visible: false, scale: 0 };
   }
 
-  if (zoom >= SAFE_SPACE_ICON_FULL_ZOOM) {
+  if (zoom >= fullZoom) {
     return { visible: true, scale: 1 };
   }
 
-  const scale =
-    (zoom - SAFE_SPACE_ICON_MIN_ZOOM) /
-    (SAFE_SPACE_ICON_FULL_ZOOM - SAFE_SPACE_ICON_MIN_ZOOM);
+  const scale = (zoom - minZoom) / (fullZoom - minZoom);
 
   return { visible: true, scale };
+}
+
+function getSafeSpaceMarkerScale(zoom: number) {
+  return getMarkerScale(
+    zoom,
+    SAFE_SPACE_ICON_MIN_ZOOM,
+    SAFE_SPACE_ICON_FULL_ZOOM,
+  );
+}
+
+function getNoiseReportMarkerScale(zoom: number) {
+  return getMarkerScale(
+    zoom,
+    NOISE_REPORT_ICON_MIN_ZOOM,
+    NOISE_REPORT_ICON_FULL_ZOOM,
+  );
 }
 
 function renderSafeSpaceIcon(type: SafeSpace["type"], iconSize = 18) {
@@ -158,29 +176,47 @@ function UserLocationMarker() {
 function NoiseReportMarker({
   pin,
   nowMs,
+  onClick,
+  scale,
+  visible,
 }: {
   pin: NoiseReportPin;
   nowMs: number;
+  onClick: () => void;
+  scale: number;
+  visible: boolean;
 }) {
+  if (!visible) {
+    return null;
+  }
+
   const isVeryHighNoise = pin.noiseLevel !== null && pin.noiseLevel >= 75;
   const isRecent =
     nowMs - new Date(pin.createdAt).getTime() < 60 * 60 * 1000;
   const markerColor = isVeryHighNoise ? "#B84732" : "#C7785A";
 
   return (
-    <div className="relative flex h-12 w-12 items-center justify-center">
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        transform: `scale(${scale})`,
+        transformOrigin: "center center",
+      }}
+      className="relative flex h-8 w-8 items-center justify-center"
+      aria-label="High noise reported here"
+    >
       <div
-        className={`absolute h-12 w-12 rounded-full ${isRecent ? "animate-pulse" : ""
-          }`}
+        className={`absolute h-8 w-8 rounded-full ${isRecent ? "animate-pulse" : ""}`}
         style={{ backgroundColor: `${markerColor}33` }}
       />
       <div
-        className="relative flex h-9 w-9 items-center justify-center rounded-full border-2 border-white shadow-lg"
+        className="relative flex h-6 w-6 items-center justify-center rounded-full border-2 border-white shadow-md"
         style={{ backgroundColor: markerColor }}
       >
-        <MapPin size={20} className="text-white" />
+        <TriangleAlert size={14} className="text-white" />
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -199,6 +235,8 @@ export function RouteMap({
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [selectedSafeSpace, setSelectedSafeSpace] =
     useState<SafeSpace | null>(null);
+  const [selectedNoiseReportPin, setSelectedNoiseReportPin] =
+    useState<NoiseReportPin | null>(null);
 
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -215,6 +253,16 @@ export function RouteMap({
     () => getSafeSpaceMarkerScale(mapZoom),
     [mapZoom],
   );
+  const noiseReportMarkerScale = useMemo(
+    () => getNoiseReportMarkerScale(mapZoom),
+    [mapZoom],
+  );
+
+  useEffect(() => {
+    if (!noiseReportMarkerScale.visible && selectedNoiseReportPin) {
+      setSelectedNoiseReportPin(null);
+    }
+  }, [noiseReportMarkerScale.visible, selectedNoiseReportPin]);
 
   const routeGeoJson = useMemo(() => {
     if (!routeData) return null;
@@ -494,16 +542,45 @@ export function RouteMap({
           </Marker>
         )}
 
-        {noiseReportPins.map((pin) => (
-          <Marker
-            key={pin.id}
-            longitude={pin.lng}
-            latitude={pin.lat}
-            anchor="bottom"
+        {noiseReportMarkerScale.visible &&
+          noiseReportPins.map((pin) => (
+            <Marker
+              key={pin.id}
+              longitude={pin.lng}
+              latitude={pin.lat}
+              anchor="center"
+            >
+              <NoiseReportMarker
+                pin={pin}
+                nowMs={nowMs}
+                scale={noiseReportMarkerScale.scale}
+                visible={noiseReportMarkerScale.visible}
+                onClick={() => {
+                  setSelectedSafeSpace(null);
+                  setSelectedNoiseReportPin(pin);
+                }}
+              />
+            </Marker>
+          ))}
+
+        {noiseReportMarkerScale.visible && selectedNoiseReportPin && (
+          <Popup
+            longitude={selectedNoiseReportPin.lng}
+            latitude={selectedNoiseReportPin.lat}
+            anchor="top"
+            closeOnClick={false}
+            onClose={() => setSelectedNoiseReportPin(null)}
+            offset={12}
+            maxWidth="220px"
           >
-            <NoiseReportMarker pin={pin} nowMs={nowMs} />
-          </Marker>
-        ))}
+            <div className="rounded-xl bg-white px-3 py-2.5 text-left text-[#1E2939]">
+              <div className="flex items-center gap-2">
+                <TriangleAlert size={16} className="shrink-0 text-[#B84732]" />
+                <p className="text-sm font-medium">High noise was reported here recently</p>
+              </div>
+            </div>
+          </Popup>
+        )}
 
         {routeData && (
           <>
@@ -547,7 +624,10 @@ export function RouteMap({
                   isSelectedStop={isSelectedStop}
                   scale={safeSpaceMarkerScale.scale}
                   visible={safeSpaceMarkerScale.visible}
-                  onClick={() => setSelectedSafeSpace(safeSpace)}
+                  onClick={() => {
+                    setSelectedNoiseReportPin(null);
+                    setSelectedSafeSpace(safeSpace);
+                  }}
                 />
               </Marker>
             );
