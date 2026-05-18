@@ -118,9 +118,7 @@ async function fetchPhotonSuggestions(
   }
 
   if (!API_BASE_URL) {
-    console.error(
-      "API base URL not set. Add VITE_API_BASE_URL to your .env file.",
-    );
+    console.error("API base URL not set. Add VITE_API_BASE_URL to your .env file.");
     return [];
   }
 
@@ -1320,6 +1318,7 @@ export function Map() {
     stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
   });
 
+
   const handleFindBestTime = async () => {
     setError("");
     setBestTimeSuggestion(null);
@@ -1329,9 +1328,7 @@ export function Map() {
       return;
     }
     if (!API_BASE_URL) {
-      setError(
-        "API base URL not set. Add VITE_API_BASE_URL to your .env file.",
-      );
+      setError("API base URL not set. Add VITE_API_BASE_URL to your .env file.");
       return;
     }
 
@@ -1381,8 +1378,7 @@ export function Map() {
               }
               : undefined,
           end:
-            selectedDestination?.center &&
-              selectedDestination.center.length >= 2
+            selectedDestination?.center && selectedDestination.center.length >= 2
               ? {
                 lng: selectedDestination.center[0],
                 lat: selectedDestination.center[1],
@@ -1428,6 +1424,7 @@ export function Map() {
         label: formatHourRangeLabel(bestHour),
         routeTimeIso,
       });
+
     } catch (err) {
       console.error("Best time recommendation failed:", err);
       setError("Failed to calculate best time.");
@@ -1725,7 +1722,7 @@ export function Map() {
               <button
                 onClick={() => handlePlanRoute()}
                 disabled={loading}
-                className="cursor-pointer flex-1 rounded-[2rem] bg-[#7DB0A6] py-3.5 text-sm font-bold uppercase tracking-[0.18em] text-white shadow-sm transition hover:bg-[#7DB0A6]/90 disabled:opacity-70"
+                className="cursor-pointer flex-1 rounded-[2rem] bg-[#7DB0A6] py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#7DB0A6]/90 disabled:opacity-70"
               >
                 {loading ? "Finding Quiet Route..." : "Find Quiet Route"}
               </button>
@@ -1734,11 +1731,11 @@ export function Map() {
                 type="button"
                 onClick={handleSaveRoute}
                 disabled={!startLocation.trim() || !destination.trim()}
-                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#F7F7F7] text-[#A8ADB5] shadow-md transition hover:bg-[#F1F5F4] hover:text-[#5A9A8E] disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#F7F7F7] text-[#A8ADB5] shadow-md transition hover:bg-[#F1F5F4] hover:text-[#5A9A8E] disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="Save route to favourites"
                 title="Save route to favourites"
               >
-                <Bookmark size={24} strokeWidth={1.8} />
+                <Bookmark size={19} strokeWidth={1.8} />
               </button>
             </div>
 
@@ -2054,7 +2051,7 @@ export function Map() {
                           <button
                             onClick={() => handlePlanRoute()}
                             disabled={loading}
-                            className="flex-1 rounded-[2rem] bg-[#7DB0A6] py-3.5 text-sm font-bold uppercase tracking-[0.16em] text-white shadow-md transition-transform active:scale-[0.98] disabled:opacity-70"
+                            className="flex-1 rounded-[2rem] bg-[#7DB0A6] py-3.5 text-sm font-semibold text-white shadow-md transition-transform active:scale-[0.98] disabled:opacity-70"
                           >
                             {loading
                               ? "Finding Quiet Route..."
@@ -2064,14 +2061,12 @@ export function Map() {
                           <button
                             type="button"
                             onClick={handleSaveRoute}
-                            disabled={
-                              !startLocation.trim() || !destination.trim()
-                            }
-                            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#F7F7F7] text-[#A8ADB5] shadow-md transition hover:bg-[#F1F5F4] hover:text-[#5A9A8E] disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={!startLocation.trim() || !destination.trim()}
+                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#F7F7F7] text-[#A8ADB5] shadow-md transition hover:bg-[#F1F5F4] hover:text-[#5A9A8E] disabled:cursor-not-allowed disabled:opacity-50"
                             aria-label="Save route to favourites"
                             title="Save route to favourites"
                           >
-                            <Bookmark size={24} strokeWidth={1.8} />
+                            <Bookmark size={19} strokeWidth={1.8} />
                           </button>
                         </div>
                       </motion.div>
@@ -2154,7 +2149,7 @@ export function Map() {
                 <button
                   type="button"
                   onClick={() => navigate("/support")}
-                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
                   aria-label="Go to Find Calm page"
                 >
                   <Wind size={22} />
@@ -2218,7 +2213,7 @@ export function Map() {
                 <button
                   type="button"
                   onClick={() => navigate("/support")}
-                  className="flex h-14 w-14 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
                   aria-label="Go to Find Calm page"
                 >
                   <Wind size={22} />
@@ -2243,7 +2238,7 @@ export function Map() {
             <button
               type="button"
               onClick={() => navigate("/support")}
-              className="cursor-pointer flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
+              className="cursor-pointer flex h-11 w-11 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
               aria-label="Go to Find Calm page"
             >
               <Wind size={22} />
@@ -2355,6 +2350,7 @@ export function Map() {
           navigate("/achievements");
         }}
       />
+
     </main>
   );
 }

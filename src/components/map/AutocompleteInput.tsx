@@ -103,7 +103,7 @@ export function AutocompleteInput({
             }}
             placeholder={placeholder}
             autoComplete="off"
-            className="min-w-0 w-full bg-transparent text-[14px] text-[#1E2939] outline-none placeholder:text-[#8B98A5]"
+            className="min-w-0 w-full bg-transparent text-sm font-normal text-[#1E2939] outline-none placeholder:text-[#8B98A5]"
           />
 
           {isStart && onLocationClick && (
@@ -131,10 +131,10 @@ export function AutocompleteInput({
                   event.stopPropagation();
                   setActiveDropdownTab("suggestions");
                 }}
-                className={`rounded-xl px-3 py-2 text-xs font-bold uppercase tracking-[0.16em] transition ${
+                className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
                   activeDropdownTab === "suggestions"
                     ? "bg-[#7DB0A6] text-white shadow-sm"
-                    : "text-[#9AA3AF] hover:bg-[#F7FAF9] hover:text-[#5A9A8E]"
+                    : "text-[#6A7282] hover:bg-[#F7FAF9] hover:text-[#5A9A8E]"
                 }`}
               >
                 Suggestions
@@ -147,10 +147,10 @@ export function AutocompleteInput({
                   event.stopPropagation();
                   setActiveDropdownTab("favourites");
                 }}
-                className={`rounded-xl px-3 py-2 text-xs font-bold uppercase tracking-[0.16em] transition ${
+                className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
                   activeDropdownTab === "favourites"
                     ? "bg-[#7DB0A6] text-white shadow-sm"
-                    : "text-[#9AA3AF] hover:bg-[#F7FAF9] hover:text-[#5A9A8E]"
+                    : "text-[#6A7282] hover:bg-[#F7FAF9] hover:text-[#5A9A8E]"
                 }`}
               >
                 Favourites
@@ -161,7 +161,7 @@ export function AutocompleteInput({
               {activeDropdownTab === "suggestions" && (
                 <>
                   {loading ? (
-                    <div className="px-4 py-3 text-sm text-[#6A7282]">
+                    <div className="px-4 py-3 text-sm font-normal text-[#6A7282]">
                       Searching...
                     </div>
                   ) : suggestions.length > 0 ? (
@@ -174,17 +174,17 @@ export function AutocompleteInput({
                           event.stopPropagation();
                           onSelect(suggestion);
                         }}
-                        className="w-full border-b border-[#EEF4F2] px-4 py-3 text-left text-sm text-[#1E2939] hover:bg-[#F7FAF9] last:border-b-0"
+                        className="w-full border-b border-[#EEF4F2] px-4 py-3 text-left text-sm font-normal text-[#1E2939] hover:bg-[#F7FAF9] last:border-b-0"
                       >
                         {suggestion.place_name}
                       </button>
                     ))
                   ) : shouldShowSuggestionsEmptyMessage ? (
-                    <div className="px-4 py-3 text-sm text-[#6A7282]">
+                    <div className="px-4 py-3 text-sm font-normal text-[#6A7282]">
                       No matching results found
                     </div>
                   ) : (
-                    <div className="px-4 py-3 text-sm text-[#6A7282]">
+                    <div className="px-4 py-3 text-sm font-normal text-[#6A7282]">
                       Start typing to search for a location.
                     </div>
                   )}
@@ -201,7 +201,7 @@ export function AutocompleteInput({
                         No favourite routes yet
                       </p>
 
-                      <p className="mt-1 text-xs text-[#8B98A5]">
+                      <p className="mt-1 text-xs font-normal text-[#8B98A5]">
                         Save a route first, then it will appear here.
                       </p>
                     </div>
@@ -221,25 +221,30 @@ export function AutocompleteInput({
                           className="min-w-0 flex-1 px-4 py-3 text-left hover:bg-[#F7FAF9]"
                           aria-label={`Use favourite route from ${route.origin} to ${route.destination}`}
                         >
-                       <div className="flex items-start gap-3">
-  <div className="mt-0.5 flex flex-col items-center gap-1 shrink-0">
-    <Navigation size={15} className="text-[#D4B896]" />
-    <div className="h-3 w-px bg-[#DCE7E3]" />
-    <MapPin size={15} className="text-[#7DB0A6]" />
-  </div>
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 flex shrink-0 flex-col items-center gap-1">
+                              <Navigation
+                                size={15}
+                                className="text-[#D4B896]"
+                              />
+                              <div className="h-3 w-px bg-[#DCE7E3]" />
+                              <MapPin size={15} className="text-[#7DB0A6]" />
+                            </div>
 
-  <div className="min-w-0 flex-1">
-    <p className="truncate text-sm font-semibold text-[#1E2939]">
-      {route.origin}
-    </p>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium text-[#1E2939]">
+                                {route.origin}
+                              </p>
 
-    <p className="my-1 text-xs text-[#8B98A5]">to</p>
+                              <p className="my-1 text-xs font-normal text-[#8B98A5]">
+                                to
+                              </p>
 
-    <p className="truncate text-sm font-semibold text-[#1E2939]">
-      {route.destination}
-    </p>
-  </div>
-</div>
+                              <p className="truncate text-sm font-medium text-[#1E2939]">
+                                {route.destination}
+                              </p>
+                            </div>
+                          </div>
                         </button>
 
                         <button
