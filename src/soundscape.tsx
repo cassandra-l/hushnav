@@ -5,12 +5,19 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Navbar } from "./components/nav-bar";
 import { MobileMenu } from "./components/hamburger-menu";
 
+import brownNoise from "./assets/audio/brown_noise.mp3";
+import rain from "./assets/audio/rain.mp3";
+import waves from "./assets/audio/waves.mp3";
+import fireplace from "./assets/audio/fireplace.mp3";
+import chirping from "./assets/audio/chirping.mp3";
+import stream from "./assets/audio/stream.mp3";
+
 const soundLibrary = [
   {
     id: "brownNoise",
     title: "Deep Earth",
     desc: "Consistent low-frequency sound",
-    file: "/audio/brown_noise.mp3",
+    file: brownNoise,
     duration: "0:07",
     category: "FOCUS",
   },
@@ -18,7 +25,7 @@ const soundLibrary = [
     id: "rain",
     title: "Downpour",
     desc: "Gentle rainfall",
-    file: "/audio/rain.mp3",
+    file: rain,
     duration: "1:34",
     category: "NATURE",
   },
@@ -26,7 +33,7 @@ const soundLibrary = [
     id: "waves",
     title: "Tidal Flow",
     desc: "Calming coastal sounds",
-    file: "/audio/waves.mp3",
+    file: waves,
     duration: "0:32",
     category: "NATURE",
   },
@@ -34,7 +41,7 @@ const soundLibrary = [
     id: "fire",
     title: "Kindle",
     desc: "Crackling wood fire",
-    file: "/audio/fireplace.mp3",
+    file: fireplace,
     duration: "5:20",
     category: "NATURE",
   },
@@ -42,7 +49,7 @@ const soundLibrary = [
     id: "chirping",
     title: "Morning Echoes",
     desc: "Natural bird sounds",
-    file: "/audio/chirping.mp3",
+    file: chirping,
     duration: "1:42",
     category: "NATURE",
   },
@@ -50,7 +57,7 @@ const soundLibrary = [
     id: "stream",
     title: "Hidden Creek",
     desc: "Gentle flowing water",
-    file: "/audio/stream.mp3",
+    file: stream,
     duration: "1:34",
     category: "NATURE",
   },
