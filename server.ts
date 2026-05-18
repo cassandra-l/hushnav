@@ -7,6 +7,12 @@ import {
 } from "./amplify/navigation/handler";
 import { handleCrowdMap } from "./amplify/spatialData/handler";
 import { findBestRouteTime } from "./amplify/navigation/bestTime";
+
+import {
+  handleCreateNoiseReport,
+  handleGetNoiseReports,
+} from "./amplify/spatialData/noiseReportsHandler";
+
 import { handler as geocodeSuggestionsLambdaHandler } from "./amplify/functions/geocode-suggestions/handler";
 
 const app = express();
@@ -119,6 +125,30 @@ const safeSpacesHandler = async (
   }
 };
 
+
+const getNoiseReportsHandler = async (
+  req: express.Request,
+  res: express.Response,
+) => {
+  const result = await handleGetNoiseReports(req.query);
+
+  res
+    .status(result.statusCode)
+    .type("application/json")
+    .send(result.body);
+};
+
+const createNoiseReportHandler = async (
+  req: express.Request,
+  res: express.Response,
+) => {
+  const result = await handleCreateNoiseReport(req.body);
+
+  res
+    .status(result.statusCode)
+    .type("application/json")
+    .send(result.body);
+};
 const geocodeSuggestionsHandler = async (
   req: express.Request,
   res: express.Response,
@@ -162,8 +192,18 @@ app.get("/safe-spaces", safeSpacesHandler);
 app.post("/api/best-time", bestTimeHandler);
 app.post("/best-time", bestTimeHandler);
 
+
+app.get("/api/noise-reports", getNoiseReportsHandler);
+app.get("/noise-reports", getNoiseReportsHandler);
+
+app.post("/api/noise-reports", createNoiseReportHandler);
+app.post("/noise-reports", createNoiseReportHandler);
+
+
 app.get("/api/geocode-suggestions", geocodeSuggestionsHandler);
 app.get("/geocode-suggestions", geocodeSuggestionsHandler);
+
+// Always return JSON for unknown API-style routes
 
 app.use((_req, res) => {
   res.status(404).json({
