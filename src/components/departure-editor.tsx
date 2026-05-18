@@ -21,10 +21,11 @@ const timeFieldClassName = [
   "[&::-webkit-calendar-picker-indicator]:ml-0 [&::-webkit-calendar-picker-indicator]:shrink-0",
 ].join(" ");
 
-/** Best-time slot height; Choose time column uses the same `h-[4.75rem]` so tabs align. */
+// best time slot class
 const BEST_TIME_SLOT_CLASS =
   "box-border flex h-[4.75rem] w-full min-w-0 flex-col rounded-2xl border border-[#E8EEEC] bg-[#F8FBFA] p-2.5";
 
+// get the tab class based on the active state
 function tabClass(active: boolean) {
   return `flex-1 border-b-2 py-2.5 text-sm font-medium transition-colors ${
     active
@@ -33,12 +34,14 @@ function tabClass(active: boolean) {
   }`;
 }
 
+// type for the departure config
 export type DepartureConfig = {
   enabled: boolean;
   date: string; // YYYY-MM-DD
   time: string; // HH:mm
 };
 
+// type for the best time suggestion
 export type BestTimeSuggestion = {
   startHour: number;
   endHour: number;
@@ -46,6 +49,7 @@ export type BestTimeSuggestion = {
   routeTimeIso: string;
 };
 
+// type for the departure editor props
 export type DepartureEditorProps = {
   isBestTimeTab: boolean;
   setIsBestTimeTab: (value: boolean) => void;
@@ -60,6 +64,7 @@ export type DepartureEditorProps = {
   getTodayYmd: () => string;
 };
 
+// function to render the departure editor
 export function DepartureEditor({
   isBestTimeTab,
   setIsBestTimeTab,

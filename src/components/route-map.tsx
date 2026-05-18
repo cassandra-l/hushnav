@@ -61,6 +61,7 @@ const SAFE_SPACE_ICON_FULL_ZOOM = 16;
 const NOISE_REPORT_ICON_MIN_ZOOM = 11;
 const NOISE_REPORT_ICON_FULL_ZOOM = 16;
 
+// function to get the scale of the marker based on the zoom level
 function getMarkerScale(zoom: number, minZoom: number, fullZoom: number) {
   if (zoom <= minZoom) {
     return { visible: false, scale: 0 };
@@ -75,6 +76,7 @@ function getMarkerScale(zoom: number, minZoom: number, fullZoom: number) {
   return { visible: true, scale };
 }
 
+// function to get the scale of the safe space marker based on the zoom level
 function getSafeSpaceMarkerScale(zoom: number) {
   return getMarkerScale(
     zoom,
@@ -83,6 +85,7 @@ function getSafeSpaceMarkerScale(zoom: number) {
   );
 }
 
+//  
 function getNoiseReportMarkerScale(zoom: number) {
   return getMarkerScale(
     zoom,
@@ -91,6 +94,7 @@ function getNoiseReportMarkerScale(zoom: number) {
   );
 }
 
+// function to render the safe space icon based on the type
 function renderSafeSpaceIcon(type: SafeSpace["type"], iconSize = 18) {
   switch (type) {
     case "park":
@@ -108,6 +112,7 @@ function renderSafeSpaceIcon(type: SafeSpace["type"], iconSize = 18) {
   }
 }
 
+// function to render the safe space marker based on the type
 function SafeSpaceMarker({
   safeSpace,
   onClick,
@@ -144,7 +149,7 @@ function SafeSpaceMarker({
       </button>
     );
   }
-
+// function to render the safe space marker
   return (
     <button
       type="button"
@@ -158,6 +163,7 @@ function SafeSpaceMarker({
   );
 }
 
+// function to render the user location marker
 function UserLocationMarker() {
   return (
     <div className="relative flex h-6 w-6 items-center justify-center">
@@ -173,6 +179,7 @@ function UserLocationMarker() {
   );
 }
 
+// function to render the noise report marker
 function NoiseReportMarker({
   pin,
   nowMs,
@@ -220,6 +227,7 @@ function NoiseReportMarker({
   );
 }
 
+// function to render the route map
 export function RouteMap({
   routeData,
   crowdMapData,
