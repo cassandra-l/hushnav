@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Navigation, SlidersVertical } from "lucide-react";
 import { SafeSpaceStopoverPanel } from "./safe-space-stopover-panel";
 import type { PlanRouteResponse, SafeSpace } from "../types/route";
@@ -27,14 +27,12 @@ export function RoutePreviewPanel({
   routeData,
   safeSpaces,
   selectedStops,
-  isSafeSpacesOpen,
   isNavigationActive,
   formatRouteLength,
   estimateWalkingMinutes,
   onOpenFilters,
   onStartNavigation,
   onExitRoute,
-  onToggleSafeSpaces,
   onAddStop,
   onRemoveStop,
   onMoveStopUp,
@@ -49,30 +47,7 @@ export function RoutePreviewPanel({
     - expanded: stats row + Start button + full safe-space panel/cards
   */
   const [sheetPosition, setSheetPosition] = useState<SheetPosition>("preview");
-
   const [dragStartY, setDragStartY] = useState<number | null>(null);
-
-  // Used to detect when a stop has just been added.
-  const previousStopCount = useRef(selectedStops.length);
-
-  useEffect(() => {
-    const hasAddedStop = selectedStops.length > previousStopCount.current;
-    const hasRemovedAllStops =
-      selectedStops.length === 0 && previousStopCount.current > 0;
-
-    // After the user adds a stop, automatically expand the panel
-    // so the selected stop card is visible by default.
-    if (hasAddedStop) {
-      setSheetPosition("expanded");
-    }
-
-    // If all stops are removed, return to the normal preview state.
-    if (hasRemovedAllStops) {
-      setSheetPosition("preview");
-    }
-
-    previousStopCount.current = selectedStops.length;
-  }, [selectedStops.length]);
 
   const moveSheetFromDrag = (dragDistance: number) => {
     // Ignore small accidental movements so normal taps do not drag the sheet.
@@ -139,6 +114,34 @@ export function RoutePreviewPanel({
     }
 
     setSheetPosition("preview");
+  };
+
+  const handleToggleSafeSpaces = () => {
+    // If the user taps "Safe Spaces Along Route" while collapsed or previewed,
+    // expand the bottom sheet so the safe-space content/cards can be seen.
+    if (sheetPosition !== "expanded") {
+      setSheetPosition("expanded");
+      return;
+    }
+
+    // If already expanded, tapping the header minimises back to the default preview.
+    setSheetPosition("preview");
+  };
+
+  const handleAddStop = (safeSpace: SafeSpace) => {
+    // When a stop is added, immediately expand the panel
+    // so the selected stop card is visible by default.
+    setSheetPosition("expanded");
+    onAddStop(safeSpace);
+  };
+
+  const handleRemoveStop = (safeSpaceId: number) => {
+    // If this is the last selected stop, return to the normal default preview.
+    if (selectedStops.length <= 1) {
+      setSheetPosition("preview");
+    }
+
+    onRemoveStop(safeSpaceId);
   };
 
   const getSheetHeightClass = () => {
@@ -269,21 +272,12 @@ export function RoutePreviewPanel({
                 In preview mode, force this closed so only the
                 "Safe Spaces Along Route" header row shows.
 
-                In expanded mode, keep the normal open/closed behaviour from the parent.
+                In expanded mode, force it open so users can see/add safe spaces.
               */
-              isOpen={sheetPosition === "expanded" ? isSafeSpacesOpen : false}
-              onToggleOpen={() => {
-                // If the user taps "Safe Spaces Along Route" while in preview,
-                // expand the bottom sheet so the safe-space content/cards can be seen.
-                if (sheetPosition === "preview") {
-                  setSheetPosition("expanded");
-                  return;
-                }
-
-                onToggleSafeSpaces();
-              }}
-              onAddStop={onAddStop}
-              onRemoveStop={onRemoveStop}
+              isOpen={sheetPosition === "expanded"}
+              onToggleOpen={handleToggleSafeSpaces}
+              onAddStop={handleAddStop}
+              onRemoveStop={handleRemoveStop}
               onMoveStopUp={onMoveStopUp}
               onMoveStopDown={onMoveStopDown}
             />
