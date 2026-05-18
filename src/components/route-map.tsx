@@ -383,12 +383,6 @@ export function RouteMap({
     return () => window.clearTimeout(timer);
   }, [selectedSafeSpaceFromPanel]);
 
-  useEffect(() => {
-    if (!safeSpaceMarkerScale.visible && selectedSafeSpace) {
-      setSelectedSafeSpace(null);
-    }
-  }, [safeSpaceMarkerScale.visible, selectedSafeSpace]);
-
   if (!mapboxToken) {
     return <div>Missing Mapbox Token</div>;
   }
@@ -559,7 +553,7 @@ export function RouteMap({
             );
           })}
 
-        {selectedSafeSpace && (
+        {selectedSafeSpace && safeSpaceMarkerScale.visible && (
           <Popup
             longitude={selectedSafeSpace.lng}
             latitude={selectedSafeSpace.lat}
