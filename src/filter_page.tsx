@@ -217,6 +217,15 @@ export default function FilterScreen() {
     );
   };
 
+  const handleGoBack = () => {
+    navigate("/map", {
+      state: {
+        restoreRoutePreview: true,
+        replanAfterFilter: false,
+      },
+    });
+  };
+
   const handleApplyFilters = () => {
     localStorage.setItem(
       SAFE_SPACES_STORAGE_KEY,
@@ -241,6 +250,7 @@ export default function FilterScreen() {
     navigate("/map", {
       state: {
         restoreRoutePreview: true,
+        replanAfterFilter: true,
         appliedSensitivity: selectedSensitivity,
       },
     });
@@ -260,7 +270,7 @@ export default function FilterScreen() {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             className="cursor-pointer rounded-full bg-white p-3 shadow-sm ring-1 ring-slate-100 transition-all hover:bg-gray-50"
-            onClick={() => navigate(-1)}
+            onClick={handleGoBack}
           >
             <ChevronLeft size={24} className="text-[#2D3142]" />
           </motion.button>
