@@ -107,7 +107,7 @@ export function AchievementSummaryPage() {
             <div className="w-full lg:w-[380px] shrink-0 space-y-4">
               {/* Main Typography Header Block */}
               <div className="text-left mb-6 lg:mb-8">
-                <h1 className="text-5xl md:text-6xl font-black tracking-tight mb-2 text-[#1E2939]">
+                <h1 className="text-5xl md:text-6xl font- tracking-tight mb-2 text-[#1E2939]">
                   Achievements
                 </h1>
                 <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.3em] md:tracking-[0.4em] opacity-60 text-[#5A9A8E]">
