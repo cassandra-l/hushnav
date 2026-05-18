@@ -17,8 +17,6 @@ type RoutePreviewPanelProps = {
   onToggleSafeSpaces: () => void;
   onAddStop: (safeSpace: SafeSpace) => void;
   onRemoveStop: (safeSpaceId: number) => void;
-
-  // Reorder handlers used by the safe-space stopover panel.
   onMoveStopUp: (safeSpaceId: number) => void;
   onMoveStopDown: (safeSpaceId: number) => void;
 };
@@ -29,14 +27,12 @@ export function RoutePreviewPanel({
   routeData,
   safeSpaces,
   selectedStops,
-  isSafeSpacesOpen,
   isNavigationActive,
   formatRouteLength,
   estimateWalkingMinutes,
   onOpenFilters,
   onStartNavigation,
   onExitRoute,
-  onToggleSafeSpaces,
   onAddStop,
   onRemoveStop,
   onMoveStopUp,
@@ -44,12 +40,40 @@ export function RoutePreviewPanel({
 }: RoutePreviewPanelProps) {
   const totalLength = routeData.route.totalLength;
 
-  // Mobile sheet state:
-  // collapsed = only stats row
-  // preview = stats row + Start/Exit button
-  // expanded = full panel including safe-space stop cards
+  /*
+    Sheet positions:
+    - collapsed: only stats row is visible
+    - preview: stats row + Start button + collapsed "Safe Spaces Along Route" header
+    - expanded: stats row + Start button + full safe-space panel/cards
+  */
   const [sheetPosition, setSheetPosition] = useState<SheetPosition>("preview");
   const [dragStartY, setDragStartY] = useState<number | null>(null);
+
+  const moveSheetFromDrag = (dragDistance: number) => {
+    // Ignore small accidental movements so normal taps do not drag the sheet.
+    if (Math.abs(dragDistance) < 35) return;
+
+    // Drag down = minimise the sheet.
+    if (dragDistance > 35) {
+      if (sheetPosition === "expanded") {
+        setSheetPosition("preview");
+        return;
+      }
+
+      setSheetPosition("collapsed");
+      return;
+    }
+
+    // Drag up = show more content.
+    if (dragDistance < -35) {
+      if (sheetPosition === "collapsed") {
+        setSheetPosition("preview");
+        return;
+      }
+
+      setSheetPosition("expanded");
+    }
+  };
 
   const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
     setDragStartY(event.touches[0].clientY);
@@ -59,46 +83,92 @@ export function RoutePreviewPanel({
     if (dragStartY === null) return;
 
     const dragEndY = event.changedTouches[0].clientY;
-    const dragDistance = dragEndY - dragStartY;
-
-    // Ignore very small touches so normal taps do not accidentally move the sheet.
-    if (Math.abs(dragDistance) < 45) {
-      setDragStartY(null);
-      return;
-    }
-
-    // Dragging down should make the panel smaller.
-    if (dragDistance > 45) {
-      if (sheetPosition === "expanded") {
-        setSheetPosition("preview");
-      } else {
-        setSheetPosition("collapsed");
-      }
-    }
-
-    // Dragging up should reveal more of the panel.
-    if (dragDistance < -45) {
-      if (sheetPosition === "collapsed") {
-        setSheetPosition("preview");
-      } else {
-        setSheetPosition("expanded");
-      }
-    }
+    moveSheetFromDrag(dragEndY - dragStartY);
 
     setDragStartY(null);
   };
 
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    setDragStartY(event.clientY);
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (dragStartY === null) return;
+
+    moveSheetFromDrag(event.clientY - dragStartY);
+
+    setDragStartY(null);
+  };
+
+  const handleHandleClick = () => {
+    // Helpful for desktop testing:
+    // clicking the handle cycles between the useful states.
+    if (sheetPosition === "collapsed") {
+      setSheetPosition("preview");
+      return;
+    }
+
+    if (sheetPosition === "preview") {
+      setSheetPosition("expanded");
+      return;
+    }
+
+    setSheetPosition("preview");
+  };
+
+  const handleToggleSafeSpaces = () => {
+    // If the user taps "Safe Spaces Along Route" while collapsed or previewed,
+    // expand the bottom sheet so the safe-space content/cards can be seen.
+    if (sheetPosition !== "expanded") {
+      setSheetPosition("expanded");
+      return;
+    }
+
+    // If already expanded, tapping the header minimises back to the default preview.
+    setSheetPosition("preview");
+  };
+
+  const handleAddStop = (safeSpace: SafeSpace) => {
+    // When a stop is added, immediately expand the panel
+    // so the selected stop card is visible by default.
+    setSheetPosition("expanded");
+    onAddStop(safeSpace);
+  };
+
+  const handleRemoveStop = (safeSpaceId: number) => {
+    // If this is the last selected stop, return to the normal default preview.
+    if (selectedStops.length <= 1) {
+      setSheetPosition("preview");
+    }
+
+    onRemoveStop(safeSpaceId);
+  };
+
   const getSheetHeightClass = () => {
     if (sheetPosition === "collapsed") {
-      return "max-h-[96px]";
+      // Only the stats row should be visible.
+      return "max-h-[104px]";
     }
 
     if (sheetPosition === "expanded") {
-      return "max-h-[78vh]";
+      // Full safe-space panel visible.
+      return "max-h-[58vh]";
     }
 
-    return "max-h-[190px]";
+    // Default state:
+    // stats row + Start button + collapsed Safe Spaces Along Route header.
+    return "max-h-[260px]";
   };
+
+  const shouldShowStartButton = sheetPosition !== "collapsed";
+
+  /*
+    Important:
+    The safe-space panel must show in preview mode as a collapsed header,
+    otherwise users cannot see "Safe Spaces Along Route" by default.
+  */
+  const shouldShowStopPanel =
+    sheetPosition === "preview" || sheetPosition === "expanded";
 
   return (
     <section className="w-full lg:hidden">
@@ -106,21 +176,26 @@ export function RoutePreviewPanel({
         <div
           className={`${getSheetHeightClass()} overflow-y-auto overscroll-contain transition-all duration-300 ease-out`}
         >
-          {/* 
-            Drag area.
-            Users can pull this down to collapse the panel so only the first row is visible.
-            Users can also drag up to reveal the Start button and safe-space stops.
-          */}
+          {/* Drag handle */}
           <div
-            className="cursor-grab touch-none px-5 pt-3 active:cursor-grabbing"
+            className="px-5 pt-3"
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
           >
-            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-[#D4E1DD]" />
+            <button
+              type="button"
+              onClick={handleHandleClick}
+              className="mx-auto mb-3 block h-1.5 w-12 cursor-grab rounded-full bg-[#D4E1DD] active:cursor-grabbing"
+              aria-label="Expand or minimise route preview panel"
+            />
+          </div>
 
-            {/* Stats Row */}
+          {/* Stats row */}
+          <div className="px-5">
             <div className="grid grid-cols-4 items-center bg-white text-center">
-              {/* Noise Level */}
+              {/* Noise */}
               <div className="border-r border-[#E8EEEC] px-2 py-3">
                 <p className="text-[10px] font-bold uppercase text-[#6A7282]">
                   Noise
@@ -138,7 +213,7 @@ export function RoutePreviewPanel({
                 </p>
               </div>
 
-              {/* Duration */}
+              {/* Time */}
               <div className="border-r border-[#E8EEEC] px-2 py-3">
                 <p className="text-[10px] font-bold uppercase text-[#6A7282]">
                   Time
@@ -148,7 +223,7 @@ export function RoutePreviewPanel({
                 </p>
               </div>
 
-              {/* Filter Button */}
+              {/* Filter button */}
               <div className="flex items-center justify-center">
                 {!isNavigationActive && (
                   <button
@@ -164,11 +239,8 @@ export function RoutePreviewPanel({
             </div>
           </div>
 
-          {/* 
-            Only show the Start/Exit button when the sheet is not fully collapsed.
-            This makes the collapsed state only show the first row, as requested.
-          */}
-          {sheetPosition !== "collapsed" && (
+          {/* Start / Exit button */}
+          {shouldShowStartButton && (
             <div className="px-5 pb-3 pt-3">
               {!isNavigationActive ? (
                 <button
@@ -183,7 +255,7 @@ export function RoutePreviewPanel({
                 <button
                   type="button"
                   onClick={onExitRoute}
-                  className="w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm"
+                  className="w-full rounded-2xl bg-[#5A9A8E] py-3 font-medium text-white shadow-sm transition-transform active:scale-[0.98]"
                 >
                   Exit
                 </button>
@@ -191,18 +263,21 @@ export function RoutePreviewPanel({
             </div>
           )}
 
-          {/* 
-            Only show the stopover panel when expanded.
-            This prevents the safe-space card from taking up too much mobile screen space.
-          */}
-          {sheetPosition === "expanded" && (
+          {/* Safe-space stop panel */}
+          {shouldShowStopPanel && (
             <SafeSpaceStopoverPanel
               safeSpaces={safeSpaces}
               selectedStops={selectedStops}
-              isOpen={isSafeSpacesOpen}
-              onToggleOpen={onToggleSafeSpaces}
-              onAddStop={onAddStop}
-              onRemoveStop={onRemoveStop}
+              /*
+                In preview mode, force this closed so only the
+                "Safe Spaces Along Route" header row shows.
+
+                In expanded mode, force it open so users can see/add safe spaces.
+              */
+              isOpen={sheetPosition === "expanded"}
+              onToggleOpen={handleToggleSafeSpaces}
+              onAddStop={handleAddStop}
+              onRemoveStop={handleRemoveStop}
               onMoveStopUp={onMoveStopUp}
               onMoveStopDown={onMoveStopDown}
             />

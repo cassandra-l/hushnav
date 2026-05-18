@@ -2149,10 +2149,10 @@ export function Map() {
                 <button
                   type="button"
                   onClick={() => navigate("/support")}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
                   aria-label="Go to Find Calm page"
                 >
-                  <Wind size={22} />
+                  <Wind size={24} />
                 </button>
               </div>
               <RoutePreviewPanel
@@ -2213,10 +2213,10 @@ export function Map() {
                 <button
                   type="button"
                   onClick={() => navigate("/support")}
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
+                  className="flex h-14 w-14 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
                   aria-label="Go to Find Calm page"
                 >
-                  <Wind size={22} />
+                  <Wind size={24} />
                 </button>
               </div>
             </>
@@ -2238,10 +2238,10 @@ export function Map() {
             <button
               type="button"
               onClick={() => navigate("/support")}
-              className="cursor-pointer flex h-11 w-11 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
+              className="cursor-pointer flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
               aria-label="Go to Find Calm page"
             >
-              <Wind size={22} />
+              <Wind size={24} />
             </button>
           </div>
         </div>
