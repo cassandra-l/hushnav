@@ -47,7 +47,7 @@ export function SensoryProfile({
         >
           {/* Title Section */}
           <div className="text-left mb-8 md:mb-12">
-            <h1 className="text-5xl md:text-6xl font-black tracking-tight mb-2 text-[#1E2939]">
+            <h1 className="text-5xl md:text-6xl font-medium tracking-tight mb-2 text-[#1E2939]">
               Sensory Profile
             </h1>
             <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.3em] md:tracking-[0.4em] opacity-60 text-[#5A9A8E]">
@@ -117,32 +117,33 @@ export function SensoryProfile({
                 hasSavedResult ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"
               }`}
             >
-              {/* Conditional Secondary Action Button */}
+              {/* Secondary Action: Only shows up if user have a history */}
               {hasSavedResult && (
                 <button
                   type="button"
                   onClick={onStart}
                   className="w-full flex items-center justify-center gap-2 rounded-2xl bg-white border border-[#5A9A8E] px-6 py-4 text-xs md:text-sm font-bold text-[#5A9A8E] shadow-sm hover:bg-gray-50 transition-colors cursor-pointer"
                 >
-                  {hasSavedResult ? "Retake Quiz" : "Start Self Discovery"}
+                  Retake Quiz
                 </button>
               )}
-              {/* Primary Action Button */}
+
+              {/* Primary Action */}
               <button
                 type="button"
-                onClick={onSeeResult}
+                onClick={hasSavedResult ? onSeeResult : onStart}
                 className="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#5A9A8E] px-6 py-4 text-xs md:text-sm font-bold text-white shadow-md hover:bg-[#5A9A8E]/90 transition-colors cursor-pointer"
               >
-                <Eye size={15} />
-                See Previous Result
+                {hasSavedResult ? (
+                  <>
+                    <Eye size={15} />
+                    See Previous Result
+                  </>
+                ) : (
+                  "Start Self Discovery"
+                )}
               </button>
             </div>
-
-            {/* Privacy Notice Footnote */}
-            <p className="text-[11px] text-center pt-1 font-medium text-[#134E48] opacity-80">
-              <strong className="font-bold">Your Privacy Matters:</strong> All
-              analytical responses are evaluated locally on-device.
-            </p>
           </div>
         </motion.div>
       </main>

@@ -107,7 +107,7 @@ export function Soundscape() {
         >
           {/* Header Section */}
           <div className="text-left mb-8 md:mb-12">
-            <h1 className="text-5xl md:text-6xl font-black tracking-tight mb-2 text-[#1E2939]">
+            <h1 className="text-5xl md:text-6xl font-medium tracking-tight mb-2 text-[#1E2939]">
               Soundscape
             </h1>
             <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.3em] md:tracking-[0.4em] opacity-60 text-[#5A9A8E]">
