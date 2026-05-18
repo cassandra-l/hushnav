@@ -60,7 +60,7 @@ export default function SensitivityQuiz({
       </header> */}
 
       <main className="px-6 pb-12 pt-4 lg:pt-32">
-        <div className="w-full bg-white/40 border border-white/60 backdrop-blur-3xl px-6 md:px-8 py-7 rounded-[28px] shadow-xl shadow-slate-100/20 mb-6">
+        <div className="w-full bg-white/50 border border-white/80 backdrop-blur-3xl px-6 md:px-8 py-7 mt-30 lg:mt-0 rounded-[28px] shadow-xl shadow-slate-100/20 mb-6">
           {/* Section Breaking Escapement Links */}
           {/* <div className="flex items-center justify-between mb-6"> */}
           {/* <button
