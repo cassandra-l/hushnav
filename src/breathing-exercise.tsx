@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Pause, Play, RefreshCcw } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { XButton } from "./components/x-button";
@@ -21,13 +21,20 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 export function BreathingExercise({ onClose }: BreathingExerciseProps) {
   const navigate = useNavigate();
 
+  const location = useLocation();
+
   const handleClose = () => {
     if (onClose) {
       onClose();
       return;
     }
 
-    navigate("-1");
+    // Now location.state?.fromMap will accurately be true or undefined!
+    if (location.state?.fromMap) {
+      navigate("/map");
+    } else {
+      navigate("/support");
+    }
   };
 
   // This controls the 4-second countdown before the actual breathing starts.

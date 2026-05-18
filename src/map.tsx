@@ -2242,7 +2242,9 @@ export function Map() {
                         {/* Support */}
                         <button
                           type="button"
-                          onClick={() => navigate("/support")}
+                          onClick={() =>
+                            navigate("/support", { state: { fromMap: true } })
+                          }
                           className="flex h-14 w-14 items-center justify-center rounded-full bg-[#7DB0A6]/80 border border-white/60 text-white shadow-lg cursor-pointer"
                           aria-label="Support"
                         >
@@ -2308,7 +2310,9 @@ export function Map() {
                     {/* Support */}
                     <button
                       type="button"
-                      onClick={() => navigate("/support")}
+                      onClick={() =>
+                        navigate("/support", { state: { fromMap: true } })
+                      }
                       className="flex h-14 w-14 items-center justify-center rounded-full bg-[#7DB0A6]/80 border border-white/60 text-white shadow-lg cursor-pointer"
                       aria-label="Support"
                     >

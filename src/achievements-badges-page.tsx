@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Lock } from "lucide-react";
-
+import { useNavigate } from "react-router-dom";
 import type { AchievementsState } from "./achievements-store";
 import { XButton } from "./components/x-button";
 import {
@@ -63,11 +63,7 @@ function BadgeCard({
   );
 }
 
-type AllBadgesProps = {
-  onClose: () => void;
-};
-
-export function AchievementsBadgesPage({ onClose }: AllBadgesProps) {
+export function AchievementsBadgesPage() {
   const [state, setState] = useState<AchievementsState>(() =>
     loadAchievementsState(),
   );
@@ -94,10 +90,12 @@ export function AchievementsBadgesPage({ onClose }: AllBadgesProps) {
   const unlocked = filteredCards.filter((c) => c.unlocked);
   const locked = filteredCards.filter((c) => !c.unlocked);
 
+  const navigate = useNavigate();
+
   return (
     <main className="min-h-screen w-full bg-[#EAF6F3] pt-20">
       <div className="mx-auto w-full max-w-5xl">
-        <XButton onClose={onClose} />
+        <XButton onClose={() => navigate("/achievements")} />
         {/* Header */}
         {/* <header className="sticky top-0 z-20 flex items-center border-b border-slate-200 px-5 py-4">
         <motion.button

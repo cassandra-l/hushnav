@@ -11,10 +11,10 @@ import { AchievementsBadgesPage } from "./achievements-badges-page.tsx";
 import { PasswordLockPage } from "./password-lock-page.tsx";
 import { AuthGate } from "./components/auth-gate.tsx";
 import "./index.css";
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { AudioProvider } from "./context/audio-provider.tsx";
 import { Soundscape } from "./soundscape.tsx";
 import SensoryProfileParent from "./sensory-profile/sensory-profile-parent.tsx";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
 // import AnimatedLayout from "./animated-layout";
 
