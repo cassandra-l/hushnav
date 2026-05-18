@@ -1,5 +1,5 @@
 import { defineBackend } from "@aws-amplify/backend";
-import { Stack } from "aws-cdk-lib";
+import { Duration, Stack } from "aws-cdk-lib";
 import { Cors, LambdaIntegration, RestApi } from "aws-cdk-lib/aws-apigateway";
 
 import { auth } from "./auth/resource";
@@ -10,6 +10,7 @@ import { safeSpacesFunction } from "./functions/safe-spaces/resource";
 import { verifyPasswordFunction } from "./functions/verify-password/resource";
 import { constructionPipeline } from "./functions/construction-pipeline/resource";
 import { bestTimeFunction } from "./functions/best-time/resource";
+import { geocodeSuggestions } from "./functions/geocode-suggestions/resource";
 
 
 const backend = defineBackend({
@@ -21,6 +22,7 @@ const backend = defineBackend({
   verifyPasswordFunction,
   constructionPipeline,
   bestTimeFunction,
+  geocodeSuggestions,
 });
 
 const apiStack = backend.createStack("api-stack");
@@ -55,7 +57,14 @@ const verifyPasswordIntegration = new LambdaIntegration(
 );
 
 const bestTimeIntegration = new LambdaIntegration(
-  backend.bestTimeFunction.resources.lambda
+  backend.bestTimeFunction.resources.lambda,
+  {
+    timeout: Duration.seconds(100),
+  },
+);
+
+const geocodeSuggestionsIntegration = new LambdaIntegration(
+  backend.geocodeSuggestions.resources.lambda,
 );
 
 const planRoutePath = myRestApi.root.addResource("plan-route");
@@ -72,6 +81,9 @@ verifyPasswordPath.addMethod("POST", verifyPasswordIntegration);
 
 const bestTimePath = myRestApi.root.addResource("best-time");
 bestTimePath.addMethod("POST", bestTimeIntegration);
+
+const geocodeSuggestionsPath = myRestApi.root.addResource("geocode-suggestions");
+geocodeSuggestionsPath.addMethod("GET", geocodeSuggestionsIntegration);
 
 backend.addOutput({
   custom: {

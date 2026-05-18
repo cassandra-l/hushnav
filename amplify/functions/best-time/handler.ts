@@ -1,7 +1,6 @@
 import type { APIGatewayProxyHandler } from "aws-lambda";
 
 const headers = {
-  "Content-Type": "application/json",
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Allow-Methods": "OPTIONS,POST",
@@ -9,6 +8,13 @@ const headers = {
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   try {
+    if (event.httpMethod === "OPTIONS") {
+      return {
+        statusCode: 204,
+        headers,
+        body: "",
+      };
+    }
     const body = event.body ? JSON.parse(event.body) : {};
 
     const { findBestRouteTime } = await import("../../navigation/bestTime");
