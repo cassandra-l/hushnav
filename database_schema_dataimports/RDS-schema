@@ -55,3 +55,21 @@ CREATE TABLE Safe_Space (
     sub_theme VARCHAR(100),
     feature_name VARCHAR(255) NOT NULL
 );
+
+-- DROP TABLE noise_report;
+CREATE TABLE IF NOT EXISTS noise_report (
+  report_id SERIAL PRIMARY KEY,
+  lat DOUBLE PRECISION NOT NULL,
+  lng DOUBLE PRECISION NOT NULL,
+  noise_level DOUBLE PRECISION,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  geom GEOMETRY(Point, 4326) GENERATED ALWAYS AS (
+    ST_SetSRID(ST_MakePoint(lng, lat), 4326)
+  ) STORED
+);
+
+CREATE INDEX IF NOT EXISTS idx_noise_report_created_at
+  ON noise_report (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_noise_report_geom
+  ON noise_report USING GIST (geom);
