@@ -64,7 +64,7 @@ const soundLibrary = [
 ];
 
 export function Soundscape() {
-  const { playingId, togglePlay } = useAudio();
+  const { playingId, togglePlay, isPaused } = useAudio();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
@@ -136,7 +136,7 @@ export function Soundscape() {
 
           <div className="space-y-3">
             {soundLibrary.map((sound, index) => {
-              const isPlaying = playingId === sound.id;
+              const isPlaying = playingId === sound.id && !isPaused;
               const isHovered = hoveredId === sound.id;
 
               return (
