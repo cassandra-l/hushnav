@@ -424,7 +424,9 @@ export function Map() {
   const dismissedNoiseNoticeIdsRef = useRef<Set<number>>(new Set());
 
   // Final route response shown on the map
-  const [routeData, setRouteData] = useState<PlanRouteResponse | null>(null);
+  const [routeData, setRouteData] = useState<PlanRouteResponse | null>(
+    location.state?.restoredRoute || null,
+  );
   const [departureConfig, setDepartureConfig] = useState<DepartureConfig>({
     enabled: false,
     date: getTodayLocalDateString(),
@@ -2393,7 +2395,9 @@ export function Map() {
                     <button
                       type="button"
                       onClick={() =>
-                        navigate("/support", { state: { fromMap: true } })
+                        navigate("/support", {
+                          state: { fromMap: true, restoredRoute: routeData },
+                        })
                       }
                       className="flex h-14 w-14 items-center justify-center rounded-full bg-[#7DB0A6]/80 border border-white/60 text-white shadow-lg cursor-pointer"
                       aria-label="Support"
