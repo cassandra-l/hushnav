@@ -95,7 +95,7 @@ export function SensoryProfile({
             {/* Metadata Specs Panel */}
             <div className="grid grid-cols-2 gap-3 mt-6">
               <div className="flex flex-col items-center justify-center p-5 rounded-2xl border bg-white/40 border-white/50 backdrop-blur-3xl text-center">
-                <span className="text-2xl font-bold text-[#5A9A8E]">8</span>
+                <span className="text-2xl font-bold text-[#5A9A8E]">6</span>
                 <span className="text-[9px] font-bold uppercase tracking-wider opacity-50 mt-1 text-[#1E2939]">
                   Questions
                 </span>
