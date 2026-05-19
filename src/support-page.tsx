@@ -156,10 +156,7 @@ export function SupportPage() {
               incrementBreathingUses(1);
 
               navigate("/breathing-exercise", {
-                state: {
-                  fromMap: location.state?.fromMap,
-                  restoredRoute: location.state?.restoredRoute,
-                },
+                state: { fromMap: location.state?.fromMap },
               });
             }}
           >
