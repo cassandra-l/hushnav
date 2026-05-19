@@ -17,10 +17,18 @@ export type QuizQuestion = {
 
 export type QuizAnswers = Record<string, number>; // Maps question ID to option value
 
+export type SensitivityId = "standard" | "mechanical" | "social";
+
+export type FilterPreselection = {
+  sensitivityId: SensitivityId;
+  safeSpaceIds: string[];
+};
+
 export type SensitivityResult = {
   title: string;
   description: string;
   intensityMessage?: string;
   recommendedFilters: string[];
   suggestedSpaces?: string[];
+  preselection: FilterPreselection;
 };
