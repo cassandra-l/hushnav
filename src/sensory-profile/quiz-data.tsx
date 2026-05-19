@@ -131,7 +131,8 @@ export function calculateSensitivityResult(
     title = "Balanced Quiet Seeker";
     description =
       "You seem to prefer calmer, lower-stimulation environments overall. Both crowded social settings and harsh environmental sounds may feel mentally draining or overwhelming for you over time. You may feel more comfortable in quieter spaces, peaceful routes, or environments with fewer distractions. HushNav can help personalise your experience by reducing both social and mechanical noise exposure where possible.";
-    recommendedFilters = ["Social Noise Filter", "Mechanical Sounds Filter"];
+    recommendedFilters = ["Standard Sensitivity"];
+    suggestedSpaces = ["Churches", "Libraries", "Museums", "Parks"];
   }
   // Condition 2: Social Sound Sensitive
   else if (socialScore >= mechanicalScore + 3) {
@@ -146,8 +147,8 @@ export function calculateSensitivityResult(
     title = "Mechanical Sound Sensitive";
     description =
       "Harsh environmental sounds like traffic, construction, sirens, or machinery may affect your comfort more strongly. Sudden or repetitive loud sounds can feel distracting, stressful, or mentally exhausting over time. You may prefer calmer streets, indoor quiet spaces, or environments with reduced exposure to sharp mechanical noise.";
-    recommendedFilters = ["Mechanical Sounds Filter"];
-    suggestedSpaces = ["Museums", "Churches", "Indoor quiet spaces"];
+    recommendedFilters = ["Mechanical Sounds"];
+    suggestedSpaces = ["Churches", "Museums"];
   }
 
   // Intensity modifier calculation based on generalScore

@@ -2,20 +2,24 @@ import { RefreshCw, SlidersVertical } from "lucide-react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router";
 import type { SensitivityResult } from "../types/quiz";
+import { XButton } from "../components/x-button";
 
 type SensitivityResultsProps = {
   result: SensitivityResult;
   onRetake: () => void;
+  onClose: () => void;
 };
 
 export default function SensitivityResults({
   result,
   onRetake,
+  onClose,
 }: SensitivityResultsProps) {
   const navigate = useNavigate();
 
   return (
-    <div className="w-full max-w-2xl mx-auto px-6 py-8 md:py-16 font-sans text-[#101828] flex flex-col items-center justify-center min-h-[80vh]">
+    <div className="w-full max-w-2xl mx-auto mt-10 px-6 py-8 md:py-16 font-sans text-[#101828] flex flex-col items-center justify-center min-h-[80vh]">
+      <XButton onClose={onClose} />
       <motion.div
         initial={{ opacity: 0, scale: 0.97 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -43,9 +47,9 @@ export default function SensitivityResults({
         {/* Recommendations */}
         <div className="w-full max-w-md space-y-4 text-left">
           {/* Recommended Filters */}
-          <div className="w-full bg-white/40 border border-white/60 backdrop-blur-3xl rounded-2xl px-5 py-4 shadow-sm shadow-slate-100/10">
+          <div className="w-full bg-white/50 border border-white/70 backdrop-blur-3xl rounded-2xl px-5 py-4 shadow-sm shadow-slate-100/10">
             <h3 className="text-xs font-bold uppercase tracking-wider text-[#1E2939]/70 mb-3">
-              Recommended Audio Filters
+              Recommended Filters
             </h3>
             <div className="flex flex-wrap gap-2">
               {result.recommendedFilters.map((filter, index) => (
@@ -63,7 +67,7 @@ export default function SensitivityResults({
           {result.suggestedSpaces && result.suggestedSpaces.length > 0 && (
             <div className="w-full bg-white/40 border border-white/60 backdrop-blur-3xl rounded-2xl px-5 py-4 shadow-sm shadow-slate-100/10">
               <h3 className="text-xs font-bold uppercase tracking-wider text-[#1E2939]/70 mb-3">
-                Suggested Low-Decibel Zones
+                Suggested Safe Spaces
               </h3>
               <div className="flex flex-wrap gap-2">
                 {result.suggestedSpaces.map((space, index) => (

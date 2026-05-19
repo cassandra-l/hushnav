@@ -1,3 +1,4 @@
+import { useNavigate, useLocation } from "react-router-dom";
 import { BreathingExercise } from "./breathing-exercise";
 import { useEffect, useState } from "react";
 import type { BadgeDefinition } from "./achievement-badges";
@@ -14,6 +15,8 @@ import { Menu } from "lucide-react";
 import { MobileMenu } from "./components/hamburger-menu";
 
 export function SupportPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [showExercise, setShowExercise] = useState(false);
   const [newBadgePopup, setNewBadgePopup] = useState<BadgeDefinition | null>(
     null,
@@ -93,8 +96,8 @@ export function SupportPage() {
         >
           {/* Header Block cloned from Soundscape layout structure typography */}
           <div className="text-left mb-8 md:mb-12">
-            <h1 className="text-5xl md:text-6xl font-black tracking-tight mb-2 text-[#1E2939]">
-              Breathwork
+            <h1 className="text-5xl md:text-6xl font-medium tracking-tight mb-2 text-[#1E2939]">
+              Breath Work
             </h1>
             <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.3em] md:tracking-[0.4em] opacity-60 text-[#5A9A8E]">
               REGULATE YOUR NERVOUS SYSTEM WITH GUIDED EXERCISE
@@ -148,11 +151,14 @@ export function SupportPage() {
 
           {/* Action Trigger Button mounted outside the container */}
           <button
+            className="mt-4 w-full rounded-2xl bg-[#5A9A8E] py-4 text-sm font-bold text-white shadow-md hover:opacity-85 transition-all active:scale-[0.99] cursor-pointer"
             onClick={() => {
               incrementBreathingUses(1);
-              setShowExercise(true);
+
+              navigate("/breathing-exercise", {
+                state: { fromMap: location.state?.fromMap },
+              });
             }}
-            className="mt-4 w-full rounded-2xl bg-[#5A9A8E] py-4 text-sm font-bold text-white shadow-md hover:opacity-85 transition-all active:scale-[0.99] cursor-pointer"
           >
             Start Breathing Exercise
           </button>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import { SensoryProfile } from "./sensory-profile";
 import SensitivityQuiz from "./quiz-UI";
 import SensitivityResults from "./sensory-result";
@@ -57,17 +57,17 @@ export default function SensoryProfilePage() {
       ? "bg-linear-to-b from-[#ffffff] via-[#d5e8e5] to-[#cfe3df]"
       : "bg-[#E6F2EF]";
 
-  const slideVariants = {
-    initial: { x: "100vw", opacity: 0 },
-    animate: { x: 0, opacity: 1 },
-    exit: { x: "-100vw", opacity: 0 },
-  };
+  // const slideVariants = {
+  //   initial: { x: "100vw", opacity: 0 },
+  //   animate: { x: 0, opacity: 1 },
+  //   exit: { x: "-100vw", opacity: 0 },
+  // };
 
-  const springTransition = {
-    type: "spring",
-    damping: 25,
-    stiffness: 120,
-  } as const;
+  // const springTransition = {
+  //   type: "spring",
+  //   damping: 25,
+  //   stiffness: 120,
+  // } as const;
 
   return (
     <div
@@ -76,69 +76,70 @@ export default function SensoryProfilePage() {
       <AnimatePresence mode="popLayout">
         {/* Intro Layout */}
         {step === "intro" && (
-          <motion.div
-            key="intro"
-            variants={slideVariants}
-            initial={false} // Prevents snapping layout translations on component mount load
-            animate="animate"
-            exit="exit"
-            transition={springTransition}
-            className="w-full flex-1 flex flex-col"
-          >
-            <div className="w-full max-w-2xl mx-auto flex flex-col items-center">
-              {/* Feed the layout properties straight into your component */}
-              <SensoryProfile
-                onStart={() => setStep("quiz")}
-                hasSavedResult={hasSavedResult}
-                onSeeResult={() => setStep("results")}
-              />
-            </div>
-          </motion.div>
+          // <motion.div
+          //   key="intro"
+          //   variants={slideVariants}
+          //   initial={false} // Prevents snapping layout translations on component mount load
+          //   animate="animate"
+          //   exit="exit"
+          //   transition={springTransition}
+          //   className="w-full flex-1 flex flex-col"
+          // >
+          <div className="w-full max-w-2xl mx-auto flex flex-col items-center">
+            {/* Feed the layout properties straight into your component */}
+            <SensoryProfile
+              onStart={() => setStep("quiz")}
+              hasSavedResult={hasSavedResult}
+              onSeeResult={() => setStep("results")}
+            />
+          </div>
+          // </motion.div>
         )}
 
         {/* Question Panel */}
         {step === "quiz" && (
-          <motion.div
-            key="quiz"
-            variants={slideVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={springTransition}
-            className="w-full"
-          >
-            <SensitivityQuiz
-              answers={answers}
-              currentQuestionIndex={currentQuestionIndex}
-              setCurrentQuestionIndex={setCurrentQuestionIndex}
-              onSelectAnswer={handleSelectAnswer}
-              onNext={() => handleQuizComplete(answers)}
-              onClose={handleCloseQuiz}
-            />
-          </motion.div>
+          // <motion.div
+          //   key="quiz"
+          //   variants={slideVariants}
+          //   initial="initial"
+          //   animate="animate"
+          //   exit="exit"
+          //   transition={springTransition}
+          //   className="w-full"
+          // >
+          <SensitivityQuiz
+            answers={answers}
+            currentQuestionIndex={currentQuestionIndex}
+            setCurrentQuestionIndex={setCurrentQuestionIndex}
+            onSelectAnswer={handleSelectAnswer}
+            onNext={() => handleQuizComplete(answers)}
+            onClose={handleCloseQuiz}
+          />
+          // </motion.div>
         )}
 
         {/* Result Panel */}
         {step === "results" && (
-          <motion.div
-            key="results"
-            variants={slideVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={springTransition}
-            className="w-full"
-          >
-            <SensitivityResults
-              result={result!}
-              onRetake={() => {
-                setAnswers({});
-                setResult(null);
-                setCurrentQuestionIndex(0);
-                setStep("quiz");
-              }}
-            />
-          </motion.div>
+          // <motion.div
+          //   key="results"
+          //   variants={slideVariants}
+          //   initial="initial"
+          //   animate="animate"
+          //   exit="exit"
+          //   transition={springTransition}
+          //   className="w-full"
+          // >
+          <SensitivityResults
+            result={result!}
+            onRetake={() => {
+              setAnswers({});
+              setResult(null);
+              setCurrentQuestionIndex(0);
+              setStep("quiz");
+            }}
+            onClose={() => setStep("intro")}
+          />
+          // </motion.div>
         )}
       </AnimatePresence>
     </div>
