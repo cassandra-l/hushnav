@@ -160,7 +160,7 @@ async function fetchPhotonSuggestions(
 const COOLDOWN_DURATION = 5 * 60 * 1000;
 
 // Noise threshold to trigger the alert
-const NOISE_THRESHOLD = 10;
+const NOISE_THRESHOLD = 90;
 const FILTER_PREVIEW_STATE_KEY = "hushnav:mapPreviewBeforeFilters";
 const NOISE_REPORT_LOOKUP_RADIUS_METERS = 1000;
 const NOISE_NOTICE_TRIGGER_DISTANCE_METERS = 100;
