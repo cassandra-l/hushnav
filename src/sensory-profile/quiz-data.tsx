@@ -1,8 +1,22 @@
 import type {
   QuizQuestion,
   QuizAnswers,
+  FilterPreselection,
   SensitivityResult,
 } from "../types/quiz";
+
+const ALL_SAFE_SPACE_IDS = [
+  "park",
+  "library",
+  "museum",
+  "church",
+  "synagogue",
+];
+
+const FLEXIBLE_LISTENER_PRESELECTION: FilterPreselection = {
+  sensitivityId: "standard",
+  safeSpaceIds: [...ALL_SAFE_SPACE_IDS],
+};
 
 export const quizQuestions: QuizQuestion[] = [
   {
@@ -125,6 +139,7 @@ export function calculateSensitivityResult(
     "Optional Mechanical Sounds Filter",
   ];
   let suggestedSpaces: string[] = ["Places You May Enjoy"];
+  let preselection: FilterPreselection = FLEXIBLE_LISTENER_PRESELECTION;
 
   // Condition 1: Balanced Quiet Seeker
   if (socialScore >= 10 && mechanicalScore >= 10) {
@@ -133,6 +148,10 @@ export function calculateSensitivityResult(
       "You seem to prefer calmer, lower-stimulation environments overall. Both crowded social settings and harsh environmental sounds may feel mentally draining or overwhelming for you over time. You may feel more comfortable in quieter spaces, peaceful routes, or environments with fewer distractions. HushNav can help personalise your experience by reducing both social and mechanical noise exposure where possible.";
     recommendedFilters = ["Standard Sensitivity"];
     suggestedSpaces = ["Churches", "Libraries", "Museums", "Parks"];
+    preselection = {
+      sensitivityId: "standard",
+      safeSpaceIds: ["church", "library", "museum", "park"],
+    };
   }
   // Condition 2: Social Sound Sensitive
   else if (socialScore >= mechanicalScore + 3) {
@@ -141,6 +160,10 @@ export function calculateSensitivityResult(
       "Crowded and conversation-heavy environments may feel more draining for you. Places with constant background chatter, busy public spaces, or overlapping conversations can make it harder to focus, relax, or recharge. You may feel more comfortable in quieter social environments or routes with fewer crowds and less human activity.";
     recommendedFilters = ["Social Noise Filter"];
     suggestedSpaces = ["Libraries", "Parks"];
+    preselection = {
+      sensitivityId: "social",
+      safeSpaceIds: ["library", "park"],
+    };
   }
   // Condition 3: Mechanical Sound Sensitive
   else if (mechanicalScore >= socialScore + 3) {
@@ -149,6 +172,10 @@ export function calculateSensitivityResult(
       "Harsh environmental sounds like traffic, construction, sirens, or machinery may affect your comfort more strongly. Sudden or repetitive loud sounds can feel distracting, stressful, or mentally exhausting over time. You may prefer calmer streets, indoor quiet spaces, or environments with reduced exposure to sharp mechanical noise.";
     recommendedFilters = ["Mechanical Sounds"];
     suggestedSpaces = ["Churches", "Museums"];
+    preselection = {
+      sensitivityId: "mechanical",
+      safeSpaceIds: ["church", "museum"],
+    };
   }
 
   // Intensity modifier calculation based on generalScore
@@ -159,5 +186,40 @@ export function calculateSensitivityResult(
   //     intensityMessage = "You’re generally comfortable in a variety of sound environments.";
   //   }
 
-  return { title, description, recommendedFilters, suggestedSpaces };
+  return {
+    title,
+    description,
+    recommendedFilters,
+    suggestedSpaces,
+    preselection,
+  };
+}
+
+/** Supports results saved before preselection was added. */
+export function resolveFilterPreselection(
+  result: SensitivityResult,
+): FilterPreselection {
+  if (result.preselection) {
+    return result.preselection;
+  }
+
+  switch (result.title) {
+    case "Balanced Quiet Seeker":
+      return {
+        sensitivityId: "standard",
+        safeSpaceIds: ["church", "library", "museum", "park"],
+      };
+    case "Social Sound Sensitive":
+      return {
+        sensitivityId: "social",
+        safeSpaceIds: ["library", "park"],
+      };
+    case "Mechanical Sound Sensitive":
+      return {
+        sensitivityId: "mechanical",
+        safeSpaceIds: ["church", "museum"],
+      };
+    default:
+      return FLEXIBLE_LISTENER_PRESELECTION;
+  }
 }

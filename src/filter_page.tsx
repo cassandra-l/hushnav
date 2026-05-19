@@ -14,6 +14,15 @@ import {
   Wrench,
 } from "lucide-react";
 import { PopUp } from "./components/pop-up";
+import {
+  clearQuizFilterRecommendations,
+  hasQuizFilterRecommendations,
+  readInitialSafeSpaceIds,
+  readInitialSensitivityId,
+  ROUTE_FILTER_WEIGHTS_STORAGE_KEY,
+  SAFE_SPACES_STORAGE_KEY,
+  SENSITIVITY_STORAGE_KEY,
+} from "./lib/filter-storage";
 
 type Theme = "sage" | "tan";
 
@@ -26,12 +35,6 @@ interface FilterOption {
 }
 
 type SelectionType = "multi" | "single";
-
-const SAFE_SPACES_STORAGE_KEY = "hushnav:selectedSafeSpaces";
-const SENSITIVITY_STORAGE_KEY = "hushnav:selectedSensitivity";
-const RECOMMENDED_SENSITIVITY_STORAGE_KEY =
-  "hushnav-recommended-sensitivity-filter";
-const ROUTE_FILTER_WEIGHTS_STORAGE_KEY = "hushnav-route-filter-weights";
 
 const FilterCard = ({
   option,
@@ -172,41 +175,15 @@ export default function FilterScreen() {
     },
   ];
 
-  const defaultSafeSpaceIds = [
-    "park",
-    "library",
-    "museum",
-    "church",
-    "synagogue",
-  ];
+  const [selectedSafeSpaces, setSelectedSafeSpaces] = useState<string[]>(
+    readInitialSafeSpaceIds,
+  );
 
-  const [selectedSafeSpaces, setSelectedSafeSpaces] = useState<string[]>(() => {
-    const storedSafeSpaces = localStorage.getItem(SAFE_SPACES_STORAGE_KEY);
+  const [selectedSensitivity, setSelectedSensitivity] = useState<string>(
+    readInitialSensitivityId,
+  );
 
-    if (!storedSafeSpaces) {
-      return defaultSafeSpaceIds;
-    }
-
-    try {
-      return JSON.parse(storedSafeSpaces) as string[];
-    } catch {
-      return defaultSafeSpaceIds;
-    }
-  });
-
-  const [selectedSensitivity, setSelectedSensitivity] = useState<string>(() => {
-    const recommendedSensitivity = localStorage.getItem(
-      RECOMMENDED_SENSITIVITY_STORAGE_KEY,
-    );
-
-    const previouslySelectedSensitivity = localStorage.getItem(
-      SENSITIVITY_STORAGE_KEY,
-    );
-
-    return (
-      recommendedSensitivity || previouslySelectedSensitivity || "standard"
-    );
-  });
+  const fromSensoryProfile = hasQuizFilterRecommendations();
 
   const [isSensitivityLockedPopupOpen, setIsSensitivityLockedPopupOpen] =
     useState(false);
@@ -245,7 +222,7 @@ export default function FilterScreen() {
       JSON.stringify(filterWeights),
     );
 
-    localStorage.removeItem(RECOMMENDED_SENSITIVITY_STORAGE_KEY);
+    clearQuizFilterRecommendations();
 
     navigate("/map", {
       state: {
@@ -281,6 +258,13 @@ export default function FilterScreen() {
 
           <div className="w-12" />
         </header>
+
+        {fromSensoryProfile && (
+          <p className="-mt-6 mb-8 text-center text-sm text-[#5A9A8E]">
+            Pre-selected from your sensory profile — tap Apply Filters when
+            ready.
+          </p>
+        )}
 
         <section className="mb-8">
           <div className="mb-6">

@@ -3,6 +3,8 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router";
 import type { SensitivityResult } from "../types/quiz";
 import { XButton } from "../components/x-button";
+import { writeQuizFilterRecommendations } from "../lib/filter-storage";
+import { resolveFilterPreselection } from "./quiz-data";
 
 type SensitivityResultsProps = {
   result: SensitivityResult;
@@ -98,7 +100,12 @@ export default function SensitivityResults({
 
             <button
               type="button"
-              onClick={() => navigate("/filter_page")}
+              onClick={() => {
+                writeQuizFilterRecommendations(
+                  resolveFilterPreselection(result),
+                );
+                navigate("/filter_page");
+              }}
               className="w-full py-4 bg-[#5A9A8E] hover:bg-[#5A9A8E]/90 text-white flex items-center justify-center gap-2 font-bold text-xs md:text-sm rounded-2xl transition-all cursor-pointer shadow-md"
             >
               <SlidersVertical size={15} />
