@@ -14,6 +14,8 @@ import {
   Bookmark,
   Headphones,
   ChevronUp,
+  Pause,
+  Play,
 } from "lucide-react";
 import { MicButton } from "./components/mic-button";
 
@@ -66,6 +68,7 @@ import {
   isDepartureDateBeforeTodayLocal,
   parseLocalDepartureMs,
 } from "./departurePast";
+import { useAudio } from "./context/use-audio";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -331,6 +334,9 @@ type FilterPreviewSnapshot = {
 export function Map() {
   const navigate = useNavigate();
   const location = useLocation();
+  // Audio Player state
+  const { playingId, isPaused, pauseAudio, resumeAudio } = useAudio();
+  const [hasUsedAudio, setHasUsedAudio] = useState(false);
 
   // Calming tools menu
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
@@ -435,6 +441,11 @@ export function Map() {
   useEffect(() => {
     setBestTimeSuggestion(null);
   }, [departureConfig.date]);
+  // Aduio Playing
+  useEffect(() => {
+    const usedAudio = sessionStorage.getItem("hushnav-audio-used");
+    setHasUsedAudio(usedAudio === "true");
+  }, []);
 
   // Load favourite routes for the dropdown and refresh them whenever a route is saved.
   useEffect(() => {
@@ -2239,6 +2250,36 @@ export function Map() {
                         transition={{ duration: 0.2 }}
                         className="flex flex-col items-end gap-3"
                       >
+                        {/* Soundscape */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => navigate("/soundscape")}
+                            className="flex h-14 w-14 items-center justify-center rounded-full bg-[#7DB0A6]/80 border border-white/60 text-white shadow-lg"
+                          >
+                            <Headphones size={20} />
+                          </button>
+                          {hasUsedAudio && playingId && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isPaused) {
+                                  resumeAudio();
+                                } else {
+                                  pauseAudio();
+                                }
+                              }}
+                              className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full border border-white bg-white text-[#5A9A8E] shadow-md"
+                            >
+                              {isPaused ? (
+                                <Play size={14} />
+                              ) : (
+                                <Pause size={14} />
+                              )}
+                            </button>
+                          )}
+                        </div>
+
                         {/* Support */}
                         <button
                           type="button"
@@ -2249,16 +2290,6 @@ export function Map() {
                           aria-label="Support"
                         >
                           <Wind size={20} />
-                        </button>
-
-                        {/* Soundscape */}
-                        <button
-                          type="button"
-                          onClick={() => navigate("/soundscape")}
-                          className="flex h-14 w-14 items-center justify-center rounded-full bg-[#7DB0A6]/80 border border-white/60 text-white shadow-lg cursor-pointer"
-                          aria-label="Soundscape"
-                        >
-                          <Headphones size={20} />
                         </button>
                       </motion.div>
                     )}
@@ -2307,6 +2338,57 @@ export function Map() {
                     transition={{ duration: 0.2 }}
                     className="flex flex-col items-end gap-3"
                   >
+                    {/* Soundscape */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => navigate("/soundscape")}
+                        className="cursor-pointer flex h-14 w-14 items-center justify-center rounded-full bg-[#7DB0A6]/80 border border-white/60 text-white shadow-lg"
+                      >
+                        <Headphones size={20} />
+                      </button>
+                      {hasUsedAudio && playingId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isPaused) {
+                              resumeAudio();
+                            } else {
+                              pauseAudio();
+                            }
+                          }}
+                          className="cursor-pointer absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full border border-white bg-white text-[#5A9A8E] shadow-md"
+                        >
+                          {isPaused ? <Play size={14} /> : <Pause size={14} />}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* {hasUsedAudio && playingId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isPaused) {
+                            resumeAudio();
+                          } else {
+                            pauseAudio();
+                          }
+                        }}
+                        className="flex h-10 w-10 items-center justify-center rounded-full border border-white/85 bg-white text-[#5A9A8E] shadow-lg"
+                        aria-label={isPaused ? "Resume audio" : "Pause audio"}
+                      >
+                        {isPaused ? <Play size={18} /> : <Pause size={18} />}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => navigate("/soundscape")}
+                      className="flex h-14 w-14 items-center justify-center rounded-full bg-[#7DB0A6]/80 border border-white/60 text-white shadow-lg"
+                      aria-label="Soundscape"
+                    >
+                      <Headphones size={20} />
+                    </button> */}
+
                     {/* Support */}
                     <button
                       type="button"
@@ -2317,16 +2399,6 @@ export function Map() {
                       aria-label="Support"
                     >
                       <Wind size={20} />
-                    </button>
-
-                    {/* Soundscape */}
-                    <button
-                      type="button"
-                      onClick={() => navigate("/soundscape")}
-                      className="flex h-14 w-14 items-center justify-center rounded-full bg-[#7DB0A6]/80 border border-white/60 text-white shadow-lg cursor-pointer"
-                      aria-label="Soundscape"
-                    >
-                      <Headphones size={20} />
                     </button>
                   </motion.div>
                 )}
