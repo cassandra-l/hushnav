@@ -31,7 +31,11 @@ export function BreathingExercise({ onClose }: BreathingExerciseProps) {
 
     // Now location.state?.fromMap will accurately be true or undefined!
     if (location.state?.fromMap) {
-      navigate("/map");
+      navigate("/map", {
+        state: {
+          restoreRoutePreview: true,
+        },
+      });
     } else {
       navigate("/support");
     }
