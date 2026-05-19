@@ -32,7 +32,7 @@ export function BreathingExercise({ onClose }: BreathingExerciseProps) {
     if (location.state?.fromMap) {
       navigate("/map", {
         state: {
-          restoredRoute: location.state?.restoredRoute,
+          restoreRoutePreview: true,
         },
       });
     }
