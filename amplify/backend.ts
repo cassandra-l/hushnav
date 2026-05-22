@@ -7,6 +7,9 @@ import {
   RestApi,
 } from "aws-cdk-lib/aws-apigateway";
 
+import { Rule, Schedule } from "aws-cdk-lib/aws-events";
+import { LambdaFunction } from "aws-cdk-lib/aws-events-targets";
+
 import { auth } from "./auth/resource";
 import { data } from "./data/resource";
 import { planRouteFunction } from "./functions/plan-route/resource";
@@ -17,7 +20,7 @@ import { constructionPipeline } from "./functions/construction-pipeline/resource
 import { bestTimeFunction } from "./functions/best-time/resource";
 import { noiseReportsFunction } from "./functions/noise-reports/resource";
 import { geocodeSuggestions } from "./functions/geocode-suggestions/resource";
-
+import { noiseReportsCleanupFunction } from "./functions/noise-reports-cleanup/resource";
 
 const backend = defineBackend({
   auth,
@@ -30,6 +33,7 @@ const backend = defineBackend({
   bestTimeFunction,
   noiseReportsFunction,
   geocodeSuggestions,
+  noiseReportsCleanupFunction,
 });
 
 const apiStack = backend.createStack("api-stack");
@@ -49,6 +53,18 @@ const myRestApi = new RestApi(apiStack, "NavigationRestApi", {
     allowHeaders: Cors.DEFAULT_HEADERS,
   },
 });
+
+const noiseReportsCleanupRule = new Rule(
+  apiStack,
+  "NoiseReportsCleanupRule",
+  {
+    schedule: Schedule.rate(Duration.minutes(5)),
+  },
+);
+
+noiseReportsCleanupRule.addTarget(
+  new LambdaFunction(backend.noiseReportsCleanupFunction.resources.lambda),
+);
 
 const planRouteIntegration = new LambdaIntegration(
   backend.planRouteFunction.resources.lambda
