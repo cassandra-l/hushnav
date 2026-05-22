@@ -51,12 +51,17 @@ export function SupportPage() {
     {
       duration: "4s",
       label: "Inhale",
-      desc: "Breathe in quietly through your nose, expanding your diaphragm.",
+      desc: "Breathe in quietly through your nose.",
     },
     {
-      duration: "6s",
+      duration: "7s",
+      label: "Hold",
+      desc: "Hold your breath gently and stay relaxed.",
+    },
+    {
+      duration: "8s",
       label: "Exhale",
-      desc: "Release slowly through your mouth, emptying your lungs fully.",
+      desc: 'Exhale completely through your mouth with a soft "whoosh" sound.',
     },
   ];
 
@@ -110,10 +115,9 @@ export function SupportPage() {
             <div className="space-y-4">
               <div className="space-y-3 text-[14px] md:text-[15px] leading-relaxed font-medium text-[#1E2939]/80">
                 <p>
-                  This guided breathing exercise uses a deep pacing rhythm
-                  designed to actively signals your heart and brain to slow
-                  down. This helps tone down overstimulation and leads you to
-                  re-establish your calm center.
+                  This guided breathing exercise follows the 4-7-8 breathing
+                  technique, a calming method designed to regulate your nervous
+                  system, and reduce feelings of stress or sensory overwhelm.
                 </p>
               </div>
             </div>
@@ -126,7 +130,7 @@ export function SupportPage() {
               <h3 className="text-xs font-mono font-bold uppercase tracking-[0.15em] text-[#1E2939]/40 mb-1">
                 The Exercise Cadence
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {steps.map((step, idx) => (
                   <div
                     key={idx}

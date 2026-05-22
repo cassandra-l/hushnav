@@ -157,7 +157,7 @@ export default function SensitivityQuiz({
 
           <button
             type="button"
-            disabled={!selectedValue}
+            disabled={selectedValue == null}
             onClick={handleContinue}
             className="w-full py-4 bg-[#5A9A8E] disabled:bg-gray-200/80 text-white font-bold text-xs md:text-sm rounded-2xl shadow-md hover:bg-[#5A9A8E]/90 disabled:cursor-not-allowed disabled:text-gray-400 transition-colors text-center cursor-pointer"
           >
