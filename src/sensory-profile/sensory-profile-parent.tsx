@@ -108,6 +108,7 @@ export default function SensoryProfilePage() {
           //   className="w-full"
           // >
           <SensitivityQuiz
+            key={currentQuestionIndex === 0 ? "fresh-quiz" : "active-quiz"}
             answers={answers}
             currentQuestionIndex={currentQuestionIndex}
             setCurrentQuestionIndex={setCurrentQuestionIndex}
@@ -132,10 +133,15 @@ export default function SensoryProfilePage() {
           <SensitivityResults
             result={result!}
             onRetake={() => {
+              // Clear active attempt only
+              // Preserve previous completed result
               setAnswers({});
-              setResult(null);
               setCurrentQuestionIndex(0);
-              setStep("quiz");
+
+              // Small ordering improvement
+              requestAnimationFrame(() => {
+                setStep("quiz");
+              });
             }}
             onClose={() => setStep("intro")}
           />
