@@ -1,14 +1,20 @@
-import { motion, useScroll, useTransform, Variants } from "framer-motion";
+import {
+  motion,
+  useScroll,
+  useTransform,
+  Variants,
+  useInView,
+} from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpRight, ArrowDown, Shield, Mic, Wind, Menu } from "lucide-react";
+import { ArrowUpRight, ArrowDown, Menu } from "lucide-react";
 // import { Logo } from "./components/logo";
-import { FeatureCard } from "./components/feature-card";
+// import { FeatureCard } from "./components/feature-card";
 import hero_image from "./assets/hero_image.png";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { MobileMenu } from "./components/hamburger-menu";
 // import { useLocation } from "react-router-dom";
 import { Navbar } from "./components/nav-bar";
-
+import { RollingReel } from "./components/rolling-reel";
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -33,12 +39,59 @@ const itemVariants: Variants = {
   },
 };
 
+// Rolling Number Component for Animated Statistics
+// function RollingNumber({
+//   value,
+//   suffix = "",
+// }: {
+//   value: number;
+//   suffix?: string;
+// }) {
+//   const [count, setCount] = useState(0);
+//   const ref = useRef(null);
+//   const isInView = useInView(ref, { once: true, amount: 0.5 });
+
+//   useEffect(() => {
+//     if (isInView) {
+//       let start = 0;
+//       const end = value;
+//       if (start === end) return;
+
+//       const duration = 2; // Duration of animation in seconds
+//       const totalMiliseconds = duration * 1000;
+//       const intervalTime = 30; // Update every 30ms
+//       const totalSteps = Math.ceil(totalMiliseconds / intervalTime);
+//       const increment = end / totalSteps;
+
+//       const timer = setInterval(() => {
+//         start += increment;
+//         if (start >= end) {
+//           clearInterval(timer);
+//           setCount(end);
+//         } else {
+//           setCount(Math.floor(start));
+//         }
+//       }, intervalTime);
+
+//       return () => clearInterval(timer);
+//     }
+//   }, [isInView, value]);
+
+//   return (
+//     <span ref={ref} className="tabular-nums">
+//       {count}
+//       {suffix}
+//     </span>
+//   );
+// }
+
 export function Home() {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   // const location = useLocation();
   // const isActive = (path: string) => location.pathname === path;
-
+  const statsRef = useRef<HTMLDivElement>(null);
+  const isStatsInView = useInView(statsRef, { once: true, amount: 0.3 });
   // Track scroll progress to fade the logo
   const { scrollY } = useScroll();
   // Logo is 100% visible at top, and fades to 0% after 150px of scrolling
@@ -189,72 +242,106 @@ export function Home() {
         variants={containerVariants}
         initial="hidden"
         whileInView="visible"
-        viewport={{ once: false, amount: 0.2 }}
+        viewport={{ once: false, amount: 0.1 }}
         className="bg-white py-24 px-6 lg:px-12 border-t border-[#E8EEEC]"
       >
         <div className="max-w-[1440px] mx-auto">
+          {/* Main Title and Explanation */}
           <motion.div
             variants={itemVariants}
-            className="flex flex-col items-center text-center mb-16"
+            className="flex flex-col items-center text-center mb-24"
           >
             <span className="bg-[#E8F3F1] text-[#5A9A8E] px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mb-6">
               What We Offer
             </span>
-            <h2 className="text-4xl lg:text-6xl font-bold max-w-3xl leading-[1.1]">
+            <h2 className="text-4xl lg:text-6xl font-bold max-w-3xl leading-[1.1] mb-6">
               Navigating CBD Chaos Through Sensory Clarity
             </h2>
+            <p className="text-base lg:text-lg text-[#1E2939]/70 max-w-2xl leading-relaxed">
+              The city can be overwhelming. HushNav helps you reclaim your peace
+              of mind by bypassing loud construction zones, high-traffic
+              corridors, and sudden heavy acoustic disruptions with
+              customizable, low-decibel sensory routing.
+            </p>
           </motion.div>
 
-          <div className="flex flex-wrap justify-center gap-8">
-            <FeatureCard
-              variants={itemVariants}
-              title="Safe Spaces"
-              description="Find quiet cafes, libraries, and parks along your route for sensory comfort"
-              icon={<Shield size={28} />}
-              href="/map"
-            />
-            <FeatureCard
-              variants={itemVariants}
-              title="Noise Monitor"
-              description="Track surrounding noise levels as you navigate through the city environment"
-              icon={<Mic size={28} />}
-              href="/map"
-            />
-            <FeatureCard
-              variants={itemVariants}
-              title="Grounding Tools"
-              description="Quick access to guided breathing exercises when things get loud"
-              icon={<Wind size={28} />}
-              href="/support"
-            />
-          </div>
+          {/* Stats Rolling Subsection */}
+          <motion.div
+            ref={statsRef}
+            variants={itemVariants}
+            className="grid grid-cols-1 sm:grid-cols-3 gap-16 sm:gap-8 max-w-5xl mx-auto mb-24 text-center border-y border-[#E8EEEC] py-14 px-4"
+          >
+            {/* Stat 1: 1 in 5 */}
+            <div className="flex flex-col items-center justify-center">
+              <div className="mb-4 flex items-center justify-center gap-2">
+                <RollingReel target="1" />
+                <span className="text-4xl lg:text-5xl font-bold text-[#5A9A8E] tracking-tight select-none">
+                  in
+                </span>
+                <RollingReel target="5" />
+              </div>
+              <motion.span
+                initial={{ opacity: 0, y: 10 }}
+                animate={
+                  isStatsInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }
+                }
+                transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
+                className="text-[11px] font-bold uppercase tracking-wider text-[#1E2939]/60 max-w-[180px] leading-relaxed"
+              >
+                People Experience Noise Sensitivity
+              </motion.span>
+            </div>
+
+            {/* Stat 2: Personalized Callout (Fade & Soft Slide In) */}
+            <div className="flex flex-col items-center justify-center sm:border-x sm:border-[#E8EEEC]/60 px-4">
+              <div className="mb-4 flex items-center justify-center">
+                <motion.span
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={
+                    isStatsInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }
+                  }
+                  transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+                  className="text-4xl lg:text-5xl font-bold text-[#5A9A8E] tracking-tight select-none"
+                >
+                  Personalized
+                </motion.span>
+              </div>
+              <motion.span
+                initial={{ opacity: 0, y: 10 }}
+                animate={
+                  isStatsInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }
+                }
+                transition={{ duration: 0.8, delay: 0.5, ease: "easeOut" }}
+                className="text-[11px] font-bold uppercase tracking-wider text-[#1E2939]/60 max-w-[200px] leading-relaxed"
+              >
+                Routing Based on Sensory Needs
+              </motion.span>
+            </div>
+
+            {/* Stat 3: 4+ Support Features */}
+            <div className="flex flex-col items-center justify-center">
+              <div className="mb-4 flex items-center justify-center gap-1">
+                <RollingReel target="4" />
+                <span className="text-4xl lg:text-5xl font-bold text-[#5A9A8E] tracking-tight select-none">
+                  +
+                </span>
+              </div>
+              <motion.span
+                initial={{ opacity: 0, y: 10 }}
+                animate={
+                  isStatsInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }
+                }
+                transition={{ duration: 0.8, delay: 0.6, ease: "easeOut" }}
+                className="text-[11px] font-bold uppercase tracking-wider text-[#1E2939]/60 max-w-[180px] leading-relaxed"
+              >
+                Sensory Support Features Integrated
+              </motion.span>
+            </div>
+          </motion.div>
+
+          {/* Categorized Features Grid System */}
         </div>
       </motion.section>
     </main>
   );
 }
-
-// function NavLink({
-//   href,
-//   label,
-//   active,
-// }: {
-//   href: string;
-//   label: string;
-//   active: boolean;
-// }) {
-//   return (
-//     <a
-//       href={href}
-//       className={`relative text-[11px] font-bold uppercase tracking-[0.2em] transition-colors flex flex-col items-center ${
-//         active ? "text-[#1E2939]" : "text-[#1E2939]/70 hover:text-[#1E2939]"
-//       }`}
-//     >
-//       {label}
-//       {/* Active Indicator Dot */}
-//       {active && (
-//         <span className="absolute -bottom-2 w-1 h-1 bg-[#5A9A8E] rounded-full" />
-//       )}
-//     </a>
-//   );
-// }
