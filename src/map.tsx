@@ -506,8 +506,8 @@ export function Map() {
     selectedSafeSpaceTypes.length === 0
       ? []
       : allSafeSpaces.filter((safeSpace) =>
-          selectedSafeSpaceTypes.includes(safeSpace.type),
-        );
+        selectedSafeSpaceTypes.includes(safeSpace.type),
+      );
 
   // Refs for click-outside handling
   const desktopSearchPanelRef = useRef<HTMLDivElement | null>(null);
@@ -696,12 +696,12 @@ export function Map() {
   };
 
   const getCurrentLocationForReport = () => {
-    if (!navigator.geolocation) {
-      setLocationError("Live location is not supported by this browser.");
-      return Promise.resolve(userLocation);
-    }
+    return new Promise<UserLocation>((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Location is not supported by this browser."));
+        return;
+      }
 
-    return new Promise<UserLocation | null>((resolve) => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const currentLocation: UserLocation = {
@@ -718,18 +718,20 @@ export function Map() {
           console.error("Failed to get report location:", geolocationError);
 
           if (geolocationError.code === geolocationError.PERMISSION_DENIED) {
-            setLocationError("Location permission was denied.");
+            setLocationError("Location permission is required to submit a noise report.");
+            reject(new Error("Location permission is required to submit a noise report."));
           } else if (
             geolocationError.code === geolocationError.POSITION_UNAVAILABLE
           ) {
             setLocationError("Your location is currently unavailable.");
+            reject(new Error("Your location is currently unavailable."));
           } else if (geolocationError.code === geolocationError.TIMEOUT) {
             setLocationError("Location request timed out.");
+            reject(new Error("Location request timed out."));
           } else {
             setLocationError("Could not get your current location.");
+            reject(new Error("Could not get your current location."));
           }
-
-          resolve(userLocation);
         },
         {
           enableHighAccuracy: true,
@@ -742,16 +744,11 @@ export function Map() {
 
   const handleSubmitNoiseReport = async () => {
     setIsHighNoiseAlertOpen(false);
-
-    const reportLocation = await getCurrentLocationForReport();
-
-    if (!reportLocation) {
-      incrementNoiseReports(1);
-      setIsReportSuccessOpen(true);
-      return;
-    }
+    setIsReportSuccessOpen(false);
 
     try {
+      const reportLocation = await getCurrentLocationForReport();
+
       const response = await fetch(`${API_BASE_URL}/noise-reports`, {
         method: "POST",
         headers: {
@@ -772,12 +769,19 @@ export function Map() {
 
       setNoiseReportPins((pins) => [savedReport, ...pins]);
       setFocusedNoiseReportPin(savedReport);
-    } catch (err) {
-      console.error("Failed to save noise report:", err);
-    }
 
-    incrementNoiseReports(1);
-    setIsReportSuccessOpen(true);
+      incrementNoiseReports(1);
+      setIsReportSuccessOpen(true);
+    } catch (err) {
+      console.error("Failed to submit noise report:", err);
+      setIsReportSuccessOpen(false);
+
+      if (err instanceof Error) {
+        setLocationError(err.message);
+      } else {
+        setLocationError("Failed to submit noise report.");
+      }
+    }
   };
 
   // Starts navigation from the route preview page.
@@ -1318,16 +1322,16 @@ export function Map() {
     start:
       selectedStart?.center && selectedStart.center.length >= 2
         ? {
-            lng: selectedStart.center[0],
-            lat: selectedStart.center[1],
-          }
+          lng: selectedStart.center[0],
+          lat: selectedStart.center[1],
+        }
         : undefined,
     end:
       selectedDestination?.center && selectedDestination.center.length >= 2
         ? {
-            lng: selectedDestination.center[0],
-            lat: selectedDestination.center[1],
-          }
+          lng: selectedDestination.center[0],
+          lat: selectedDestination.center[1],
+        }
         : undefined,
     startQuery: startLocation,
     endQuery: destination,
@@ -1363,12 +1367,12 @@ export function Map() {
     const candidateHours =
       departureConfig.date === getTodayLocalDateString()
         ? baseCandidateHours.filter(
-            (hour) =>
-              !isChosenDepartureInPast(
-                departureConfig.date,
-                `${String(hour).padStart(2, "0")}:00`,
-              ),
-          )
+          (hour) =>
+            !isChosenDepartureInPast(
+              departureConfig.date,
+              `${String(hour).padStart(2, "0")}:00`,
+            ),
+        )
         : baseCandidateHours;
 
     if (candidateHours.length === 0) {
@@ -1394,17 +1398,17 @@ export function Map() {
           start:
             selectedStart?.center && selectedStart.center.length >= 2
               ? {
-                  lng: selectedStart.center[0],
-                  lat: selectedStart.center[1],
-                }
+                lng: selectedStart.center[0],
+                lat: selectedStart.center[1],
+              }
               : undefined,
           end:
             selectedDestination?.center &&
-            selectedDestination.center.length >= 2
+              selectedDestination.center.length >= 2
               ? {
-                  lng: selectedDestination.center[0],
-                  lat: selectedDestination.center[1],
-                }
+                lng: selectedDestination.center[0],
+                lat: selectedDestination.center[1],
+              }
               : undefined,
           startQuery: startLocation,
           endQuery: destination,
@@ -1696,9 +1700,8 @@ export function Map() {
                     </span>
                     <ChevronDown
                       size={16}
-                      className={`shrink-0 text-[#6A7282] transition-transform duration-200 ${
-                        isDepartureOpen ? "rotate-180" : ""
-                      }`}
+                      className={`shrink-0 text-[#6A7282] transition-transform duration-200 ${isDepartureOpen ? "rotate-180" : ""
+                        }`}
                     />
                   </span>
                 </button>
@@ -2156,11 +2159,10 @@ export function Map() {
           {routeData && !isNavigationActive && (
             <section className="absolute bottom-3 left-3 right-3 z-10 flex flex-col gap-3 lg:hidden">
               <div
-                className={`flex shrink-0 items-end justify-between gap-3 px-1 ${
-                  isSafeSpacesOpen
-                    ? "pointer-events-none opacity-0 transition-opacity duration-200"
-                    : "opacity-100 transition-opacity duration-200"
-                }`}
+                className={`flex shrink-0 items-end justify-between gap-3 px-1 ${isSafeSpacesOpen
+                  ? "pointer-events-none opacity-0 transition-opacity duration-200"
+                  : "opacity-100 transition-opacity duration-200"
+                  }`}
               >
                 <div className="flex flex-col items-start gap-2">
                   {isMonitoring && <VolumeBar volume={volume} />}
@@ -2213,13 +2215,11 @@ export function Map() {
           {(!routeData || isNavigationActive) && (
             <>
               <div
-                className={`absolute left-4 z-20 lg:hidden ${
-                  isNavigationActive ? "bottom-[5.75rem]" : "bottom-6"
-                } ${
-                  routeData && isSafeSpacesOpen
+                className={`absolute left-4 z-20 lg:hidden ${isNavigationActive ? "bottom-[5.75rem]" : "bottom-6"
+                  } ${routeData && isSafeSpacesOpen
                     ? "pointer-events-none opacity-0 transition-opacity duration-200"
                     : "opacity-100 transition-opacity duration-200"
-                }`}
+                  }`}
               >
                 {isMonitoring && <VolumeBar volume={volume} />}
                 <MicButton
@@ -2231,13 +2231,11 @@ export function Map() {
               </div>
 
               <div
-                className={`absolute right-4 z-20 lg:hidden ${
-                  isNavigationActive ? "bottom-[5.75rem]" : "bottom-6"
-                } ${
-                  routeData && isSafeSpacesOpen
+                className={`absolute right-4 z-20 lg:hidden ${isNavigationActive ? "bottom-[5.75rem]" : "bottom-6"
+                  } ${routeData && isSafeSpacesOpen
                     ? "pointer-events-none opacity-0 transition-opacity duration-200"
                     : "opacity-100 transition-opacity duration-200"
-                }`}
+                  }`}
               >
                 <div className="relative flex flex-col items-end gap-3">
                   {/* Expanded Menu */}
@@ -2304,9 +2302,8 @@ export function Map() {
                   >
                     <ChevronUp
                       size={24}
-                      className={`transition-transform duration-300 ${
-                        isQuickMenuOpen ? "rotate-180" : ""
-                      }`}
+                      className={`transition-transform duration-300 ${isQuickMenuOpen ? "rotate-180" : ""
+                        }`}
                     />
                   </button>
                 </div>
@@ -2433,9 +2430,8 @@ export function Map() {
               >
                 <ChevronUp
                   size={24}
-                  className={`transition-transform duration-300 ${
-                    isQuickMenuOpen ? "rotate-180" : ""
-                  }`}
+                  className={`transition-transform duration-300 ${isQuickMenuOpen ? "rotate-180" : ""
+                    }`}
                 />
               </button>
             </div>
