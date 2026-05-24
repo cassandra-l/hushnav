@@ -58,14 +58,11 @@ import { MobileMenu } from "./components/hamburger-menu";
 import { NavigationNoiseNotice } from "./components/navigation-noise-notice";
 import {
   DepartureEditor,
-  type BestTimeSuggestion,
   type DepartureConfig,
 } from "./components/departure-editor";
 import {
-  BEST_TIME_DATE_MESSAGE,
   DEPARTURE_NOW_OR_FUTURE_MESSAGE,
   isChosenDepartureInPast,
-  isDepartureDateBeforeTodayLocal,
   parseLocalDepartureMs,
 } from "./departurePast";
 import { useAudio } from "./context/use-audio";
@@ -269,18 +266,6 @@ function getRoutePositionForPoint(
   };
 }
 
-// One-hour window, 12h clock, compact label (e.g. 9:00AM-10:00AM).
-function formatHourRangeLabel(startHour: number) {
-  const to12h = (hour: number) => {
-    const h = hour % 24;
-    const suffix = h >= 12 ? "PM" : "AM";
-    const value = h % 12 === 0 ? 12 : h % 12;
-    return `${value}:00${suffix}`;
-  };
-  const endHour = (startHour + 1) % 24;
-  return `${to12h(startHour)}-${to12h(endHour)}`;
-}
-
 function readSelectedSafeSpaceTypes(): SafeSpaceType[] {
   const raw = localStorage.getItem(SAFE_SPACES_STORAGE_KEY);
 
@@ -409,7 +394,6 @@ export function Map() {
   // Route API loading + error state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [isBestTimeLoading, setIsBestTimeLoading] = useState(false);
 
   // Live user location from browser Geolocation API
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
@@ -431,16 +415,10 @@ export function Map() {
     time: getCurrentHourMinuteString(),
   });
   const [isDepartureOpen, setIsDepartureOpen] = useState(false);
-  const [isBestTimeTab, setIsBestTimeTab] = useState(false);
-  const [bestTimeSuggestion, setBestTimeSuggestion] =
-    useState<BestTimeSuggestion | null>(null);
   const departureSummary = departureConfig.enabled
     ? `${departureConfig.date} ${departureConfig.time}`
     : "Now";
 
-  useEffect(() => {
-    setBestTimeSuggestion(null);
-  }, [departureConfig.date]);
   // Aduio Playing
   useEffect(() => {
     const usedAudio = sessionStorage.getItem("hushnav-audio-used");
@@ -470,7 +448,6 @@ export function Map() {
   useEffect(() => {
     if (!routeData) return;
     setIsDepartureOpen(false);
-    setBestTimeSuggestion(null);
   }, [routeData]);
 
   const [selectedSafeSpaceTypes, setSelectedSafeSpaceTypes] = useState<
@@ -804,8 +781,6 @@ export function Map() {
     setIsNavigationActive(false);
     setActiveNoiseNotice(null);
     setIsDepartureOpen(false);
-    setBestTimeSuggestion(null);
-    setIsBestTimeTab(false);
     setDepartureConfig({
       enabled: false,
       date: getTodayLocalDateString(),
@@ -1342,122 +1317,6 @@ export function Map() {
     stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
   });
 
-  const handleFindBestTime = async () => {
-    setError("");
-    setBestTimeSuggestion(null);
-
-    if (!startLocation.trim() || !destination.trim()) {
-      setError("Please select start and destination before finding best time.");
-      return;
-    }
-    if (!API_BASE_URL) {
-      setError(
-        "API base URL not set. Add VITE_API_BASE_URL to your .env file.",
-      );
-      return;
-    }
-
-    if (isDepartureDateBeforeTodayLocal(departureConfig.date)) {
-      setError(BEST_TIME_DATE_MESSAGE);
-      return;
-    }
-
-    // Hours 6–22; for "today" skip slot starts that are already in the past.
-    const baseCandidateHours = Array.from({ length: 17 }, (_, i) => i + 6);
-    const candidateHours =
-      departureConfig.date === getTodayLocalDateString()
-        ? baseCandidateHours.filter(
-          (hour) =>
-            !isChosenDepartureInPast(
-              departureConfig.date,
-              `${String(hour).padStart(2, "0")}:00`,
-            ),
-        )
-        : baseCandidateHours;
-
-    if (candidateHours.length === 0) {
-      setError(
-        "There are no remaining hours to score for today. Choose a future date.",
-      );
-      return;
-    }
-
-    setIsBestTimeLoading(true);
-    try {
-      const routeTimes = candidateHours.map((hour) => {
-        const time = `${String(hour).padStart(2, "0")}:00`;
-        return toRouteTimeIso(departureConfig.date, time);
-      });
-
-      const response = await fetch(`${API_BASE_URL}/best-time`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          start:
-            selectedStart?.center && selectedStart.center.length >= 2
-              ? {
-                lng: selectedStart.center[0],
-                lat: selectedStart.center[1],
-              }
-              : undefined,
-          end:
-            selectedDestination?.center &&
-              selectedDestination.center.length >= 2
-              ? {
-                lng: selectedDestination.center[0],
-                lat: selectedDestination.center[1],
-              }
-              : undefined,
-          startQuery: startLocation,
-          endQuery: destination,
-          avoidMode: selectedAvoidMode,
-          routeTimes,
-          stopSafeSpaceIds: selectedSafeSpaceStops.map((stop) => stop.id),
-        }),
-      });
-
-      if (!response.ok) {
-        let errorMessage = "Could not calculate best time for this date.";
-
-        try {
-          const errorData = (await response.json()) as { error?: string };
-          if (typeof errorData.error === "string" && errorData.error.trim()) {
-            errorMessage = errorData.error;
-          }
-        } catch {
-          // Keep the generic message if the backend does not return JSON
-        }
-
-        throw new Error(errorMessage);
-      }
-
-      const bestTimeData = (await response.json()) as {
-        bestRouteTime: string;
-        bestCost: number;
-        costs: { routeTime: string; cost: number | null }[];
-      };
-
-      const bestDate = new Date(bestTimeData.bestRouteTime);
-      const bestHour = bestDate.getHours();
-      const routeTimeIso = bestTimeData.bestRouteTime;
-
-      // Label is a one-hour band; forecast still uses the start hour only.
-      setBestTimeSuggestion({
-        startHour: bestHour,
-        endHour: (bestHour + 1) % 24,
-        label: formatHourRangeLabel(bestHour),
-        routeTimeIso,
-      });
-    } catch (err) {
-      console.error("Best time recommendation failed:", err);
-      setError("Failed to calculate best time.");
-    } finally {
-      setIsBestTimeLoading(false);
-    }
-  };
-
   const handlePlanRoute = async (
     safeSpaceStops = selectedSafeSpaceStops,
     safeSpaceTypes = selectedSafeSpaceTypes,
@@ -1708,15 +1567,10 @@ export function Map() {
                 {isDepartureOpen && (
                   <div className="mt-2 min-w-0 overflow-hidden rounded-2xl border border-[#E8EEEC] bg-white shadow-sm">
                     <DepartureEditor
-                      isBestTimeTab={isBestTimeTab}
-                      setIsBestTimeTab={setIsBestTimeTab}
                       departureConfig={departureConfig}
                       setDepartureConfig={setDepartureConfig}
-                      bestTimeSuggestion={bestTimeSuggestion}
-                      isBestTimeLoading={isBestTimeLoading}
                       onCancel={() => {
                         setIsDepartureOpen(false);
-                        setBestTimeSuggestion(null);
                       }}
                       onApplyChooseTime={async () => {
                         if (
@@ -1734,7 +1588,6 @@ export function Map() {
                         setDepartureConfig(nextDepartureConfig);
                         setIsDepartureOpen(false);
                       }}
-                      onFindBestTime={handleFindBestTime}
                       getCurrentTimeHm={getCurrentHourMinuteString}
                       getTodayYmd={getTodayLocalDateString}
                     />
@@ -2443,15 +2296,10 @@ export function Map() {
         <div className="absolute inset-0 z-40 flex items-end justify-center overflow-x-hidden bg-black/25 p-3 lg:hidden">
           <div className="w-full min-w-0 max-w-md max-h-[90dvh] overflow-x-hidden overflow-y-auto rounded-3xl border border-white/60 bg-white shadow-xl">
             <DepartureEditor
-              isBestTimeTab={isBestTimeTab}
-              setIsBestTimeTab={setIsBestTimeTab}
               departureConfig={departureConfig}
               setDepartureConfig={setDepartureConfig}
-              bestTimeSuggestion={bestTimeSuggestion}
-              isBestTimeLoading={isBestTimeLoading}
               onCancel={() => {
                 setIsDepartureOpen(false);
-                setBestTimeSuggestion(null);
               }}
               onApplyChooseTime={async () => {
                 if (
@@ -2475,7 +2323,6 @@ export function Map() {
                   nextDepartureConfig,
                 );
               }}
-              onFindBestTime={handleFindBestTime}
               getCurrentTimeHm={getCurrentHourMinuteString}
               getTodayYmd={getTodayLocalDateString}
             />

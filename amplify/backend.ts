@@ -15,9 +15,7 @@ import { data } from "./data/resource";
 import { planRouteFunction } from "./functions/plan-route/resource";
 import { noiseMapFunction } from "./functions/noise-map/resource";
 import { safeSpacesFunction } from "./functions/safe-spaces/resource";
-import { verifyPasswordFunction } from "./functions/verify-password/resource";
 import { constructionPipeline } from "./functions/construction-pipeline/resource";
-import { bestTimeFunction } from "./functions/best-time/resource";
 import { noiseReportsFunction } from "./functions/noise-reports/resource";
 import { geocodeSuggestions } from "./functions/geocode-suggestions/resource";
 import { noiseReportsCleanupFunction } from "./functions/noise-reports-cleanup/resource";
@@ -28,9 +26,7 @@ const backend = defineBackend({
   planRouteFunction,
   noiseMapFunction,
   safeSpacesFunction,
-  verifyPasswordFunction,
   constructionPipeline,
-  bestTimeFunction,
   noiseReportsFunction,
   geocodeSuggestions,
   noiseReportsCleanupFunction,
@@ -78,17 +74,6 @@ const safeSpacesIntegration = new LambdaIntegration(
   backend.safeSpacesFunction.resources.lambda
 );
 
-const verifyPasswordIntegration = new LambdaIntegration(
-  backend.verifyPasswordFunction.resources.lambda
-);
-
-const bestTimeIntegration = new LambdaIntegration(
-  backend.bestTimeFunction.resources.lambda,
-  {
-    timeout: Duration.seconds(100),
-  },
-);
-
 const geocodeSuggestionsIntegration = new LambdaIntegration(
   backend.geocodeSuggestions.resources.lambda,
 );
@@ -105,13 +90,6 @@ noiseMapPath.addMethod("GET", noiseMapIntegration);
 
 const safeSpacesPath = myRestApi.root.addResource("safe-spaces");
 safeSpacesPath.addMethod("GET", safeSpacesIntegration);
-
-const verifyPasswordPath = myRestApi.root.addResource("verify-password");
-verifyPasswordPath.addMethod("POST", verifyPasswordIntegration);
-
-const bestTimePath = myRestApi.root.addResource("best-time");
-bestTimePath.addMethod("POST", bestTimeIntegration);
-
 
 const geocodeSuggestionsPath = myRestApi.root.addResource("geocode-suggestions");
 geocodeSuggestionsPath.addMethod("GET", geocodeSuggestionsIntegration);
