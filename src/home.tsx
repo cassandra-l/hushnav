@@ -8,13 +8,20 @@ import {
 import { useNavigate } from "react-router-dom";
 import { ArrowUpRight, ArrowDown, Menu } from "lucide-react";
 // import { Logo } from "./components/logo";
-// import { FeatureCard } from "./components/feature-card";
+import { FeatureCard } from "./components/feature-card";
 import hero_image from "./assets/hero_image.png";
 import { useState, useRef } from "react";
 import { MobileMenu } from "./components/hamburger-menu";
 // import { useLocation } from "react-router-dom";
 import { Navbar } from "./components/nav-bar";
 import { RollingReel } from "./components/rolling-reel";
+import safe_spaces_demo from "./assets/safe_spaces_demo.mp4";
+import red_roads_demo from "./assets/red_roads_demo.mp4";
+import noise_monitoring_demo from "./assets/noise_monitoring_demo.mp4";
+import safe_spaces_demo_mobile from "./assets/safe_spaces_demo_mobile.mp4";
+import red_roads_demo_mobile from "./assets/red_roads_demo_mobile.mp4";
+import noise_monitoring_demo_mobile from "./assets/noise_monitoring_demo_mobile.mp4";
+
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -88,14 +95,60 @@ const itemVariants: Variants = {
 export function Home() {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  // const location = useLocation();
-  // const isActive = (path: string) => location.pathname === path;
+  // const [activeTab, setActiveTab] = useState("safespaces");
   const statsRef = useRef<HTMLDivElement>(null);
   const isStatsInView = useInView(statsRef, { once: true, amount: 0.3 });
   // Track scroll progress to fade the logo
   const { scrollY } = useScroll();
   // Logo is 100% visible at top, and fades to 0% after 150px of scrolling
   const logoOpacity = useTransform(scrollY, [0, 150], [1, 0]);
+  const stackContainerRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: stackContainerRef,
+    offset: ["start start", "end end"],
+  });
+
+  const featureCards = [
+    {
+      tag: "01 / Safe Spaces",
+      tagClass: "bg-[#D7EEE8] text-[#3B7F73]",
+      title: "Take a Break Along the Way",
+      description:
+        "Quickly discover quieter public spaces such as libraries, churches and more along your journey whenever you need a moment to reset.",
+      bgColor: "#EAF6F3",
+      borderColor: "#B7DDD3",
+      videoSrc: safe_spaces_demo,
+      mobileVideoSrc: safe_spaces_demo_mobile,
+      actionText: "Explore on Map",
+      onAction: () => navigate("/map"),
+    },
+    {
+      tag: "02 / Noise Monitoring",
+      tagClass: "bg-[#E0F2FE] text-[#0369A1]",
+      title: "Stay Aware of Noise Around You",
+      description:
+        "Monitor live noise levels around your surroundings to help you feel more prepared and in control while navigating the city.",
+      bgColor: "#F0F9FF",
+      borderColor: "#BAE6FD",
+      videoSrc: noise_monitoring_demo,
+      mobileVideoSrc: noise_monitoring_demo_mobile,
+      actionText: "Explore on Map",
+      onAction: () => navigate("/map"),
+    },
+    {
+      tag: "03 / Red Roads",
+      tagClass: "bg-[#FCE7F3] text-[#9D174D]",
+      title: "Bypass Chaos with Red Roads Warnings",
+      description:
+        "Highlighted red roads indicate areas with high pedestrian activity, helping you avoid overcrowded paths during your journey.",
+      bgColor: "#FDF2F8",
+      borderColor: "#FBCFE8",
+      videoSrc: red_roads_demo,
+      mobileVideoSrc: red_roads_demo_mobile,
+      actionText: "Explore on Map",
+      onAction: () => navigate("/map"),
+    },
+  ];
 
   return (
     <main className="min-h-screen font-sans text-[#1E2939] flex flex-col">
@@ -243,13 +296,13 @@ export function Home() {
         initial="hidden"
         whileInView="visible"
         viewport={{ once: false, amount: 0.1 }}
-        className="bg-white py-24 px-6 lg:px-12 border-t border-[#E8EEEC]"
+        className="bg-white pt-24 px-6 lg:px-12 border-t border-[#E8EEEC]"
       >
         <div className="max-w-[1440px] mx-auto">
           {/* Main Title and Explanation */}
           <motion.div
             variants={itemVariants}
-            className="flex flex-col items-center text-center mb-24"
+            className="flex flex-col items-center text-center mb-20"
           >
             <span className="bg-[#E8F3F1] text-[#5A9A8E] px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mb-6">
               What We Offer
@@ -269,7 +322,7 @@ export function Home() {
           <motion.div
             ref={statsRef}
             variants={itemVariants}
-            className="grid grid-cols-1 sm:grid-cols-3 gap-16 sm:gap-8 max-w-5xl mx-auto mb-24 text-center border-y border-[#E8EEEC] py-14 px-4"
+            className="grid grid-cols-1 sm:grid-cols-3 gap-16 sm:gap-8 max-w-5xl mx-auto mb-2 text-center border-y border-[#E8EEEC] py-14 px-4"
           >
             {/* Stat 1: 1 in 5 */}
             <div className="flex flex-col items-center justify-center">
@@ -292,7 +345,7 @@ export function Home() {
               </motion.span>
             </div>
 
-            {/* Stat 2: Personalized Callout (Fade & Soft Slide In) */}
+            {/* Stat 2: Personalized */}
             <div className="flex flex-col items-center justify-center sm:border-x sm:border-[#E8EEEC]/60 px-4">
               <div className="mb-4 flex items-center justify-center">
                 <motion.span
@@ -339,7 +392,36 @@ export function Home() {
             </div>
           </motion.div>
 
-          {/* Categorized Features Grid System */}
+          {/* Feature Highlight */}
+          <section>
+            {/* Section Introduction Header */}
+            <div className="max-w-360 mx-auto pt-16 lg:pt-24 px-6 text-center flex flex-col items-center">
+              <span className="bg-[#E8F3F1] text-[#5A9A8E] px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mb-4 lg:mb-6">
+                Explore the Experience
+              </span>
+              <h3 className="text-3xl lg:text-6xl font-bold leading-[1.05] max-w-3xl text-[#1E2939] mb-4">
+                Built-In Features Designed for Everyday Navigation
+              </h3>
+              <p className="text-sm lg:text-lg text-[#1E2939]/60 max-w-2xl leading-relaxed">
+                Discover interactive tools designed to support you throughout
+                your journey
+              </p>
+            </div>
+
+            <div
+              ref={stackContainerRef}
+              className="lg:-mt-18 relative h-auto lg:h-[300vh] px-4 lg:px-12 pt-8 pb-16 lg:pb-24 flex flex-col gap-8 lg:block"
+            >
+              {featureCards.map((card, index) => (
+                <FeatureCard
+                  key={index}
+                  card={card}
+                  index={index}
+                  progress={scrollYProgress}
+                />
+              ))}
+            </div>
+          </section>
         </div>
       </motion.section>
     </main>
