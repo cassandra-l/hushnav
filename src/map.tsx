@@ -1841,15 +1841,22 @@ export function Map() {
                 </div>
               </div>
             ) : (
-              <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
-                <h2 className="mb-2 text-base font-semibold text-[#1E2939]">
-                  Quiet Route Preview
-                </h2>
-                <p className="text-sm text-[#6A7282]">
-                  Search for a start point and destination to display the
-                  quietest route on the map.
-                </p>
-              </div>
+            <div className="rounded-3xl border border-[#E8EEEC] bg-[#F8FBFA] p-4">
+  <h2 className="mb-2 text-base font-semibold text-[#1E2939]">
+    Quiet Route Preview
+  </h2>
+
+  <p className="text-sm leading-relaxed text-[#647282]">
+    Search for a start point and destination to display the quietest route on the map.
+  </p>
+
+  <div className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-3">
+    <p className="text-sm leading-relaxed text-red-800">
+      <span className="font-semibold">Red roads</span> on the map show areas where
+      30 or more pedestrians have been detected in the last 15 minutes.
+    </p>
+  </div>
+</div>
             )}
           </div>
         </aside>
