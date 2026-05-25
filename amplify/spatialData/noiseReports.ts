@@ -32,6 +32,30 @@ function toNoiseReport(row: NoiseReportRow): NoiseReport {
   };
 }
 
+export async function deleteExpiredNoiseReports(): Promise<number> {
+  const result = await pool.query<{
+    report_id: number;
+    created_at: string;
+  }>(
+    `
+    DELETE FROM noise_report
+    WHERE created_at < NOW() - INTERVAL '30 minutes'
+    RETURNING report_id, created_at
+    `,
+  );
+
+  console.log("[noise-reports-cleanup] expired reports deleted", {
+    deletedCount: result.rowCount ?? 0,
+    deletedReports: result.rows.map((row) => ({
+      reportId: row.report_id,
+      createdAt: row.created_at,
+    })),
+  });
+
+  return result.rowCount ?? 0;
+}
+
+
 export async function createNoiseReport(input: {
   lat: number;
   lng: number;
@@ -61,7 +85,7 @@ export async function getNoiseReports(
       `
       SELECT report_id, lat, lng, noise_level, created_at
       FROM noise_report
-      WHERE created_at >= NOW() - INTERVAL '7 days'
+      WHERE created_at >= NOW() - INTERVAL '30 minutes'
         AND ST_DWithin(
           geom::geography,
           ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
@@ -76,7 +100,7 @@ export async function getNoiseReports(
       `
       SELECT report_id, lat, lng, noise_level, created_at
       FROM noise_report
-      WHERE created_at >= NOW() - INTERVAL '7 days'
+      WHERE created_at >= NOW() - INTERVAL '30 minutes'
       ORDER BY created_at DESC
       LIMIT 500
       `,

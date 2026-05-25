@@ -12,6 +12,10 @@ import {
   AlertTriangle,
   Menu,
   Bookmark,
+  Headphones,
+  ChevronUp,
+  Pause,
+  Play,
 } from "lucide-react";
 import { MicButton } from "./components/mic-button";
 
@@ -54,16 +58,14 @@ import { MobileMenu } from "./components/hamburger-menu";
 import { NavigationNoiseNotice } from "./components/navigation-noise-notice";
 import {
   DepartureEditor,
-  type BestTimeSuggestion,
   type DepartureConfig,
 } from "./components/departure-editor";
 import {
-  BEST_TIME_DATE_MESSAGE,
   DEPARTURE_NOW_OR_FUTURE_MESSAGE,
   isChosenDepartureInPast,
-  isDepartureDateBeforeTodayLocal,
   parseLocalDepartureMs,
 } from "./departurePast";
+import { useAudio } from "./context/use-audio";
 
 // Backend base URL from .env
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -118,7 +120,9 @@ async function fetchPhotonSuggestions(
   }
 
   if (!API_BASE_URL) {
-    console.error("API base URL not set. Add VITE_API_BASE_URL to your .env file.");
+    console.error(
+      "API base URL not set. Add VITE_API_BASE_URL to your .env file.",
+    );
     return [];
   }
 
@@ -153,7 +157,7 @@ async function fetchPhotonSuggestions(
 const COOLDOWN_DURATION = 5 * 60 * 1000;
 
 // Noise threshold to trigger the alert
-const NOISE_THRESHOLD = 10;
+const NOISE_THRESHOLD = 90;
 const FILTER_PREVIEW_STATE_KEY = "hushnav:mapPreviewBeforeFilters";
 const NOISE_REPORT_LOOKUP_RADIUS_METERS = 1000;
 const NOISE_NOTICE_TRIGGER_DISTANCE_METERS = 100;
@@ -197,7 +201,6 @@ function toRadians(value: number) {
   return (value * Math.PI) / 180;
 }
 
-
 function coordinateToMeters(
   coordinate: { lat: number; lng: number },
   origin: { lat: number; lng: number },
@@ -226,10 +229,7 @@ function getRoutePositionForPoint(
   for (let index = 0; index < routeCoordinates.length - 1; index += 1) {
     const [startLng, startLat] = routeCoordinates[index];
     const [endLng, endLat] = routeCoordinates[index + 1];
-    const start = coordinateToMeters(
-      { lat: startLat, lng: startLng },
-      point,
-    );
+    const start = coordinateToMeters({ lat: startLat, lng: startLng }, point);
     const end = coordinateToMeters({ lat: endLat, lng: endLng }, point);
     const segmentX = end.x - start.x;
     const segmentY = end.y - start.y;
@@ -264,18 +264,6 @@ function getRoutePositionForPoint(
     distanceToRouteMeters: nearestDistanceMeters,
     progressMeters: nearestProgressMeters,
   };
-}
-
-// One-hour window, 12h clock, compact label (e.g. 9:00AM-10:00AM).
-function formatHourRangeLabel(startHour: number) {
-  const to12h = (hour: number) => {
-    const h = hour % 24;
-    const suffix = h >= 12 ? "PM" : "AM";
-    const value = h % 12 === 0 ? 12 : h % 12;
-    return `${value}:00${suffix}`;
-  };
-  const endHour = (startHour + 1) % 24;
-  return `${to12h(startHour)}-${to12h(endHour)}`;
 }
 
 function readSelectedSafeSpaceTypes(): SafeSpaceType[] {
@@ -331,6 +319,12 @@ type FilterPreviewSnapshot = {
 export function Map() {
   const navigate = useNavigate();
   const location = useLocation();
+  // Audio Player state
+  const { playingId, isPaused, pauseAudio, resumeAudio } = useAudio();
+  const [hasUsedAudio, setHasUsedAudio] = useState(false);
+
+  // Calming tools menu
+  const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false);
 
   // Noise monitoring popup + audio state
   const [isPopUpOpen, setIsPopUpOpen] = useState(false);
@@ -400,7 +394,6 @@ export function Map() {
   // Route API loading + error state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [isBestTimeLoading, setIsBestTimeLoading] = useState(false);
 
   // Live user location from browser Geolocation API
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
@@ -422,16 +415,15 @@ export function Map() {
     time: getCurrentHourMinuteString(),
   });
   const [isDepartureOpen, setIsDepartureOpen] = useState(false);
-  const [isBestTimeTab, setIsBestTimeTab] = useState(false);
-  const [bestTimeSuggestion, setBestTimeSuggestion] =
-    useState<BestTimeSuggestion | null>(null);
   const departureSummary = departureConfig.enabled
     ? `${departureConfig.date} ${departureConfig.time}`
     : "Now";
 
+  // Aduio Playing
   useEffect(() => {
-    setBestTimeSuggestion(null);
-  }, [departureConfig.date]);
+    const usedAudio = sessionStorage.getItem("hushnav-audio-used");
+    setHasUsedAudio(usedAudio === "true");
+  }, []);
 
   // Load favourite routes for the dropdown and refresh them whenever a route is saved.
   useEffect(() => {
@@ -456,7 +448,6 @@ export function Map() {
   useEffect(() => {
     if (!routeData) return;
     setIsDepartureOpen(false);
-    setBestTimeSuggestion(null);
   }, [routeData]);
 
   const [selectedSafeSpaceTypes, setSelectedSafeSpaceTypes] = useState<
@@ -571,7 +562,10 @@ export function Map() {
   };
 
   useEffect(() => {
-    const state = location.state as { restoreRoutePreview?: boolean } | null;
+    const state = location.state as {
+      restoreRoutePreview?: boolean;
+      replanAfterFilter?: boolean;
+    } | null;
     if (!state?.restoreRoutePreview) return;
 
     const raw = sessionStorage.getItem(FILTER_PREVIEW_STATE_KEY);
@@ -593,7 +587,10 @@ export function Map() {
       setError("");
       setSelectedSafeSpaceTypes(readSelectedSafeSpaceTypes());
       setSelectedAvoidMode(readSelectedAvoidMode());
-      setShouldReplanAfterFilter(true);
+
+      if (state.replanAfterFilter) {
+        setShouldReplanAfterFilter(true);
+      }
     } catch {
       // Ignore malformed snapshots.
     } finally {
@@ -676,12 +673,12 @@ export function Map() {
   };
 
   const getCurrentLocationForReport = () => {
-    if (!navigator.geolocation) {
-      setLocationError("Live location is not supported by this browser.");
-      return Promise.resolve(userLocation);
-    }
+    return new Promise<UserLocation>((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Location is not supported by this browser."));
+        return;
+      }
 
-    return new Promise<UserLocation | null>((resolve) => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const currentLocation: UserLocation = {
@@ -698,18 +695,20 @@ export function Map() {
           console.error("Failed to get report location:", geolocationError);
 
           if (geolocationError.code === geolocationError.PERMISSION_DENIED) {
-            setLocationError("Location permission was denied.");
+            setLocationError("Location permission is required to submit a noise report.");
+            reject(new Error("Location permission is required to submit a noise report."));
           } else if (
             geolocationError.code === geolocationError.POSITION_UNAVAILABLE
           ) {
             setLocationError("Your location is currently unavailable.");
+            reject(new Error("Your location is currently unavailable."));
           } else if (geolocationError.code === geolocationError.TIMEOUT) {
             setLocationError("Location request timed out.");
+            reject(new Error("Location request timed out."));
           } else {
             setLocationError("Could not get your current location.");
+            reject(new Error("Could not get your current location."));
           }
-
-          resolve(userLocation);
         },
         {
           enableHighAccuracy: true,
@@ -722,16 +721,11 @@ export function Map() {
 
   const handleSubmitNoiseReport = async () => {
     setIsHighNoiseAlertOpen(false);
-
-    const reportLocation = await getCurrentLocationForReport();
-
-    if (!reportLocation) {
-      incrementNoiseReports(1);
-      setIsReportSuccessOpen(true);
-      return;
-    }
+    setIsReportSuccessOpen(false);
 
     try {
+      const reportLocation = await getCurrentLocationForReport();
+
       const response = await fetch(`${API_BASE_URL}/noise-reports`, {
         method: "POST",
         headers: {
@@ -752,12 +746,19 @@ export function Map() {
 
       setNoiseReportPins((pins) => [savedReport, ...pins]);
       setFocusedNoiseReportPin(savedReport);
-    } catch (err) {
-      console.error("Failed to save noise report:", err);
-    }
 
-    incrementNoiseReports(1);
-    setIsReportSuccessOpen(true);
+      incrementNoiseReports(1);
+      setIsReportSuccessOpen(true);
+    } catch (err) {
+      console.error("Failed to submit noise report:", err);
+      setIsReportSuccessOpen(false);
+
+      if (err instanceof Error) {
+        setLocationError(err.message);
+      } else {
+        setLocationError("Failed to submit noise report.");
+      }
+    }
   };
 
   // Starts navigation from the route preview page.
@@ -780,8 +781,6 @@ export function Map() {
     setIsNavigationActive(false);
     setActiveNoiseNotice(null);
     setIsDepartureOpen(false);
-    setBestTimeSuggestion(null);
-    setIsBestTimeTab(false);
     setDepartureConfig({
       enabled: false,
       date: getTodayLocalDateString(),
@@ -1318,121 +1317,6 @@ export function Map() {
     stopSafeSpaceIds: safeSpaceStops.map((stop) => stop.id),
   });
 
-
-  const handleFindBestTime = async () => {
-    setError("");
-    setBestTimeSuggestion(null);
-
-    if (!startLocation.trim() || !destination.trim()) {
-      setError("Please select start and destination before finding best time.");
-      return;
-    }
-    if (!API_BASE_URL) {
-      setError("API base URL not set. Add VITE_API_BASE_URL to your .env file.");
-      return;
-    }
-
-    if (isDepartureDateBeforeTodayLocal(departureConfig.date)) {
-      setError(BEST_TIME_DATE_MESSAGE);
-      return;
-    }
-
-    // Hours 6–22; for "today" skip slot starts that are already in the past.
-    const baseCandidateHours = Array.from({ length: 17 }, (_, i) => i + 6);
-    const candidateHours =
-      departureConfig.date === getTodayLocalDateString()
-        ? baseCandidateHours.filter(
-          (hour) =>
-            !isChosenDepartureInPast(
-              departureConfig.date,
-              `${String(hour).padStart(2, "0")}:00`,
-            ),
-        )
-        : baseCandidateHours;
-
-    if (candidateHours.length === 0) {
-      setError(
-        "There are no remaining hours to score for today. Choose a future date.",
-      );
-      return;
-    }
-
-    setIsBestTimeLoading(true);
-    try {
-      const routeTimes = candidateHours.map((hour) => {
-        const time = `${String(hour).padStart(2, "0")}:00`;
-        return toRouteTimeIso(departureConfig.date, time);
-      });
-
-      const response = await fetch(`${API_BASE_URL}/best-time`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          start:
-            selectedStart?.center && selectedStart.center.length >= 2
-              ? {
-                lng: selectedStart.center[0],
-                lat: selectedStart.center[1],
-              }
-              : undefined,
-          end:
-            selectedDestination?.center && selectedDestination.center.length >= 2
-              ? {
-                lng: selectedDestination.center[0],
-                lat: selectedDestination.center[1],
-              }
-              : undefined,
-          startQuery: startLocation,
-          endQuery: destination,
-          avoidMode: selectedAvoidMode,
-          routeTimes,
-          stopSafeSpaceIds: selectedSafeSpaceStops.map((stop) => stop.id),
-        }),
-      });
-
-      if (!response.ok) {
-        let errorMessage = "Could not calculate best time for this date.";
-
-        try {
-          const errorData = (await response.json()) as { error?: string };
-          if (typeof errorData.error === "string" && errorData.error.trim()) {
-            errorMessage = errorData.error;
-          }
-        } catch {
-          // Keep the generic message if the backend does not return JSON
-        }
-
-        throw new Error(errorMessage);
-      }
-
-      const bestTimeData = (await response.json()) as {
-        bestRouteTime: string;
-        bestCost: number;
-        costs: { routeTime: string; cost: number | null }[];
-      };
-
-      const bestDate = new Date(bestTimeData.bestRouteTime);
-      const bestHour = bestDate.getHours();
-      const routeTimeIso = bestTimeData.bestRouteTime;
-
-      // Label is a one-hour band; forecast still uses the start hour only.
-      setBestTimeSuggestion({
-        startHour: bestHour,
-        endHour: (bestHour + 1) % 24,
-        label: formatHourRangeLabel(bestHour),
-        routeTimeIso,
-      });
-
-    } catch (err) {
-      console.error("Best time recommendation failed:", err);
-      setError("Failed to calculate best time.");
-    } finally {
-      setIsBestTimeLoading(false);
-    }
-  };
-
   const handlePlanRoute = async (
     safeSpaceStops = selectedSafeSpaceStops,
     safeSpaceTypes = selectedSafeSpaceTypes,
@@ -1683,15 +1567,10 @@ export function Map() {
                 {isDepartureOpen && (
                   <div className="mt-2 min-w-0 overflow-hidden rounded-2xl border border-[#E8EEEC] bg-white shadow-sm">
                     <DepartureEditor
-                      isBestTimeTab={isBestTimeTab}
-                      setIsBestTimeTab={setIsBestTimeTab}
                       departureConfig={departureConfig}
                       setDepartureConfig={setDepartureConfig}
-                      bestTimeSuggestion={bestTimeSuggestion}
-                      isBestTimeLoading={isBestTimeLoading}
                       onCancel={() => {
                         setIsDepartureOpen(false);
-                        setBestTimeSuggestion(null);
                       }}
                       onApplyChooseTime={async () => {
                         if (
@@ -1709,7 +1588,6 @@ export function Map() {
                         setDepartureConfig(nextDepartureConfig);
                         setIsDepartureOpen(false);
                       }}
-                      onFindBestTime={handleFindBestTime}
                       getCurrentTimeHm={getCurrentHourMinuteString}
                       getTodayYmd={getTodayLocalDateString}
                     />
@@ -1722,7 +1600,7 @@ export function Map() {
               <button
                 onClick={() => handlePlanRoute()}
                 disabled={loading}
-                className="cursor-pointer flex-1 rounded-[2rem] bg-[#7DB0A6] py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#7DB0A6]/90 disabled:opacity-70"
+                className="cursor-pointer flex-1 rounded-2xl bg-[#7DB0A6] py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#7DB0A6]/90 disabled:opacity-70"
               >
                 {loading ? "Finding Quiet Route..." : "Find Quiet Route"}
               </button>
@@ -2058,7 +1936,7 @@ export function Map() {
                           <button
                             onClick={() => handlePlanRoute()}
                             disabled={loading}
-                            className="flex-1 rounded-[2rem] bg-[#7DB0A6] py-3.5 text-sm font-semibold text-white shadow-md transition-transform active:scale-[0.98] disabled:opacity-70"
+                            className="flex-1 rounded-2xl bg-[#7DB0A6] py-3.5 text-sm font-semibold text-white shadow-md transition-transform active:scale-[0.98] disabled:opacity-70"
                           >
                             {loading
                               ? "Finding Quiet Route..."
@@ -2068,8 +1946,10 @@ export function Map() {
                           <button
                             type="button"
                             onClick={handleSaveRoute}
-                            disabled={!startLocation.trim() || !destination.trim()}
-                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#F7F7F7] text-[#A8ADB5] shadow-md transition hover:bg-[#F1F5F4] hover:text-[#5A9A8E] disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={
+                              !startLocation.trim() || !destination.trim()
+                            }
+                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#F7F7F7] text-[#A8ADB5] shadow-md transition hover:bg-[#F1F5F4] hover:text-[#5A9A8E] disabled:cursor-not-allowed disabled:opacity-80"
                             aria-label="Save route to favourites"
                             title="Save route to favourites"
                           >
@@ -2191,7 +2071,7 @@ export function Map() {
             </button>
           )}
 
-          {/* Mobile mic + Find Calm: float only when no preview sheet (search / nav mode) */}
+          {/* Mobile mic + Find Calm */}
           {(!routeData || isNavigationActive) && (
             <>
               <div
@@ -2217,14 +2097,76 @@ export function Map() {
                     : "opacity-100 transition-opacity duration-200"
                   }`}
               >
-                <button
-                  type="button"
-                  onClick={() => navigate("/support")}
-                  className="flex h-14 w-14 items-center justify-center rounded-full border border-white/85 bg-[#7DB0A6] text-white shadow-lg"
-                  aria-label="Go to Find Calm page"
-                >
-                  <Wind size={24} />
-                </button>
+                <div className="relative flex flex-col items-end gap-3">
+                  {/* Expanded Menu */}
+                  <AnimatePresence>
+                    {isQuickMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                        transition={{ duration: 0.2 }}
+                        className="flex flex-col items-end gap-3"
+                      >
+                        {/* Soundscape */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => navigate("/soundscape")}
+                            className="flex h-14 w-14 items-center justify-center rounded-full bg-[#7DB0A6]/80 border border-white/60 text-white shadow-lg"
+                          >
+                            <Headphones size={20} />
+                          </button>
+                          {hasUsedAudio && playingId && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isPaused) {
+                                  resumeAudio();
+                                } else {
+                                  pauseAudio();
+                                }
+                              }}
+                              className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full border border-white bg-white text-[#5A9A8E] shadow-md"
+                            >
+                              {isPaused ? (
+                                <Play size={14} />
+                              ) : (
+                                <Pause size={14} />
+                              )}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Support */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            navigate("/support", { state: { fromMap: true } })
+                          }
+                          className="flex h-14 w-14 items-center justify-center rounded-full bg-[#7DB0A6]/80 border border-white/60 text-white shadow-lg cursor-pointer"
+                          aria-label="Support"
+                        >
+                          <Wind size={20} />
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Main Arrow Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsQuickMenuOpen((prev) => !prev)}
+                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white/80 border border-[#7DB0A6]/30 text-[#7DB0A6] shadow-lg transition-transform curosor-pointer"
+                    aria-label="Open quick menu"
+                  >
+                    <ChevronUp
+                      size={24}
+                      className={`transition-transform duration-300 ${isQuickMenuOpen ? "rotate-180" : ""
+                        }`}
+                    />
+                  </button>
+                </div>
               </div>
             </>
           )}
@@ -2242,14 +2184,117 @@ export function Map() {
 
           {/* Desktop find calm button */}
           <div className="absolute bottom-6 right-6 z-10 hidden lg:block">
-            <button
-              type="button"
-              onClick={() => navigate("/support")}
-              className="cursor-pointer flex h-14 w-14 items-center justify-center rounded-full border border-white/60 bg-[#7DB0A6]/80 text-white shadow-lg"
-              aria-label="Go to Find Calm page"
-            >
-              <Wind size={24} />
-            </button>
+            <div className="relative flex flex-col items-end gap-3">
+              {/* Expanded Menu */}
+              <AnimatePresence>
+                {isQuickMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex flex-col items-end gap-3"
+                  >
+                    {/* Soundscape */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => navigate("/soundscape")}
+                        className="cursor-pointer flex h-14 w-14 items-center justify-center rounded-full bg-[#7DB0A6]/80 border border-white/60 text-white shadow-lg"
+                      >
+                        <Headphones size={20} />
+                      </button>
+                      {hasUsedAudio && playingId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isPaused) {
+                              resumeAudio();
+                            } else {
+                              pauseAudio();
+                            }
+                          }}
+                          className="cursor-pointer absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full border border-white bg-white text-[#5A9A8E] shadow-md"
+                        >
+                          {isPaused ? <Play size={14} /> : <Pause size={14} />}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* {hasUsedAudio && playingId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isPaused) {
+                            resumeAudio();
+                          } else {
+                            pauseAudio();
+                          }
+                        }}
+                        className="flex h-10 w-10 items-center justify-center rounded-full border border-white/85 bg-white text-[#5A9A8E] shadow-lg"
+                        aria-label={isPaused ? "Resume audio" : "Pause audio"}
+                      >
+                        {isPaused ? <Play size={18} /> : <Pause size={18} />}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => navigate("/soundscape")}
+                      className="flex h-14 w-14 items-center justify-center rounded-full bg-[#7DB0A6]/80 border border-white/60 text-white shadow-lg"
+                      aria-label="Soundscape"
+                    >
+                      <Headphones size={20} />
+                    </button> */}
+
+                    {/* Support */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const previewSnapshot = {
+                          routeData,
+                          startLocation,
+                          destination,
+                          selectedStart,
+                          selectedDestination,
+                          selectedSafeSpaceStops,
+                          selectedSafeSpaceFromPanel,
+                          isSafeSpacesOpen,
+                          isMobileSearchOpen,
+                          userLocation,
+                        };
+
+                        sessionStorage.setItem(
+                          FILTER_PREVIEW_STATE_KEY,
+                          JSON.stringify(previewSnapshot),
+                        );
+
+                        navigate("/support", {
+                          state: { fromMap: true },
+                        });
+                      }}
+                      className="flex h-14 w-14 items-center justify-center rounded-full bg-[#7DB0A6]/80 border border-white/60 text-white shadow-lg cursor-pointer"
+                      aria-label="Support"
+                    >
+                      <Wind size={20} />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Main Arrow Button */}
+              <button
+                type="button"
+                onClick={() => setIsQuickMenuOpen((prev) => !prev)}
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white/80 border border-[#7DB0A6]/30 text-[#7DB0A6] shadow-lg transition-transform curosor-pointer"
+                aria-label="Open quick menu"
+              >
+                <ChevronUp
+                  size={24}
+                  className={`transition-transform duration-300 ${isQuickMenuOpen ? "rotate-180" : ""
+                    }`}
+                />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -2258,15 +2303,10 @@ export function Map() {
         <div className="absolute inset-0 z-40 flex items-end justify-center overflow-x-hidden bg-black/25 p-3 lg:hidden">
           <div className="w-full min-w-0 max-w-md max-h-[90dvh] overflow-x-hidden overflow-y-auto rounded-3xl border border-white/60 bg-white shadow-xl">
             <DepartureEditor
-              isBestTimeTab={isBestTimeTab}
-              setIsBestTimeTab={setIsBestTimeTab}
               departureConfig={departureConfig}
               setDepartureConfig={setDepartureConfig}
-              bestTimeSuggestion={bestTimeSuggestion}
-              isBestTimeLoading={isBestTimeLoading}
               onCancel={() => {
                 setIsDepartureOpen(false);
-                setBestTimeSuggestion(null);
               }}
               onApplyChooseTime={async () => {
                 if (
@@ -2290,7 +2330,6 @@ export function Map() {
                   nextDepartureConfig,
                 );
               }}
-              onFindBestTime={handleFindBestTime}
               getCurrentTimeHm={getCurrentHourMinuteString}
               getTodayYmd={getTodayLocalDateString}
             />
@@ -2357,7 +2396,6 @@ export function Map() {
           navigate("/achievements");
         }}
       />
-
     </main>
   );
 }

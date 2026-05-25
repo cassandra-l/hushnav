@@ -1,9 +1,6 @@
-import { Menu } from "lucide-react";
 import { quizQuestions } from "./quiz-data";
-import { Navbar } from "../components/nav-bar";
-import { MobileMenu } from "../components/hamburger-menu";
-import { useState } from "react";
 import type { QuizAnswers } from "../types/quiz";
+import { XButton } from "../components/x-button";
 
 type SensitivityQuizProps = {
   answers: QuizAnswers;
@@ -20,9 +17,8 @@ export default function SensitivityQuiz({
   setCurrentQuestionIndex,
   onSelectAnswer,
   onNext,
+  onClose,
 }: SensitivityQuizProps) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
   const currentQuestion = quizQuestions[currentQuestionIndex];
   const selectedValue = answers[currentQuestion.id];
   const isLastQuestion = currentQuestionIndex === quizQuestions.length - 1;
@@ -45,25 +41,26 @@ export default function SensitivityQuiz({
 
   return (
     <div className="w-full max-w-3xl mx-auto font-sans text-[#101828]">
-      <MobileMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+      <XButton onClose={onClose} />
+      {/* <MobileMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
 
       <Navbar
         className="left-1/2 -translate-x-1/2 top-8 w-auto hidden lg:flex"
         showLogo={false}
-      />
+      /> */}
 
       {/* Hamburger Menu */}
-      <header className="lg:hidden sticky top-0 z-20 flex items-center px-5 py-4">
+      {/* <header className="lg:hidden sticky top-0 z-20 flex items-center px-5 py-4">
         <button
           onClick={() => setIsMenuOpen(true)}
           className="p-4 bg-white/60 backdrop-blur-xl rounded-full border border-white/40 text-[#1E2939] shadow-sm cursor-pointer"
         >
           <Menu size={20} className="text-[#5A9A8E]" />
         </button>
-      </header>
+      </header> */}
 
       <main className="px-6 pb-12 pt-4 lg:pt-32">
-        <div className="w-full bg-white/40 border border-white/60 backdrop-blur-3xl px-6 md:px-8 py-7 rounded-[28px] shadow-xl shadow-slate-100/20 mb-6">
+        <div className="w-full bg-white/50 border border-white/80 backdrop-blur-3xl px-6 md:px-8 py-7 mt-30 lg:mt-0 rounded-[28px] shadow-xl shadow-slate-100/20 mb-6">
           {/* Section Breaking Escapement Links */}
           {/* <div className="flex items-center justify-between mb-6"> */}
           {/* <button
@@ -160,7 +157,7 @@ export default function SensitivityQuiz({
 
           <button
             type="button"
-            disabled={!selectedValue}
+            disabled={selectedValue == null}
             onClick={handleContinue}
             className="w-full py-4 bg-[#5A9A8E] disabled:bg-gray-200/80 text-white font-bold text-xs md:text-sm rounded-2xl shadow-md hover:bg-[#5A9A8E]/90 disabled:cursor-not-allowed disabled:text-gray-400 transition-colors text-center cursor-pointer"
           >

@@ -5,6 +5,9 @@ export interface AudioContextType {
   togglePlay: (id: string, url: string) => void;
   volume: number;
   setVolume: (val: number) => void;
+  isPaused: boolean;
+  pauseAudio: () => void;
+  resumeAudio: () => void;
 }
 
 export const AudioContext = createContext<AudioContextType | undefined>(

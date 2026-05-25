@@ -14,6 +14,7 @@ import {
   Landmark,
   Church,
   Building2,
+  TriangleAlert,
 } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { PlanRouteResponse, SafeSpace } from "../types/route";
@@ -50,31 +51,85 @@ type SafeSpaceMarkerProps = {
   onClick: () => void;
   stopNumber?: number;
   isSelectedStop?: boolean;
+  scale: number;
+  visible: boolean;
 };
 
-function renderSafeSpaceIcon(type: SafeSpace["type"]) {
+// setting up the zoom levels for the safe space and noise report icons
+const SAFE_SPACE_ICON_MIN_ZOOM = 11;
+const SAFE_SPACE_ICON_FULL_ZOOM = 16;
+const NOISE_REPORT_ICON_MIN_ZOOM = 11;
+const NOISE_REPORT_ICON_FULL_ZOOM = 16;
+
+// function to get the scale of the marker based on the zoom level
+function getMarkerScale(zoom: number, minZoom: number, fullZoom: number) {
+  if (zoom <= minZoom) {
+    return { visible: false, scale: 0 };
+  }
+
+  if (zoom >= fullZoom) {
+    return { visible: true, scale: 1 };
+  }
+
+  const scale = (zoom - minZoom) / (fullZoom - minZoom);
+
+  return { visible: true, scale };
+}
+
+// function to get the scale of the safe space marker based on the zoom level
+function getSafeSpaceMarkerScale(zoom: number) {
+  return getMarkerScale(
+    zoom,
+    SAFE_SPACE_ICON_MIN_ZOOM,
+    SAFE_SPACE_ICON_FULL_ZOOM,
+  );
+}
+
+//  
+function getNoiseReportMarkerScale(zoom: number) {
+  return getMarkerScale(
+    zoom,
+    NOISE_REPORT_ICON_MIN_ZOOM,
+    NOISE_REPORT_ICON_FULL_ZOOM,
+  );
+}
+
+// function to render the safe space icon based on the type
+function renderSafeSpaceIcon(type: SafeSpace["type"], iconSize = 18) {
   switch (type) {
     case "park":
-      return <TreePine size={18} className="text-[#5A9A8E]" />;
+      return <TreePine size={iconSize} className="text-[#5A9A8E]" />;
     case "library":
-      return <Book size={18} className="text-[#5A9A8E]" />;
+      return <Book size={iconSize} className="text-[#5A9A8E]" />;
     case "museum":
-      return <Landmark size={18} className="text-[#5A9A8E]" />;
+      return <Landmark size={iconSize} className="text-[#5A9A8E]" />;
     case "church":
-      return <Church size={18} className="text-[#5A9A8E]" />;
+      return <Church size={iconSize} className="text-[#5A9A8E]" />;
     case "synagogue":
-      return <Building2 size={18} className="text-[#5A9A8E]" />;
+      return <Building2 size={iconSize} className="text-[#5A9A8E]" />;
     default:
-      return <MapPin size={18} className="text-[#5A9A8E]" />;
+      return <MapPin size={iconSize} className="text-[#5A9A8E]" />;
   }
 }
 
+// function to render the safe space marker based on the type
 function SafeSpaceMarker({
   safeSpace,
   onClick,
   stopNumber,
   isSelectedStop = false,
+  scale,
+  visible,
 }: SafeSpaceMarkerProps) {
+  if (!visible) {
+    return null;
+  }
+
+  const markerStyle = {
+    transform: `scale(${scale})`,
+    transformOrigin: "center center",
+  };
+
   // Selected stopovers are shown as numbered markers.
   // This makes the route order clearer: Stop 1 -> Stop 2 -> Stop 3.
   if (isSelectedStop && stopNumber !== undefined) {
@@ -82,6 +137,7 @@ function SafeSpaceMarker({
       <button
         type="button"
         onClick={onClick}
+        style={markerStyle}
         className="relative flex h-12 w-12 items-center justify-center rounded-full border-4 border-white bg-[#5A9A8E] text-white shadow-lg"
         aria-label={`Stop ${stopNumber}: ${safeSpace.name}`}
       >
@@ -93,11 +149,12 @@ function SafeSpaceMarker({
       </button>
     );
   }
-
+// function to render the safe space marker
   return (
     <button
       type="button"
       onClick={onClick}
+      style={markerStyle}
       className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/90 bg-white/80 shadow-md"
       aria-label={safeSpace.name}
     >
@@ -106,6 +163,7 @@ function SafeSpaceMarker({
   );
 }
 
+// function to render the user location marker
 function UserLocationMarker() {
   return (
     <div className="relative flex h-6 w-6 items-center justify-center">
@@ -121,35 +179,55 @@ function UserLocationMarker() {
   );
 }
 
+// function to render the noise report marker
 function NoiseReportMarker({
   pin,
   nowMs,
+  onClick,
+  scale,
+  visible,
 }: {
   pin: NoiseReportPin;
   nowMs: number;
+  onClick: () => void;
+  scale: number;
+  visible: boolean;
 }) {
+  if (!visible) {
+    return null;
+  }
+
   const isVeryHighNoise = pin.noiseLevel !== null && pin.noiseLevel >= 75;
   const isRecent =
     nowMs - new Date(pin.createdAt).getTime() < 60 * 60 * 1000;
   const markerColor = isVeryHighNoise ? "#B84732" : "#C7785A";
 
   return (
-    <div className="relative flex h-12 w-12 items-center justify-center">
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        transform: `scale(${scale})`,
+        transformOrigin: "center center",
+      }}
+      className="relative flex h-8 w-8 items-center justify-center"
+      aria-label="High noise reported here"
+    >
       <div
-        className={`absolute h-12 w-12 rounded-full ${isRecent ? "animate-pulse" : ""
-          }`}
+        className={`absolute h-8 w-8 rounded-full ${isRecent ? "animate-pulse" : ""}`}
         style={{ backgroundColor: `${markerColor}33` }}
       />
       <div
-        className="relative flex h-9 w-9 items-center justify-center rounded-full border-2 border-white shadow-lg"
+        className="relative flex h-6 w-6 items-center justify-center rounded-full border-2 border-white shadow-md"
         style={{ backgroundColor: markerColor }}
       >
-        <MapPin size={20} className="text-white" />
+        <TriangleAlert size={14} className="text-white" />
       </div>
-    </div>
+    </button>
   );
 }
 
+// function to render the route map
 export function RouteMap({
   routeData,
   crowdMapData,
@@ -165,6 +243,8 @@ export function RouteMap({
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [selectedSafeSpace, setSelectedSafeSpace] =
     useState<SafeSpace | null>(null);
+  const [selectedNoiseReportPin, setSelectedNoiseReportPin] =
+    useState<NoiseReportPin | null>(null);
 
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -175,6 +255,23 @@ export function RouteMap({
     latitude: -37.8136,
     zoom: 14.5,
   };
+
+  const [mapZoom, setMapZoom] = useState(melbourneCBD.zoom);
+  const safeSpaceMarkerScale = useMemo(
+    () => getSafeSpaceMarkerScale(mapZoom),
+    [mapZoom],
+  );
+  const noiseReportMarkerScale = useMemo(
+    () => getNoiseReportMarkerScale(mapZoom),
+    [mapZoom],
+  );
+  const visibleNoiseReportPin = useMemo(() => {
+    if (!noiseReportMarkerScale.visible || !selectedNoiseReportPin) {
+      return null;
+    }
+
+    return selectedNoiseReportPin;
+  }, [noiseReportMarkerScale.visible, selectedNoiseReportPin]);
 
   const routeGeoJson = useMemo(() => {
     if (!routeData) return null;
@@ -355,7 +452,13 @@ export function RouteMap({
         mapboxAccessToken={mapboxToken}
         mapStyle="mapbox://styles/mapbox/streets-v12"
 
+        onMove={(event) => {
+          setMapZoom(event.viewState.zoom);
+        }}
+
         onMoveEnd={(event) => {
+          setMapZoom(event.viewState.zoom);
+
           const center = event.target.getCenter();
           onMapCenterChange?.({
             lat: center.lat,
@@ -363,7 +466,10 @@ export function RouteMap({
           });
         }}
 
-        onLoad={() => setIsMapLoaded(true)}
+        onLoad={(event) => {
+          setIsMapLoaded(true);
+          setMapZoom(event.target.getZoom());
+        }}
       >
         {/* Crowd / noise road layer. High-crowd roads are shown in red. */}
         {crowdMapData && (
@@ -445,16 +551,45 @@ export function RouteMap({
           </Marker>
         )}
 
-        {noiseReportPins.map((pin) => (
-          <Marker
-            key={pin.id}
-            longitude={pin.lng}
-            latitude={pin.lat}
-            anchor="bottom"
+        {noiseReportMarkerScale.visible &&
+          noiseReportPins.map((pin) => (
+            <Marker
+              key={pin.id}
+              longitude={pin.lng}
+              latitude={pin.lat}
+              anchor="center"
+            >
+              <NoiseReportMarker
+                pin={pin}
+                nowMs={nowMs}
+                scale={noiseReportMarkerScale.scale}
+                visible={noiseReportMarkerScale.visible}
+                onClick={() => {
+                  setSelectedSafeSpace(null);
+                  setSelectedNoiseReportPin(pin);
+                }}
+              />
+            </Marker>
+          ))}
+
+        {visibleNoiseReportPin && (
+          <Popup
+            longitude={visibleNoiseReportPin.lng}
+            latitude={visibleNoiseReportPin.lat}
+            anchor="top"
+            closeOnClick={false}
+            onClose={() => setSelectedNoiseReportPin(null)}
+            offset={12}
+            maxWidth="220px"
           >
-            <NoiseReportMarker pin={pin} nowMs={nowMs} />
-          </Marker>
-        ))}
+            <div className="rounded-xl bg-white px-3 py-2.5 text-left text-[#1E2939]">
+              <div className="flex items-center gap-2">
+                <TriangleAlert size={16} className="shrink-0 text-[#B84732]" />
+                <p className="text-sm font-medium">High noise was reported here recently</p>
+              </div>
+            </div>
+          </Popup>
+        )}
 
         {routeData && (
           <>
@@ -463,8 +598,8 @@ export function RouteMap({
               latitude={routeData.start.lat}
               anchor="bottom"
             >
-              <div className="flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#D4B896] shadow-lg">
-                <Navigation size={22} className="text-white" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-[#D4B896] shadow-lg">
+                <Navigation size={18} className="text-white" />
               </div>
             </Marker>
 
@@ -473,35 +608,41 @@ export function RouteMap({
               latitude={routeData.end.lat}
               anchor="bottom"
             >
-              <div className="flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-[#7DB0A6] shadow-lg">
-                <MapPin size={22} className="text-white" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-[#7DB0A6] shadow-lg">
+                <MapPin size={18} className="text-white" />
               </div>
             </Marker>
           </>
         )}
 
-        {safeSpaces.map((safeSpace) => {
-          const stopNumber = selectedStopNumberById.get(safeSpace.id);
-          const isSelectedStop = stopNumber !== undefined;
+        {safeSpaceMarkerScale.visible &&
+          safeSpaces.map((safeSpace) => {
+            const stopNumber = selectedStopNumberById.get(safeSpace.id);
+            const isSelectedStop = stopNumber !== undefined;
 
-          return (
-            <Marker
-              key={safeSpace.id}
-              longitude={safeSpace.lng}
-              latitude={safeSpace.lat}
-              anchor="center"
-            >
-              <SafeSpaceMarker
-                safeSpace={safeSpace}
-                stopNumber={stopNumber}
-                isSelectedStop={isSelectedStop}
-                onClick={() => setSelectedSafeSpace(safeSpace)}
-              />
-            </Marker>
-          );
-        })}
+            return (
+              <Marker
+                key={safeSpace.id}
+                longitude={safeSpace.lng}
+                latitude={safeSpace.lat}
+                anchor="center"
+              >
+                <SafeSpaceMarker
+                  safeSpace={safeSpace}
+                  stopNumber={stopNumber}
+                  isSelectedStop={isSelectedStop}
+                  scale={safeSpaceMarkerScale.scale}
+                  visible={safeSpaceMarkerScale.visible}
+                  onClick={() => {
+                    setSelectedNoiseReportPin(null);
+                    setSelectedSafeSpace(safeSpace);
+                  }}
+                />
+              </Marker>
+            );
+          })}
 
-        {selectedSafeSpace && (
+        {selectedSafeSpace && safeSpaceMarkerScale.visible && (
           <Popup
             longitude={selectedSafeSpace.lng}
             latitude={selectedSafeSpace.lat}

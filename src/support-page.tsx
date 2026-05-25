@@ -1,7 +1,6 @@
+import { useNavigate, useLocation } from "react-router-dom";
 import { BreathingExercise } from "./breathing-exercise";
-// import { XButton } from "./components/x-button";
 import { useEffect, useState } from "react";
-// import { useNavigate } from "react-router-dom";
 import type { BadgeDefinition } from "./achievement-badges";
 import { BadgeUnlockedPopup } from "./components/badge-unlocked-popup";
 import { motion } from "framer-motion";
@@ -16,12 +15,12 @@ import { Menu } from "lucide-react";
 import { MobileMenu } from "./components/hamburger-menu";
 
 export function SupportPage() {
-  // const navigate = useNavigate();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [showExercise, setShowExercise] = useState(false);
   const [newBadgePopup, setNewBadgePopup] = useState<BadgeDefinition | null>(
     null,
   );
-
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -38,101 +37,139 @@ export function SupportPage() {
     return subscribeToAchievementsUpdates(tryShowNewBadge);
   }, [showExercise]);
 
-  // const handleClose = () => {
-  //   // This returns the user to their previous page
-  //   navigate(-1);
-  // };
-
   if (showExercise) {
-    return <BreathingExercise onClose={() => setShowExercise(false)} />;
+    return (
+      <BreathingExercise
+        onClose={() => {
+          setShowExercise(false);
+        }}
+      />
+    );
   }
 
+  const steps = [
+    {
+      duration: "4s",
+      label: "Inhale",
+      desc: "Breathe in quietly through your nose.",
+    },
+    {
+      duration: "7s",
+      label: "Hold",
+      desc: "Hold your breath gently and stay relaxed.",
+    },
+    {
+      duration: "8s",
+      label: "Exhale",
+      desc: 'Exhale completely through your mouth with a soft "whoosh" sound.',
+    },
+  ];
+
   return (
-    // creating a full screen container that centers the content in the middle.
-    <div className="flex flex-col h-dvh overflow-hidden font-sans">
+    <div className="flex flex-col h-dvh overflow-hidden font-sans text-[#101828]">
       <MobileMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
-      {/* Background colour */}
+
+      {/* Global Background Layer Canvas */}
       <div
         className="fixed inset-0 -z-10 bg-linear-to-b from-[#ffffff] via-[#d5e8e5] to-[#cfe3df]"
         aria-hidden="true"
       />
-      {/* Navbar */}
+
+      {/* Global Desktop Floating Navigation Bar */}
       <Navbar
         className="left-1/2 -translate-x-1/2 top-8 w-auto hidden lg:flex"
         showLogo={false}
       />
-      <header className="lg:hidden sticky top-0 z-20 flex items-center border-b border-slate-200 bg-white px-5 py-4">
-        {/* Hamburger menu */}
+
+      {/* Mobile Responsive Header */}
+      <header className="lg:hidden sticky top-0 z-20 flex items-center px-5 py-4">
         <button
-          className="p-4 bg-white/40 backdrop-blur-md rounded-full border border-white/20 text-[#1E2939] shadow-sm"
           onClick={() => setIsMenuOpen(true)}
+          className="p-4 bg-white/60 backdrop-blur-xl rounded-full border border-white/40 text-[#1E2939] shadow-sm"
         >
-          <Menu size={20} />
+          <Menu size={20} className="text-[#5A9A8E]" />
         </button>
-        {/* Header */}
-        <h1 className="flex-1 text-center text-lg font-semibold text-[#1e293b] mr-10">
-          Calming Tool
-        </h1>
       </header>
-      <main className="flex-1 flex items-center justify-center p-6">
+
+      {/* Core View Container Layout */}
+      <main className="flex-1 overflow-y-auto pt-6 md:pt-35 pb-10 px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1 }}
-          className="max-w-[1200px] w-full flex flex-col items-center"
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="max-w-3xl mx-auto"
         >
-          {/* card container for the explanation for the breathing exercise */}
+          {/* Header Block cloned from Soundscape layout structure typography */}
+          <div className="text-left mb-8 md:mb-12">
+            <h1 className="text-5xl md:text-6xl font-medium tracking-tight mb-2 text-[#1E2939]">
+              Breath Work
+            </h1>
+            <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-[0.3em] md:tracking-[0.4em] opacity-60 text-[#5A9A8E]">
+              REGULATE YOUR NERVOUS SYSTEM WITH GUIDED EXERCISE
+            </p>
+          </div>
 
-          <div className="w-full max-w-sm rounded-[2.5rem] bg-white p-8 shadow-2xl shadow-gray-200/50">
-            <div className="flex flex-col items-start gap-4">
-              <div className="flex items-center gap-4">
-                {/* icon container with svg wind icon inside */}
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-teal-50 text-[#5A9A8E]">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12.8 19.6A2 2 0 1 0 14 16H2" />
-                    <path d="M17.5 8a2.5 2.5 0 1 1 2 4H2" />
-                    <path d="M9.8 4.4A2 2 0 1 1 11 8H2" />
-                  </svg>
-                </div>
-                {/* text content for the breathing exercise */}
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-800">
-                    Breathing Techniques
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    Calm your mind and reduce stress
-                  </p>
-                </div>
+          {/* Activity Glassmorphic Content Panel Box */}
+          <div className="p-6 md:p-8 rounded-2xl bg-white/40 border border-white/50 backdrop-blur-3xl shadow-sm text-left space-y-6">
+            {/* Upper Context Block with Expanded Informative Copy */}
+            <div className="space-y-4">
+              <div className="space-y-3 text-[14px] md:text-[15px] leading-relaxed font-medium text-[#1E2939]/80">
+                <p>
+                  This guided breathing exercise follows the 4-7-8 breathing
+                  technique, a calming method designed to regulate your nervous
+                  system, and reduce feelings of stress or sensory overwhelm.
+                </p>
               </div>
-              {/* description for the breathing exercise */}
-              <p className="mt-2 text-[0.95rem] leading-relaxed text-slate-600">
-                Use guided breathing exercises to help manage overstimulation
-                and find your calm center.
-              </p>
-              {/* button to start the breathing exercise */}
-              <button
-                onClick={() => {
-                  incrementBreathingUses(1);
-                  setShowExercise(true);
-                }}
-                className="mt-4 w-full rounded-full bg-[#7DB0A6] py-4 text-lg font-medium text-[#FFFFFF] shadow-lg shadow-[#7DB0A6]/20 transition hover:opacity-90 cursor-pointer"
-              >
-                Start Breathing Exercise
-              </button>
+            </div>
+
+            {/* Separator Divider Line */}
+            <div className="h-[1px] w-full bg-[#1E2939]/5" />
+
+            {/* Clear Two-Step Breathing Rhythm Timeline */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-mono font-bold uppercase tracking-[0.15em] text-[#1E2939]/40 mb-1">
+                The Exercise Cadence
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {steps.map((step, idx) => (
+                  <div
+                    key={idx}
+                    className="flex flex-row md:flex-col items-center md:items-start gap-4 p-4 rounded-xl bg-white/50 border border-white/80 shadow-xs transition-all"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#5A9A8E]/10 text-[#5A9A8E] font-mono text-xs font-black">
+                      {step.duration}
+                    </div>
+                    <div>
+                      <h4 className="text-[14px] font-black text-[#1E2939]">
+                        {step.label}
+                      </h4>
+                      <p className="text-[11px] md:text-[12px] font-medium text-[#1E2939]/60 leading-tight mt-0.5">
+                        {step.desc}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
+
+          {/* Action Trigger Button mounted outside the container */}
+          <button
+            className="mt-4 w-full rounded-2xl bg-[#5A9A8E] py-4 text-sm font-bold text-white shadow-md hover:opacity-85 transition-all active:scale-[0.99] cursor-pointer"
+            onClick={() => {
+              incrementBreathingUses(1);
+
+              navigate("/breathing-exercise", {
+                state: { fromMap: location.state?.fromMap },
+              });
+            }}
+          >
+            Start Breathing Exercise
+          </button>
         </motion.div>
       </main>
+
+      {/* Achievements Popup Queue Banner Layer */}
       {newBadgePopup && (
         <BadgeUnlockedPopup
           key={newBadgePopup.id}

@@ -5,6 +5,7 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [volume, setVolume] = useState(0.5);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -12,10 +13,25 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [volume]);
 
+  const pauseAudio = () => {
+    audioRef.current?.pause();
+    setIsPaused(true);
+  };
+
+  const resumeAudio = () => {
+    audioRef.current?.play();
+    setIsPaused(false);
+  };
+
   const togglePlay = (id: string, url: string) => {
     if (playingId === id) {
-      audioRef.current?.pause();
-      setPlayingId(null);
+      if (isPaused) {
+        audioRef.current?.play();
+        setIsPaused(false);
+      } else {
+        audioRef.current?.pause();
+        setIsPaused(true);
+      }
       return;
     }
 
@@ -29,11 +45,25 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
     newAudio.play().catch((err) => console.error("Audio play blocked:", err));
 
     audioRef.current = newAudio;
+
     setPlayingId(id);
+    setIsPaused(false);
+
+    sessionStorage.setItem("hushnav-audio-used", "true");
   };
 
   return (
-    <AudioContext.Provider value={{ playingId, togglePlay, volume, setVolume }}>
+    <AudioContext.Provider
+      value={{
+        playingId,
+        togglePlay,
+        volume,
+        setVolume,
+        isPaused,
+        pauseAudio,
+        resumeAudio,
+      }}
+    >
       {children}
     </AudioContext.Provider>
   );
