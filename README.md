@@ -1,25 +1,29 @@
-## AWS Amplify React+Vite Starter Template
+# HushNav
+A sensory-friendly navigation platform designed to help individuals that are sensitive to noise to explore Melbourne CBD with greater confidence, comfort, and control. The platform provides personalised routing, noise-awareness features and calming support tools to reduce sensory overload during travel and daily activities.
 
-This repository provides a starter template for creating applications using React+Vite and AWS Amplify, emphasizing easy setup for authentication, API, and database capabilities.
+The project was created to address a common challenge faced by individuals with sensory sensitivities, which is the uncertainty and stress when navigating noisy, crowded, or overstimulating environments.
 
-## Overview
-
-This template equips you with a foundational React application integrated with AWS Amplify, streamlined for scalability and performance. It is ideal for developers looking to jumpstart their project with pre-configured AWS services like Cognito, AppSync, and DynamoDB.
+🔗 **Website Link: https://hushnav.app/**
+<img width="1470" height="798" alt="image" src="https://github.com/user-attachments/assets/09c81ecd-3633-42cd-82da-5427346c87aa" />
 
 ## Features
+### 🌿 Personalised Sensory Routing
+- Custom routes based on sensory preferences
+- Avoid crowded or noisy areas
+- Accessibility-focused navigation experience
 
-- **Authentication**: Setup with Amazon Cognito for secure user authentication.
-- **API**: Ready-to-use GraphQL endpoint with AWS AppSync.
-- **Database**: Real-time database powered by Amazon DynamoDB.
+### 🗺️ Interactive Map Experience
+- Filter locations based on sensory needs and noise sensitivity
+- Discover nearby quiet spaces along routes for emotional regulation and recovery
 
-## Deploying to AWS
+### 🔊 Noise Awareness & Monitoring
+- Real-time noise insights
+- Surroundings sound-level visualisation
 
-For detailed instructions on deploying your application, refer to the [deployment section](https://docs.amplify.aws/react/start/quickstart/#deploy-a-fullstack-app-to-aws) of our documentation.
+### 🧘 Calming Support Tools
+- Guided breathing exercises
+- Soundscape support for relaxation
 
-## Security
 
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
 
-## License
 
-This library is licensed under the MIT-0 License. See the LICENSE file. 
