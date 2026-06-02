@@ -1,3 +1,4 @@
+import { geocodePlace } from "./geocode";
 import { getAllSafeSpaces } from "./safeSpaces";
 
 // ================= PLAN ROUTE HANDLER =================
@@ -67,6 +68,33 @@ export async function handleGetSafeSpaces() {
           error instanceof Error
             ? error.message
             : "Failed to load safe spaces.",
+      }),
+    };
+  }
+}
+
+// ================= GEOCODE HANDLER =================
+
+export async function handleGeocodeSuggestions(query: string) {
+  try {
+    const result = await geocodePlace(query);
+
+    return {
+      statusCode: 200,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        suggestions: [result],
+      }),
+    };
+  } catch (error) {
+    console.error("Geocode handler error:", error);
+
+    return {
+      statusCode: error instanceof Error && error.message === "No geocoding result found." ? 404 : 500,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        suggestions: [],
+        error: "Failed to load geocode suggestions.",
       }),
     };
   }

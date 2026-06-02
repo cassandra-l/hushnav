@@ -4,6 +4,7 @@ import cors from "cors";
 import { testConnection, closePool } from "./db";
 import { startScheduler, stopScheduler } from "./scheduler";
 import {
+  handleGeocodeSuggestions,
   handlePlanRoute,
   handleGetSafeSpaces,
 } from "./services/handler";
@@ -12,9 +13,6 @@ import {
   handleCreateNoiseReport,
   handleGetNoiseReports,
 } from "./spatialData/noiseReportsHandler";
-
-// Dynamically import geocode handler
-import { handler as geocodeSuggestionsLambdaHandler } from "./functions/geocode-suggestions/handler";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -122,14 +120,7 @@ app.post("/api/noise-reports", createNoiseReportHandler);
 const geocodeSuggestionsHandler = async (req: Request, res: Response) => {
   try {
     const q = typeof req.query.q === "string" ? req.query.q : "";
-
-    const result = await geocodeSuggestionsLambdaHandler({
-      httpMethod: "GET",
-      queryStringParameters: {
-        q,
-      },
-    });
-
+    const result = await handleGeocodeSuggestions(q);
     res
       .status(result.statusCode)
       .set(result.headers ?? {})

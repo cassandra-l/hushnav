@@ -1,4 +1,4 @@
-import { pool } from "./db";
+import { pool } from "../db";
 import type { LineString } from "geojson";
 
 // Safe space returned to the frontend
