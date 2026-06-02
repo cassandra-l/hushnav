@@ -21,6 +21,7 @@ dist-ssr
 # -------------------------
 .env
 .env.*
+.env.local
 *.local
 coverage
 
@@ -42,19 +43,13 @@ coverage
 *.sw?
 
 # -------------------------
-# Amplify
-# -------------------------
-.amplify
-amplify_outputs*
-amplifyconfiguration*
-
-# -------------------------
 # Docker & Database
 # -------------------------
 docker/init-db/*.sql
 !docker/init-db/01-schema.sql
 .postgres
 postgres_data/
+
 
 
 # -------------------------
