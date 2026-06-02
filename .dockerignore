@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.gitignore
+backend/
+database_schema_dataimports/
+docker/
+.env
+.env.example
+server.ts
+amplify.yml
+amplify_outputs.json
+capacitor.config.ts
+docker-compose.yml
