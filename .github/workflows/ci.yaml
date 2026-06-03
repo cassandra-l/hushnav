@@ -37,6 +37,27 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  docker-build-check:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build forecast image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./database_schema_dataimports
+          file: ./database_schema_dataimports/Dockerfile.forecast
+          push: false
+
+      - name: Build import image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./database_schema_dataimports
+          file: ./database_schema_dataimports/Dockerfile.import
+          push: false
+
   sonar-main:
     if: github.event_name == 'push'
     needs: main-checks

@@ -5,6 +5,7 @@ on:
     branches:
       - dockerise
     paths:
+      - "database_schema_dataimports/**"
       - "src/**"
       - "public/**"
       - "Dockerfile.frontend"
@@ -79,3 +80,41 @@ jobs:
           push: true
           tags: ${{ steps.backend-meta.outputs.tags }}
           labels: ${{ steps.backend-meta.outputs.labels }}
+
+      - name: Extract metadata for forecast
+        id: forecast-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_REPO }}-forecast
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push forecast image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./database_schema_dataimports
+          file: ./database_schema_dataimports/Dockerfile.forecast
+          push: true
+          tags: ${{ steps.forecast-meta.outputs.tags }}
+          labels: ${{ steps.forecast-meta.outputs.labels }}
+
+      - name: Extract metadata for import
+        id: import-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_REPO }}-import
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push import image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./database_schema_dataimports
+          file: ./database_schema_dataimports/Dockerfile.import
+          push: true
+          tags: ${{ steps.import-meta.outputs.tags }}
+          labels: ${{ steps.import-meta.outputs.labels }}
