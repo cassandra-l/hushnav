@@ -1,0 +1,16 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgdal-dev \
+    libspatialindex-dev \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY import_requirements.txt .
+RUN pip install --no-cache-dir -r import_requirements.txt
+
+COPY importing-nodes-edges.py .
+
+CMD ["python", "importing-nodes-edges.py"]

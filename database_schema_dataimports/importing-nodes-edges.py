@@ -1,11 +1,17 @@
+import os
+import sys
+
 import osmnx as ox
 import geopandas as gpd
 from sqlalchemy import create_engine
 from geoalchemy2 import Geometry
 
 # config
-db_link = "postgresql://postgres:hushnav123@hushnav-db.c764wq4a45jm.ap-southeast-2.rds.amazonaws.com:5432/postgres"
-engine = create_engine(db_link)
+database_url = os.environ.get("DATABASE_URL")
+if not database_url:
+    print("DATABASE_URL environment variable is required.", file=sys.stderr)
+    raise SystemExit(1)
+engine = create_engine(database_url)
 
 # downloading only the walkable network for city of melbourne
 # this includes CBD, carlton, docklands, east melbourne, kensington, southbank, south melbourne, west melbourne, and parkville

@@ -1,0 +1,14 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+RUN groupadd -r forecast && useradd -r -g forecast forecast
+
+COPY forecast_requirements.txt .
+RUN pip install --no-cache-dir -r forecast_requirements.txt
+
+COPY forecast_edge_weights.py .
+
+USER forecast
+
+CMD ["python", "forecast_edge_weights.py"]
