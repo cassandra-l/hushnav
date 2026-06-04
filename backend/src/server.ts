@@ -1,18 +1,18 @@
 import "dotenv/config";
 import express, { Request, Response } from "express";
 import cors from "cors";
-import { testConnection, closePool } from "./db";
-import { startScheduler, stopScheduler } from "./scheduler";
+import { testConnection, closePool } from "./db.js";
+import { startScheduler, stopScheduler } from "./scheduler.js";
 import {
   handleGeocodeSuggestions,
   handlePlanRoute,
   handleGetSafeSpaces,
-} from "./services/handler";
-import { handleCrowdMap } from "./spatialData/handler";
+} from "./services/handler.js";
+import { handleCrowdMap } from "./spatialData/handler.js";
 import {
   handleCreateNoiseReport,
   handleGetNoiseReports,
-} from "./spatialData/noiseReportsHandler";
+} from "./spatialData/noiseReportsHandler.js";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;

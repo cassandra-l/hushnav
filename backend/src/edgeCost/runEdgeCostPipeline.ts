@@ -1,12 +1,12 @@
-import { fetchMicroclimateData, upsertNoiseSensors } from "./fetchNoise";
+import { fetchMicroclimateData, upsertNoiseSensors } from "./fetchNoise.js";
 import {
   fetchPedestrianDataFull,
   fetchPedestrianDataIncremental,
   upsertPedestrianSensors,
   type PedestrianCountRecord,
   type PedestrianLocation,
-} from "./fetchCrowd";
-import { updateEdgeWeights } from "./updateEdgeWeights";
+} from "./fetchCrowd.js";
+import { updateEdgeWeights } from "./updateEdgeWeights.js";
 
 export async function runEdgeCostPipeline() {
   const skipNoiseFetch =

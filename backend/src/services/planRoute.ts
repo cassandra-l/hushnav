@@ -1,4 +1,4 @@
-import { geocodePlace } from "./geocode";
+import { geocodePlace } from "./geocode.js";
 import {
   findQuietestRoute,
   getQuietestRouteFromCoordinates,
@@ -6,13 +6,13 @@ import {
   type AvoidMode,
   type RouteMode,
   type RouteResult,
-} from "./route";
+} from "./route.js";
 import {
   getSafeSpacesNearRoute,
   getSafeSpaceById,
   type SafeSpace,
   type SafeSpaceType,
-} from "./safeSpaces";
+} from "./safeSpaces.js";
 import type { LineString } from "geojson";
 
 export type Coordinate = {

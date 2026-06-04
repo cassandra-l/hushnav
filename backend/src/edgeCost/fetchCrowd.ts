@@ -1,5 +1,5 @@
 import axios from "axios";
-import { pool } from "./db";
+import { pool } from "./db.js";
 
 export type PedestrianCountRecord = {
   location_id: number;

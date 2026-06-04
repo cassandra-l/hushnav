@@ -1,4 +1,4 @@
-import { pool } from "./db";
+import { pool } from "./db.js";
 import type { LineString, MultiLineString } from "geojson";
 
 // A row returned from the crowd map query

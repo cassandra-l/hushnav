@@ -1,5 +1,5 @@
-import { geocodePlace } from "./geocode";
-import { getAllSafeSpaces } from "./safeSpaces";
+import { geocodePlace } from "./geocode.js";
+import { getAllSafeSpaces } from "./safeSpaces.js";
 
 // ================= PLAN ROUTE HANDLER =================
 
@@ -11,7 +11,7 @@ export async function handlePlanRoute(body: unknown) {
   try {
     // Dynamically import planRoute only when needed.
     // This prevents unnecessary loading (important for Lambda cold starts).
-    const { planRoute } = await import("./planRoute");
+    const { planRoute } = await import("./planRoute.js");
 
     // Call the actual routing logic
     const result = await planRoute(

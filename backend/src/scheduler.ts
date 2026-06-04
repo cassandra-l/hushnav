@@ -1,7 +1,7 @@
 import * as cron from "node-cron";
-import { runEdgeCostPipeline } from "./edgeCost/runEdgeCostPipeline";
-import { runConstructionPipeline } from "./construction/runConstructionPipeline";
-import { cleanupNoiseReports } from "./spatialData/noiseReports";
+import { runEdgeCostPipeline } from "./edgeCost/runEdgeCostPipeline.js";
+import { runConstructionPipeline } from "./construction/runConstructionPipeline.js";
+import { cleanupNoiseReports } from "./spatialData/noiseReports.js";
 
 let jobs: cron.ScheduledTask[] = [];
 

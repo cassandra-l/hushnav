@@ -1,12 +1,12 @@
-import { fetchMicroclimateData, upsertNoiseSensors } from "./fetchNoise";
+import { fetchMicroclimateData, upsertNoiseSensors } from "./fetchNoise.js";
 import {
   fetchPedestrianDataFull,
   fetchPedestrianDataIncremental,
   upsertPedestrianSensors,
   type PedestrianCountRecord,
   type PedestrianLocation,
-} from "./fetchCrowd";
-import { updateEdgeWeights } from "./updateEdgeWeights";
+} from "./fetchCrowd.js";
+import { updateEdgeWeights } from "./updateEdgeWeights.js";
 
 // This handler is used by AWS Lambda
 export const handler = async () => {

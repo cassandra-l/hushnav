@@ -1,7 +1,7 @@
 import {
   refreshConstructionBlockedEdges,
   runConstructionIngestion,
-} from "./fetchConstruction";
+} from "./fetchConstruction.js";
 
 export async function runConstructionPipeline(): Promise<{
   blockedEdges: number;

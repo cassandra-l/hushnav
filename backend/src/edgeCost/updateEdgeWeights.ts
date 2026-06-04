@@ -1,6 +1,6 @@
-import { pool } from "./db";
-import type { SensorRow } from "./fetchNoise";
-import type { PedestrianSensorRow } from "./fetchCrowd";
+import { pool } from "./db.js";
+import type { SensorRow } from "./fetchNoise.js";
+import type { PedestrianSensorRow } from "./fetchCrowd.js";
 
 // A row from the node table
 export type NodeRow = {

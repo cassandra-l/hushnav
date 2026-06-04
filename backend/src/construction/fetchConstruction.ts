@@ -1,5 +1,5 @@
 import axios from "axios";
-import { pool } from "../edgeCost/db";
+import { pool } from "../edgeCost/db.js";
 
 const BASE_URL =
   "https://api.opendata.transport.vic.gov.au/opendata/roads/disruptions/planned/v1/";

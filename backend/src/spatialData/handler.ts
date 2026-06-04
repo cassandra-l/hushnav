@@ -1,4 +1,4 @@
-import { getCrowdMapData } from "./noiseMap";
+import { getCrowdMapData } from "./noiseMap.js";
 
 export async function handleCrowdMap() {
   try {

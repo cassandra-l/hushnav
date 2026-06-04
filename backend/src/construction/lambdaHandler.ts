@@ -1,4 +1,4 @@
-import { runConstructionPipeline } from "./runConstructionPipeline";
+import { runConstructionPipeline } from "./runConstructionPipeline.js";
 
 export const handler = async () => {
   try {

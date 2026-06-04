@@ -1,4 +1,4 @@
-import { createNoiseReport, getNoiseReports } from "./noiseReports";
+import { createNoiseReport, getNoiseReports } from "./noiseReports.js";
 
 function isValidCoordinate(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);

@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS edge_forecasts (
   predicted_noise_db FLOAT,
   predicted_crowd_count FLOAT,
   forecast_time TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(run_id, edge_id, forecast_time)
 );
 
