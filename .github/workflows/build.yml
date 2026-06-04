@@ -21,7 +21,7 @@ env:
   IMAGE_OWNER: ${{ github.repository_owner }}
   IMAGE_REPO: ${{ github.event.repository.name }}
   # Dummy example strings baked into the SPA at build time
-  VITE_API_BASE_URL: https://api.hushnav.casslee.dev
+  VITE_API_BASE_URL: https://hushnav.casslee.dev/api
   VITE_MAPBOX_TOKEN: ${{secrets.MAPBOX_TOKEN}}
 
 jobs:
