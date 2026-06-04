@@ -34,7 +34,7 @@ export async function geocodePlace(query: string): Promise<GeocodeResult> {
         language: "en",
         types: "address,street,place,locality,neighborhood",
       },
-    }
+    },
   );
 
   const features = response.data?.features;
@@ -61,7 +61,7 @@ export async function geocodePlace(query: string): Promise<GeocodeResult> {
     displayName:
       first.properties?.full_address ||
       first.properties?.name ||
-      first.place_name ||
+      first.properties?.place_name ||
       trimmedQuery,
   };
 }

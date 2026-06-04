@@ -1,4 +1,4 @@
-import { geocodePlace } from "./geocode.js";
+import { geocodeSuggestions } from "./geocode-suggestions.js";
 import { getAllSafeSpaces } from "./safeSpaces.js";
 
 // ================= PLAN ROUTE HANDLER =================
@@ -77,25 +77,20 @@ export async function handleGetSafeSpaces() {
 
 export async function handleGeocodeSuggestions(query: string) {
   try {
-    const result = await geocodePlace(query);
+    const suggestions = await geocodeSuggestions(query);
 
     return {
       statusCode: 200,
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        suggestions: [result],
-      }),
+      body: JSON.stringify({ suggestions }),
     };
   } catch (error) {
     console.error("Geocode handler error:", error);
 
     return {
-      statusCode: error instanceof Error && error.message === "No geocoding result found." ? 404 : 500,
+      statusCode: 200,
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        suggestions: [],
-        error: "Failed to load geocode suggestions.",
-      }),
+      body: JSON.stringify({ suggestions: [] }),
     };
   }
 }
