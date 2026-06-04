@@ -20,6 +20,9 @@ env:
   REGISTRY: ghcr.io
   IMAGE_OWNER: ${{ github.repository_owner }}
   IMAGE_REPO: ${{ github.event.repository.name }}
+  # Dummy example strings baked into the SPA at build time
+  VITE_API_BASE_URL: https://api.hushnav.casslee.dev
+  VITE_MAPBOX_TOKEN: ${{secrets.MAPBOX_TOKEN}}
 
 jobs:
   build-and-push:
@@ -59,6 +62,9 @@ jobs:
           push: true
           tags: ${{ steps.frontend-meta.outputs.tags }}
           labels: ${{ steps.frontend-meta.outputs.labels }}
+          build-args: |
+            VITE_API_BASE_URL=${{ env.VITE_API_BASE_URL }}
+            VITE_MAPBOX_TOKEN=${{ env.VITE_MAPBOX_TOKEN }}
 
       - name: Extract metadata for backend
         id: backend-meta
