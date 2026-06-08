@@ -45,8 +45,6 @@ coverage
 # -------------------------
 # Docker & Database
 # -------------------------
-docker/init-db/*.sql
-!docker/init-db/01-schema.sql
 .postgres
 postgres_data/
 

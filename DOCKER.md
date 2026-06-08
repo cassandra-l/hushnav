@@ -145,6 +145,14 @@ Or use a GUI tool like pgAdmin or DBeaver with connection details:
 - User: `hushnav`
 - Password: (from `.env` POSTGRES_PASSWORD)
 
+### Apply schema to a self-hosted database
+
+For a fresh Postgres/PostGIS instance (local Docker applies this automatically on first start):
+
+```bash
+psql "$DATABASE_URL" -f schema.sql
+```
+
 ## Architecture
 
 ### Frontend Container
@@ -181,7 +189,7 @@ Or use a GUI tool like pgAdmin or DBeaver with connection details:
 
 - **Image**: PostGIS 3.4 (PostgreSQL 17 + spatial extensions)
 - **Port**: 5432 (internal to network, not exposed by default)
-- **Initialization**: Runs SQL scripts from `docker/init-db/` on first start
+- **Initialization**: Runs `schema.sql` on first start
 - **Volume**: `postgres_data` - persists database across container restarts
 - **Schema**: Includes tables for nodes, edges, sensors, noise reports, safe spaces, and forecast data
 
