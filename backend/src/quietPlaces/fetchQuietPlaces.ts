@@ -22,7 +22,7 @@ export type QuietPlaceRecord = {
 };
 
 export async function fetchQuietPlaces(): Promise<QuietPlaceRecord[]> {
-  const limit = 250;
+  const limit = 100;
   let offset = 0;
   const results: QuietPlaceRecord[] = [];
 
