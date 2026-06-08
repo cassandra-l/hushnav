@@ -1,0 +1,100 @@
+# Reference Docker Swarm stack for Hushnav.
+#
+# Deploy:
+#   docker stack deploy -c docs/swarm-stack.example.yml hushnav
+#
+# Before first deploy on a fresh database, run bootstrap jobs — see SWARM-BOOTSTRAP.md:
+#   1. Apply schema.sql in pgAdmin
+#   2. docker service create ... hushnav-import (graph import)
+#   3. docker service create ... hushnav-backend dist/bootstrap/quietPlaces.js
+#
+# Replace placeholders: IMAGE_TAG, passwords, API keys, hostnames.
+
+services:
+  postgres:
+    image: postgis/postgis:17-3.4
+    networks:
+      - hushnav
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: CHANGE_ME
+    volumes:
+      - hushnav-db-data:/var/lib/postgresql/data
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ghcr.io/cassandra-l/hushnav-backend:IMAGE_TAG
+    networks:
+      - hushnav
+      # - traefik-public   # uncomment if using Traefik
+    environment:
+      DATABASE_URL: postgresql://postgres:CHANGE_ME@postgres:5432/postgres?sslmode=disable
+      MAPBOX_TOKEN: CHANGE_ME
+      TRANSPORT_VIC_API_KEY: CHANGE_ME
+      SKIP_NOISE_FETCH: "false"
+      SKIP_CROWD_FETCH: "false"
+      CROWD_MODE: incremental
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      # labels:            # uncomment and adjust for Traefik
+      #   - traefik.enable=true
+      #   - traefik.http.routers.hushnav-api.rule=Host(`hushnav.example.com`) && PathPrefix(`/api/`)
+      #   - traefik.http.services.hushnav-api.loadbalancer.server.port=3000
+
+  frontend:
+    image: ghcr.io/cassandra-l/hushnav-frontend:IMAGE_TAG
+    networks:
+      - hushnav
+      # - traefik-public
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      # labels:
+      #   - traefik.enable=true
+      #   - traefik.http.routers.hushnav.rule=Host(`hushnav.example.com`)
+      #   - traefik.http.services.hushnav.loadbalancer.server.port=80
+
+  # Weekly forecast — Swarm cronjob triggers a one-shot container run.
+  # Requires a Swarm cron plugin (e.g. swarm-cronjob).
+  forecast-job:
+    image: ghcr.io/cassandra-l/hushnav-forecast:IMAGE_TAG
+    networks:
+      - hushnav
+    environment:
+      DATABASE_URL: postgresql://postgres:CHANGE_ME@postgres:5432/postgres?sslmode=disable
+      DATABASE_SSLMODE: disable
+      FORECAST_HISTORY_DAYS: 28
+      PEDESTRIAN_HISTORY_SOURCE: hourly
+    deploy:
+      mode: replicated
+      replicas: 0
+      restart_policy:
+        condition: none
+      labels:
+        - swarm.cronjob.enable=true
+        - swarm.cronjob.schedule=0 0 * * 1
+        - swarm.cronjob.skip-running=false
+
+volumes:
+  hushnav-db-data:
+
+networks:
+  hushnav:
+    driver: overlay
+  # traefik-public:
+  #   external: true

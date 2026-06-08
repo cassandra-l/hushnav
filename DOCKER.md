@@ -1,333 +1,271 @@
 # Hushnav Docker Deployment
 
-This document describes how to build and run the Hushnav application using Docker and Docker Compose.
+This document describes how to build, run, and deploy the Hushnav application with Docker Compose and Docker Swarm.
 
 ## Overview
 
-The Hushnav application is containerized into 3 services:
+### Long-running services (`docker compose up -d`)
 
-1. **Frontend** (NGINX) - Serves the React/Vite SPA on port 80
-2. **Backend** (Node.js Express) - Provides REST API endpoints on port 3000
-3. **PostgreSQL** - Database with PostGIS extension on port 5432 (internal)
+| Service | Purpose |
+|---------|---------|
+| `postgres` | PostGIS database (empty on first start — schema applied manually) |
+| `backend` | REST API + scheduled JS jobs (noise, crowd, construction, cleanup) |
+| `frontend` | React SPA served by NGINX |
 
-All services communicate over a shared Docker bridge network and are orchestrated using Docker Compose.
+### Manual bootstrap (once per fresh database)
+
+| Step | How | Purpose |
+|------|-----|---------|
+| 1. Schema | pgAdmin or `psql` — paste [`schema.sql`](schema.sql) | Create tables |
+| 2. Graph import | `docker compose --profile bootstrap run --rm graph-import` | Load `node` / `edge` |
+| 3. Quiet places | `docker compose --profile bootstrap run --rm quiet-places-import` | Load `safe_space` |
+
+Bootstrap services use the `bootstrap` profile and are **not** started by `docker compose up -d`.
+
+### Scheduled jobs
+
+| Job | Where | Schedule |
+|-----|-------|----------|
+| Edge cost pipeline | `backend` (node-cron) | Every 5 minutes |
+| Construction pipeline | `backend` (node-cron) | Every 5 minutes |
+| Noise report cleanup | `backend` (node-cron) | Every 5 minutes |
+| Weekly forecast | Swarm cron (`forecast-job`) | Monday 00:00 UTC |
+
+The forecast image is a run-to-completion container — it is **not** a long-running service. Schedule it at the infrastructure layer (Docker Swarm cronjob). See [docs/SWARM-BOOTSTRAP.md](docs/SWARM-BOOTSTRAP.md) and [docs/swarm-stack.example.yml](docs/swarm-stack.example.yml).
 
 ## Prerequisites
 
 - Docker Engine 24.0 or higher
 - Docker Compose 2.20 or higher
+- For production images: access to GitHub Container Registry (`ghcr.io`)
 
-## Quick Start
+## Quick Start (local development)
 
-### 1. Create Environment File
-
-Copy the example environment file and customize it:
+### 1. Create environment file
 
 ```bash
 cp .env.example .env
 ```
 
 Edit `.env` and set at minimum:
-- `POSTGRES_PASSWORD`: A secure password for the PostgreSQL database
-- `MAPBOX_TOKEN`: Your Mapbox API key for geocoding functionality
 
-Example `.env`:
-```
-POSTGRES_DB=hushnav
-POSTGRES_USER=hushnav
-POSTGRES_PASSWORD=your_secure_password_here
-POSTGRES_PORT=5432
-NODE_ENV=production
-MAPBOX_TOKEN=your_mapbox_api_key
-SKIP_NOISE_FETCH=false
-SKIP_CROWD_FETCH=false
-CROWD_MODE=incremental
-BACKEND_PORT=3000
-FRONTEND_PORT=80
-VITE_API_BASE_URL=http://backend:3000
-```
+- `POSTGRES_PASSWORD` — database password
+- `MAPBOX_TOKEN` — Mapbox API key for geocoding
+- `TRANSPORT_VIC_API_KEY` — Transport Victoria API key for construction data
 
-### 2. Build Images
+### 2. Start Postgres
 
 ```bash
-docker-compose build
+docker compose up -d postgres
 ```
 
-This will:
-- Build the backend image from `backend/Dockerfile`
-- Build the frontend image from `Dockerfile.frontend`
-- Use pre-built `postgis/postgis:17-3.4` image for PostgreSQL
-
-### 3. Start Services
+Wait until healthy:
 
 ```bash
-docker-compose up -d
+docker compose ps postgres
 ```
 
-The `-d` flag runs services in the background (detached mode).
+### 3. Apply schema manually
 
-### 4. Verify Services
+**Option A — pgAdmin (preferred):**
 
-Check if all services are running:
+1. Connect pgAdmin to `localhost:5432` (user/password from `.env`)
+2. Open Query Tool on your database
+3. Open [`schema.sql`](schema.sql), paste the full contents, and execute
+
+**Option B — psql:**
 
 ```bash
-docker-compose ps
+psql "postgresql://hushnav:your_password@localhost:5432/hushnav?sslmode=disable" -f schema.sql
 ```
 
-You should see 3 containers with status "Up":
-```
-NAME                 STATUS
-hushnav-frontend     Up (healthy)
-hushnav-backend      Up (healthy)
-hushnav-postgres     Up (healthy)
-```
-
-### 5. Access the Application
-
-- **Frontend**: http://localhost (or http://localhost:80)
-- **API Health**: http://localhost:3000/api/health
-- **API Base URL** (from frontend): http://backend:3000
-
-## Common Commands
-
-### View Logs
-
-View logs from all services:
-```bash
-docker-compose logs -f
-```
-
-View logs from a specific service:
-```bash
-docker-compose logs -f backend
-docker-compose logs -f frontend
-docker-compose logs -f postgres
-```
-
-### Stop Services
+### 4. Run bootstrap jobs (once per fresh DB)
 
 ```bash
-docker-compose stop
+docker compose --profile bootstrap run --rm graph-import
+docker compose --profile bootstrap run --rm quiet-places-import
 ```
 
-### Restart Services
+Both jobs are idempotent — they skip automatically if data already exists.
+
+### 5. Start the application
 
 ```bash
-docker-compose restart
+docker compose up -d backend frontend
 ```
 
-### Down: Stop and Remove Containers
+### 6. Verify
 
 ```bash
-docker-compose down
+docker compose ps
 ```
 
-Note: This removes containers but preserves the `postgres_data` volume.
+Expected running services: `postgres`, `backend`, `frontend`.
 
-### Remove All Data (including database)
+- Frontend: http://localhost
+- API health: http://localhost:3000/api/health
+
+## Scheduled and background jobs
+
+### Inside the backend container (automatic)
+
+Configured in [`backend/src/scheduler.ts`](backend/src/scheduler.ts), started when the backend server starts:
+
+| Job | Schedule | What it does |
+|-----|----------|--------------|
+| Edge cost pipeline | Every 5 min | Fetches live noise + pedestrian data, updates `edge_weight` |
+| Construction pipeline | Every 5 min | Fetches Transport Vic disruptions, updates blocked edges |
+| Noise report cleanup | Every 5 min | Deletes `noise_report` rows older than 30 minutes |
+
+### Weekly forecast (infrastructure-scheduled)
+
+The forecast image runs once and exits. On Docker Swarm, schedule it with a cronjob service (`replicas: 0`, `swarm.cronjob.*` labels). See [docs/swarm-stack.example.yml](docs/swarm-stack.example.yml).
+
+Run a one-off forecast manually (local):
 
 ```bash
-docker-compose down -v
+docker build -t hushnav-forecast -f database_schema_dataimports/Dockerfile.forecast database_schema_dataimports
+docker run --rm --network hushnav_hushnav-net \
+  -e DATABASE_URL="postgresql://hushnav:password@postgres:5432/hushnav?sslmode=disable" \
+  -e DATABASE_SSLMODE=disable \
+  -e FORECAST_HISTORY_DAYS=28 \
+  hushnav-forecast
 ```
 
-## Accessing PostgreSQL
+Or use a pre-built image from GHCR with the same `docker run` pattern.
 
-Connect to the PostgreSQL database from the host:
+## Environment variables
+
+See [`.env.example`](.env.example) for the full list.
+
+### Shared database connection
+
+```
+postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+```
+
+| Variable | Used by | Required | Description |
+|----------|---------|----------|-------------|
+| `POSTGRES_DB` | postgres | yes | Database name |
+| `POSTGRES_USER` | postgres | yes | Database user |
+| `POSTGRES_PASSWORD` | postgres | yes | Database password |
+| `POSTGRES_PORT` | postgres | no | Host port mapping (default `5432`) |
+| `DATABASE_SSLMODE` | forecast job | no | Postgres SSL mode (default `disable`) |
+
+### Backend
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `MAPBOX_TOKEN` | yes | Geocoding API key |
+| `TRANSPORT_VIC_API_KEY` | yes | Construction disruption API key |
+| `SKIP_NOISE_FETCH` | no | Set `true` to skip live noise fetch |
+| `SKIP_CROWD_FETCH` | no | Set `true` to skip live crowd fetch |
+| `CROWD_MODE` | no | `incremental` (default) or `full` |
+
+### Forecast job
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `FORECAST_HISTORY_DAYS` | no | Days of history to fetch (default `28`) |
+| `PEDESTRIAN_HISTORY_SOURCE` | no | `hourly` (default) or other source |
+
+### Production images (`docker-compose.prod.yml`)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GITHUB_OWNER` | yes | GitHub org/user owning the images |
+| `GITHUB_REPO` | yes | Repository name |
+| `IMAGE_TAG` | no | Image tag (default `latest`) |
+
+## Production deployment with Docker Compose
+
+```bash
+cp .env.example .env
+docker login ghcr.io -u <github-username> -p <github-token>
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d postgres
+
+# Apply schema (pgAdmin or psql), then bootstrap:
+docker compose -f docker-compose.prod.yml --profile bootstrap run --rm graph-import
+docker compose -f docker-compose.prod.yml --profile bootstrap run --rm quiet-places-import
+
+docker compose -f docker-compose.prod.yml up -d backend frontend
+```
+
+## Production deployment with Docker Swarm
+
+> **First-deploy bootstrap:** See [docs/SWARM-BOOTSTRAP.md](docs/SWARM-BOOTSTRAP.md) for schema (pgAdmin), graph import, and quiet places steps.
+>
+> **Stack reference:** See [docs/swarm-stack.example.yml](docs/swarm-stack.example.yml) for a complete Swarm stack including the `forecast-job` cronjob.
+
+Swarm does not support Compose bootstrap profiles on `docker stack deploy`. Run bootstrap jobs manually with `docker service create` (documented in SWARM-BOOTSTRAP.md), then deploy the long-running stack.
+
+### What you may need to run manually
+
+| Situation | Action |
+|-----------|--------|
+| Fresh database | Apply `schema.sql` in pgAdmin, then run graph + quiet places bootstrap |
+| First forecast before Monday cron | One-off forecast container (see SWARM-BOOTSTRAP.md Step 4) |
+| Re-import graph | Truncate `node`/`edge`, re-run graph import |
+| Refresh safe spaces | Truncate `safe_space`, re-run quiet places import |
+
+## Common commands
+
+```bash
+docker compose logs -f backend
+docker compose down
+docker compose down -v   # wipes DB volume — re-run schema + bootstrap after
+```
+
+## Database access
 
 ```bash
 psql -h localhost -U hushnav -d hushnav
 ```
 
-Or use a GUI tool like pgAdmin or DBeaver with connection details:
-- Host: `localhost`
-- Port: `5432`
-- Database: `hushnav`
-- User: `hushnav`
-- Password: (from `.env` POSTGRES_PASSWORD)
-
-### Apply schema to a self-hosted database
-
-For a fresh Postgres/PostGIS instance (local Docker applies this automatically on first start):
+Backup / restore:
 
 ```bash
-psql "$DATABASE_URL" -f schema.sql
+docker compose exec postgres pg_dump -U hushnav -d hushnav > backup.sql
+docker compose exec -T postgres psql -U hushnav -d hushnav < backup.sql
 ```
 
-## Architecture
+## Architecture notes
 
-### Frontend Container
+### Bootstrap idempotency
 
-- **Image**: Vite + React/TypeScript built into static files, served by NGINX
-- **Port**: 80 (HTTP inside container)
-- **SPA Routing**: NGINX configured to serve `index.html` for all non-file requests
-- **Asset Caching**: 1-year cache for versioned assets
-- **Environment**: `VITE_API_BASE_URL=http://backend:3000` (injected at build time)
+- **graph-import** — skips if `node` table already has rows
+- **quiet-places-import** — skips if `safe_space` already has rows
 
-### Backend Container
+### SSL
 
-- **Image**: Node.js 20 Alpine with Express.js server
-- **Port**: 3000 (HTTP inside container)
-- **Services**:
-  - `POST /api/plan-route` - Route planning with noise/crowd avoidance
-  - `GET /api/noise-map` - High-noise areas as GeoJSON
-  - `GET /api/safe-spaces` - Quiet spaces near routes
-  - `GET /api/noise-reports` - User-submitted noise incident reports
-  - `POST /api/noise-reports` - Create new noise report
-  - `GET /api/geocode-suggestions` - Location name autocomplete
-  - `GET /api/health` - Health check
-- **Scheduled Jobs** (node-cron):
-  - Every 5 minutes: Update edge weights (noise + crowd data)
-  - Every 5 minutes: Update construction blockages
-  - Every 5 minutes: Clean up expired noise reports (30-min TTL)
-- **Environment Variables**:
-  - `DATABASE_URL`: Connection string to PostgreSQL
-  - `MAPBOX_TOKEN`: API key for geocoding
-  - `NODE_ENV`: `production` or `development`
-  - Other optional config flags
-
-### PostgreSQL Container
-
-- **Image**: PostGIS 3.4 (PostgreSQL 17 + spatial extensions)
-- **Port**: 5432 (internal to network, not exposed by default)
-- **Initialization**: Runs `schema.sql` on first start
-- **Volume**: `postgres_data` - persists database across container restarts
-- **Schema**: Includes tables for nodes, edges, sensors, noise reports, safe spaces, and forecast data
-
-## Environment Variables Reference
-
-See `.env.example` for all available options:
-
-### Backend
-- `DATABASE_URL` - PostgreSQL connection string (auto-generated from POSTGRES_* vars)
-- `NODE_ENV` - `production` or `development`
-- `MAPBOX_TOKEN` - Required for geocoding functionality
-- `SKIP_NOISE_FETCH` - Set to `true` to disable live noise data fetching
-- `SKIP_CROWD_FETCH` - Set to `true` to disable live pedestrian count fetching
-- `CROWD_MODE` - `incremental` (default) or `full`
-
-### Frontend
-- `VITE_API_BASE_URL` - Base URL for API calls (injected at build time)
-
-### Database
-- `POSTGRES_DB` - Database name
-- `POSTGRES_USER` - Database user
-- `POSTGRES_PASSWORD` - Database password
-- `POSTGRES_PORT` - Port (internal: 5432, exposed port configurable)
-
-## Storage & Persistence
-
-### Volumes
-
-- `postgres_data` - Where PostgreSQL stores all database files
-  - Location on host: Docker's default volume storage
-  - Persists across container restarts and down events
-  - Removed only with `docker-compose down -v`
-
-### Backup
-
-To backup the database:
-```bash
-docker-compose exec postgres pg_dump -U hushnav -d hushnav > backup.sql
-```
-
-To restore from backup:
-```bash
-docker-compose exec -T postgres psql -U hushnav -d hushnav < backup.sql
-```
-
-## Network
-
-All containers communicate over the `hushnav-net` bridge network:
-- Frontend can reach backend at `http://backend:3000`
-- Backend can reach database at `postgres:5432`
-- Only FRONTEND (port 80) and BACKEND (port 3000) are exposed to the host by default
-- PostgreSQL is internal-only (port 5432 mapped to host per `.env` POSTGRES_PORT)
-
-## Development
-
-### Local Development without Docker
-
-To run locally during development (without Docker):
-
-1. Ensure PostgreSQL is running on localhost:5432
-2. Set environment variables:
-   ```bash
-   export DATABASE_URL="postgresql://hushnav:password@localhost:5432/hushnav"
-   export MAPBOX_TOKEN="your_token"
-   export VITE_API_BASE_URL="http://localhost:3000"
-   ```
-
-3. Run frontend dev server:
-   ```bash
-   npm run dev
-   ```
-
-4. In another terminal, run backend:
-   ```bash
-   npm run dev:backend
-   ```
-
-### Modifying Images
-
-If you change source code:
-
-**Backend changes**: 
-```bash
-docker-compose build backend
-docker-compose up -d backend
-```
-
-**Frontend changes**:
-```bash
-docker-compose build frontend
-docker-compose up -d frontend
-```
+Self-hosted Postgres uses `sslmode=disable`. The forecast job reads `DATABASE_SSLMODE` (default `disable`).
 
 ## Troubleshooting
 
-### Container won't start
+### Backend won't start — `TRANSPORT_VIC_API_KEY is not set`
 
-Check logs:
+Set `TRANSPORT_VIC_API_KEY` in `.env`.
+
+### `relation "node" does not exist`
+
+Schema not applied. Run Step 3 (apply `schema.sql` via pgAdmin or psql).
+
+### Bootstrap container failed
+
 ```bash
-docker-compose logs backend
-docker-compose logs frontend
-docker-compose logs postgres
+docker compose --profile bootstrap run --rm graph-import
 ```
 
-### Database connection errors
+Common causes: Postgres not healthy, schema not applied, OSMnx download timeout.
 
-Ensure `DATABASE_URL` is correctly formatted and PostgreSQL is healthy:
-```bash
-docker-compose ps postgres
-docker-compose logs postgres
-```
+### Forecast connection errors
 
-### API calls from frontend fail
+Ensure `DATABASE_SSLMODE=disable` and graph import completed successfully.
 
-Verify `VITE_API_BASE_URL` is set correctly (should be `http://backend:3000` inside Docker).
+## Additional resources
 
-### PostgreSQL permission denied
-
-Regenerate the database:
-```bash
-docker-compose down -v
-docker-compose up -d postgres
-```
-
-## Production Considerations
-
-1. **Secrets Management**: Use environment files or secrets managers (not `.env` in git)
-2. **SSL/TLS**: Configure SSL certificates in external reverse proxy, not in containers
-3. **Database Backups**: Implement automated backup strategy to external storage
-4. **Resource Limits**: In docker-compose, add `limits` and `reservations` for memory/CPU
-5. **Logging**: Consider Docker logging drivers (syslog, JSON-file, etc.) for aggregation
-6. **Monitoring**: Add health check endpoints and monitoring tools
-7. **Network**: Ensure only frontend is publicly exposed; database and backend internal
-
-## Additional Resources
-
-- Docker Compose documentation: https://docs.docker.com/compose/
-- PostGIS documentation: https://postgis.net/documentation/
-- Express.js documentation: http://expressjs.com/
-- NGINX documentation: http://nginx.org/en/docs/
-- Vite documentation: https://vitejs.dev/
+- [docs/SWARM-BOOTSTRAP.md](docs/SWARM-BOOTSTRAP.md) — Swarm first-deploy guide
+- [docs/swarm-stack.example.yml](docs/swarm-stack.example.yml) — reference Swarm stack
+- [Docker Compose docs](https://docs.docker.com/compose/)
+- [Docker Swarm docs](https://docs.docker.com/engine/swarm/)

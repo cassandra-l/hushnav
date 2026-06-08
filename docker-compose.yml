@@ -1,3 +1,6 @@
+x-database-url: &database_url
+  postgresql://${POSTGRES_USER:-hushnav}:${POSTGRES_PASSWORD:-hushnav}@postgres:5432/${POSTGRES_DB:-hushnav}?sslmode=disable
+
 services:
   postgres:
     image: postgis/postgis:17-3.4
@@ -8,7 +11,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hushnav}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
@@ -19,6 +21,37 @@ services:
     networks:
       - hushnav-net
 
+  graph-import:
+    profiles: [bootstrap]
+    build:
+      context: ./database_schema_dataimports
+      dockerfile: Dockerfile.import
+    container_name: hushnav-graph-import
+    environment:
+      DATABASE_URL: *database_url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - hushnav-net
+
+  quiet-places-import:
+    profiles: [bootstrap]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hushnav-quiet-places-import
+    command: ["node", "dist/bootstrap/quietPlaces.js"]
+    environment:
+      DATABASE_URL: *database_url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - hushnav-net
+
   backend:
     build:
       context: ./backend
@@ -26,7 +59,7 @@ services:
     container_name: hushnav-backend
     environment:
       NODE_ENV: ${NODE_ENV:-production}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-hushnav}:${POSTGRES_PASSWORD:-hushnav}@postgres:5432/${POSTGRES_DB:-hushnav}?sslmode=disable
+      DATABASE_URL: *database_url
       MAPBOX_TOKEN: ${MAPBOX_TOKEN}
       TRANSPORT_VIC_API_KEY: ${TRANSPORT_VIC_API_KEY}
       SKIP_NOISE_FETCH: ${SKIP_NOISE_FETCH:-false}

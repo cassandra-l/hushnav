@@ -12,5 +12,7 @@ COPY import_requirements.txt .
 RUN pip install --no-cache-dir -r import_requirements.txt
 
 COPY importing-nodes-edges.py .
+COPY entrypoint-import.sh .
+RUN chmod +x entrypoint-import.sh
 
-CMD ["python", "importing-nodes-edges.py"]
+ENTRYPOINT ["./entrypoint-import.sh"]

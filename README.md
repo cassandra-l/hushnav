@@ -132,7 +132,7 @@ hushnav/
 ├── public/               # Static assets
 ├── nginx/                # NGINX configuration
 ├── docker/               # Docker utilities
-├── schema.sql            # Database schema (local Docker init and production)
+├── schema.sql            # Database schema (apply manually via pgAdmin or psql)
 │
 ├── docker-compose.yml    # Service orchestration
 ├── Dockerfile.frontend   # Frontend build configuration
