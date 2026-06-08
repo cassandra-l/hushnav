@@ -13,6 +13,7 @@ on:
       - "backend/**"
       - ".github/workflows/build.yml"
       - "docker-compose.yml"
+      - "docker-compose.prod.yml"
       - "package*.json"
   workflow_dispatch:
 
@@ -124,3 +125,16 @@ jobs:
           push: true
           tags: ${{ steps.import-meta.outputs.tags }}
           labels: ${{ steps.import-meta.outputs.labels }}
+
+      - name: Published images summary
+        run: |
+          echo "## GHCR images pushed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Image | Swarm usage |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_REPO }}-frontend\` | Long-running frontend service |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_REPO }}-backend\` | Long-running API; also \`node dist/bootstrap/quietPlaces.js\` for quiet-places bootstrap |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_REPO }}-forecast\` | Swarm cronjob (weekly); optional one-off bootstrap |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_REPO }}-import\` | One-off graph-import bootstrap |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tags include branch ref, \`{branch}-{sha}\`, and \`latest\` on default branch." >> "$GITHUB_STEP_SUMMARY"

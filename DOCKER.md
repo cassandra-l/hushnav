@@ -39,6 +39,29 @@ The forecast image is a run-to-completion container — it is **not** a long-run
 - Docker Compose 2.20 or higher
 - For production images: access to GitHub Container Registry (`ghcr.io`)
 
+## GHCR images
+
+CI builds and pushes all custom images on push to the `dockerise` branch ([`.github/workflows/build.yml`](.github/workflows/build.yml)). Use the same `IMAGE_TAG` (e.g. `dockerise-abc1234`) across your Swarm stack and bootstrap commands.
+
+| GHCR image | Built from | Swarm usage |
+|------------|------------|-------------|
+| `ghcr.io/<owner>/<repo>-frontend` | [`Dockerfile.frontend`](Dockerfile.frontend) | Long-running frontend service |
+| `ghcr.io/<owner>/<repo>-backend` | [`backend/Dockerfile`](backend/Dockerfile) | Long-running API service |
+| `ghcr.io/<owner>/<repo>-backend` | same image | One-off quiet-places bootstrap: `node dist/bootstrap/quietPlaces.js` |
+| `ghcr.io/<owner>/<repo>-forecast` | [`Dockerfile.forecast`](database_schema_dataimports/Dockerfile.forecast) | Swarm cronjob (weekly) + optional one-off bootstrap |
+| `ghcr.io/<owner>/<repo>-import` | [`Dockerfile.import`](database_schema_dataimports/Dockerfile.import) | One-off graph-import bootstrap |
+
+Postgres uses the public [`postgis/postgis:17-3.4`](https://hub.docker.com/r/postgis/postgis) image — not built by this repo.
+
+Pull all images before deploy:
+
+```bash
+docker pull ghcr.io/cassandra-l/hushnav-frontend:${IMAGE_TAG}
+docker pull ghcr.io/cassandra-l/hushnav-backend:${IMAGE_TAG}
+docker pull ghcr.io/cassandra-l/hushnav-forecast:${IMAGE_TAG}
+docker pull ghcr.io/cassandra-l/hushnav-import:${IMAGE_TAG}
+```
+
 ## Quick Start (local development)
 
 ### 1. Create environment file
