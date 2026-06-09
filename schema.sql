@@ -5,20 +5,20 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 
 -- Routing graph
 CREATE TABLE IF NOT EXISTS node (
-    node_id BigInt PRIMARY KEY,
-    lat Float NOT NULL,
-    lon Float NOT NULL,
+    node_id BIGINT PRIMARY KEY,
+    lat DOUBLE PRECISION NOT NULL,
+    lon DOUBLE PRECISION NOT NULL,
     geom_node GEOMETRY(Point, 4326)
 );
 
 CREATE INDEX IF NOT EXISTS idx_node_geom ON node USING GIST (geom_node);
 
 CREATE TABLE IF NOT EXISTS edge (
-    edge_id BigInt PRIMARY KEY,
-    u BigInt REFERENCES node(node_id),
-    v BigInt REFERENCES node(node_id),
-    length Float NOT NULL,
-    is_indoor Boolean DEFAULT FALSE,
+    edge_id BIGINT PRIMARY KEY,
+    u BIGINT REFERENCES node(node_id),
+    v BIGINT REFERENCES node(node_id),
+    length DOUBLE PRECISION NOT NULL,
+    is_indoor BOOLEAN DEFAULT FALSE,
     geom_edge GEOMETRY(LineString, 4326)
 );
 
@@ -30,46 +30,43 @@ CREATE INDEX IF NOT EXISTS idx_edge_geom ON edge USING GIST (geom_edge);
 CREATE TABLE IF NOT EXISTS noise_sensor (
     device_id VARCHAR(50) PRIMARY KEY,
     geom_sensor GEOMETRY(Point, 4326),
-    current_db FLOAT,
-    last_updated Timestamp
+    current_db DOUBLE PRECISION,
+    last_updated TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_noise_sensor_geom ON noise_sensor USING GIST (geom_sensor);
 
 CREATE TABLE IF NOT EXISTS pedestrian_sensor (
-    location_id BigInt PRIMARY KEY,
+    location_id BIGINT PRIMARY KEY,
     geom_sensor GEOMETRY(Point, 4326),
-    current_count BigInt,
-    observation_time Timestamp
+    current_count BIGINT,
+    observation_time TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_pedestrian_sensor_geom ON pedestrian_sensor USING GIST (geom_sensor);
 
 -- Edge routing costs (updated from live sensor data)
-CREATE TABLE IF NOT EXISTS Edge_Weight (
-    weight_id SERIAL PRIMARY KEY,
-    edge_id BigInt REFERENCES edge(edge_id) UNIQUE,
-    final_cost FLOAT,
-    observation_time Timestamp,
-    noise_db FLOAT,
-    is_high_noise boolean,
+CREATE TABLE IF NOT EXISTS edge_weight (
+    edge_id BIGINT PRIMARY KEY REFERENCES edge(edge_id) ON DELETE CASCADE,
+    final_cost DOUBLE PRECISION,
+    observation_time TIMESTAMPTZ,
+    noise_db DOUBLE PRECISION,
     crowd_count BIGINT,
-    is_high_crowd boolean
+    is_high_crowd BOOLEAN
 );
 
-CREATE INDEX IF NOT EXISTS idx_edge_weight_edge_id ON Edge_Weight(edge_id);
-CREATE INDEX IF NOT EXISTS idx_edge_weight_observation_time ON Edge_Weight(observation_time DESC);
+CREATE INDEX IF NOT EXISTS idx_edge_weight_observation_time ON edge_weight (observation_time DESC);
 
 -- Safe spaces along routes
-CREATE TABLE IF NOT EXISTS Safe_Space (
+CREATE TABLE IF NOT EXISTS safe_space (
     safe_space_id SERIAL PRIMARY KEY,
     geom_safe_space GEOMETRY(Point, 4326),
     sub_theme VARCHAR(100),
     feature_name VARCHAR(255) NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_safe_space_geom ON Safe_Space USING GIST (geom_safe_space);
-CREATE INDEX IF NOT EXISTS idx_safe_space_theme ON Safe_Space(sub_theme);
+CREATE INDEX IF NOT EXISTS idx_safe_space_geom ON safe_space USING GIST (geom_safe_space);
+CREATE INDEX IF NOT EXISTS idx_safe_space_theme ON safe_space (sub_theme);
 
 -- User-submitted noise reports
 CREATE TABLE IF NOT EXISTS noise_report (
@@ -103,7 +100,7 @@ CREATE INDEX IF NOT EXISTS idx_construction_event_geom ON construction_event USI
 CREATE INDEX IF NOT EXISTS idx_construction_event_is_active ON construction_event (is_active);
 
 CREATE TABLE IF NOT EXISTS construction_blocked_edge (
-  edge_id BigInt PRIMARY KEY REFERENCES edge(edge_id) ON DELETE CASCADE,
+  edge_id BIGINT PRIMARY KEY REFERENCES edge(edge_id) ON DELETE CASCADE,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
