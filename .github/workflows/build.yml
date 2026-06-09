@@ -1,0 +1,140 @@
+name: Build and Push Docker Images
+
+on:
+  push:
+    branches:
+      - dockerise
+    paths:
+      - "database_schema_dataimports/**"
+      - "src/**"
+      - "public/**"
+      - "Dockerfile.frontend"
+      - "nginx/**"
+      - "backend/**"
+      - ".github/workflows/build.yml"
+      - "docker-compose.yml"
+      - "docker-compose.prod.yml"
+      - "package*.json"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_OWNER: ${{ github.repository_owner }}
+  IMAGE_REPO: ${{ github.event.repository.name }}
+  # Dummy example strings baked into the SPA at build time
+  VITE_API_BASE_URL: https://hushnav.casslee.dev/api
+  VITE_MAPBOX_TOKEN: ${{secrets.MAPBOX_TOKEN}}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for frontend
+        id: frontend-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_REPO }}-frontend
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.frontend
+          push: true
+          tags: ${{ steps.frontend-meta.outputs.tags }}
+          labels: ${{ steps.frontend-meta.outputs.labels }}
+          build-args: |
+            VITE_API_BASE_URL=${{ env.VITE_API_BASE_URL }}
+            VITE_MAPBOX_TOKEN=${{ env.VITE_MAPBOX_TOKEN }}
+
+      - name: Extract metadata for backend
+        id: backend-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_REPO }}-backend
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.backend-meta.outputs.tags }}
+          labels: ${{ steps.backend-meta.outputs.labels }}
+
+      - name: Extract metadata for forecast
+        id: forecast-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_REPO }}-forecast
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push forecast image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./database_schema_dataimports
+          file: ./database_schema_dataimports/Dockerfile.forecast
+          push: true
+          tags: ${{ steps.forecast-meta.outputs.tags }}
+          labels: ${{ steps.forecast-meta.outputs.labels }}
+
+      - name: Extract metadata for import
+        id: import-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_REPO }}-import
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push import image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./database_schema_dataimports
+          file: ./database_schema_dataimports/Dockerfile.import
+          push: true
+          tags: ${{ steps.import-meta.outputs.tags }}
+          labels: ${{ steps.import-meta.outputs.labels }}
+
+      - name: Published images summary
+        run: |
+          echo "## GHCR images pushed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Image | Swarm usage |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_REPO }}-frontend\` | Long-running frontend service |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_REPO }}-backend\` | Long-running API; also \`node dist/bootstrap/quietPlaces.js\` for quiet-places bootstrap |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_REPO }}-forecast\` | Swarm cronjob (weekly); optional one-off bootstrap |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_REPO }}-import\` | One-off graph-import bootstrap |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tags include branch ref, \`{branch}-{sha}\`, and \`latest\` on default branch." >> "$GITHUB_STEP_SUMMARY"

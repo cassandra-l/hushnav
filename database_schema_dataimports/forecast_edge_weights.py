@@ -57,6 +57,11 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def db_connect(database_url: str):
+    sslmode = os.getenv("DATABASE_SSLMODE", "disable")
+    return psycopg2.connect(database_url, sslmode=sslmode)
+
+
 def melbourne_now() -> datetime:
     # Forecast slots should match what users in Melbourne expect.
     return datetime.now(MELBOURNE_TZ)
@@ -605,7 +610,7 @@ def main() -> int:
         horizon_end = forecast_times[-1]
 
         # 4) Persist run metadata and edge forecasts.
-        conn = psycopg2.connect(database_url, sslmode="require")
+        conn = db_connect(database_url)
         create_run(conn, run_id=run_id, horizon_start=horizon_start, horizon_end=horizon_end)
 
         noise_idx = index_forecasts(noise_forecast)
@@ -624,9 +629,8 @@ def main() -> int:
         write_edge_forecasts(conn, edge_rows)
         # 5) Mark run as succeeded.
         mark_run(conn, run_id=run_id, status="succeeded")
-        conn.close()
 
-      # once the new data has been stores - we will prune the previous historical data outside of the active window
+        # Prune stale forecast rows outside the active window.
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -635,6 +639,7 @@ def main() -> int:
                 """
             )
         conn.commit()
+        conn.close()
 
         # summary for logs/CI.
         print(
@@ -655,7 +660,7 @@ def main() -> int:
     except Exception as exc:
         try:
             # mark run as failed for visibility.
-            conn = psycopg2.connect(database_url, sslmode="require")
+            conn = db_connect(database_url)
             mark_run(conn, run_id=run_id, status="failed", error_message=str(exc))
             conn.close()
         except Exception:

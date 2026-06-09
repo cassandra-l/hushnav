@@ -1,0 +1,4 @@
+osmnx>=2.0
+sqlalchemy>=2.0
+geoalchemy2>=0.15
+psycopg2-binary>=2.9

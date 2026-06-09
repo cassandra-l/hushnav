@@ -37,6 +37,44 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  docker-build-check:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.frontend
+          push: false
+          build-args: |
+            VITE_API_BASE_URL=http://localhost:3000/api
+            VITE_MAPBOX_TOKEN=placeholder
+
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+
+      - name: Build forecast image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./database_schema_dataimports
+          file: ./database_schema_dataimports/Dockerfile.forecast
+          push: false
+
+      - name: Build import image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./database_schema_dataimports
+          file: ./database_schema_dataimports/Dockerfile.import
+          push: false
+
   sonar-main:
     if: github.event_name == 'push'
     needs: main-checks

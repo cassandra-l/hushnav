@@ -21,6 +21,7 @@ dist-ssr
 # -------------------------
 .env
 .env.*
+.env.local
 *.local
 coverage
 
@@ -42,11 +43,12 @@ coverage
 *.sw?
 
 # -------------------------
-# Amplify
+# Docker & Database
 # -------------------------
-.amplify
-amplify_outputs*
-amplifyconfiguration*
+.postgres
+postgres_data/
+
+
 
 # -------------------------
 # Optional (good practice)

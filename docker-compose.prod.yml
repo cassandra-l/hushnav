@@ -1,0 +1,114 @@
+# Production Compose file using pre-built images from GitHub Container Registry.
+#
+# Local usage:
+#   docker login ghcr.io -u <github-username> -p <github-token>
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Bootstrap (manual, once per fresh DB):
+#   docker compose -f docker-compose.prod.yml --profile bootstrap run --rm graph-import
+#   docker compose -f docker-compose.prod.yml --profile bootstrap run --rm quiet-places-import
+#
+# Docker Swarm: see docs/SWARM-BOOTSTRAP.md and docs/swarm-stack.example.yml
+
+x-database-url: &database_url
+  postgresql://${POSTGRES_USER:-hushnav}:${POSTGRES_PASSWORD:-hushnav}@postgres:5432/${POSTGRES_DB:-hushnav}?sslmode=disable
+
+services:
+  postgres:
+    image: postgis/postgis:17-3.4
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hushnav}
+      POSTGRES_USER: ${POSTGRES_USER:-hushnav}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hushnav}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-hushnav}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hushnav-net
+
+  graph-import:
+    profiles: [bootstrap]
+    image: ghcr.io/${GITHUB_OWNER}/${GITHUB_REPO}-import:${IMAGE_TAG:-latest}
+    environment:
+      DATABASE_URL: *database_url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - hushnav-net
+
+  quiet-places-import:
+    profiles: [bootstrap]
+    image: ghcr.io/${GITHUB_OWNER}/${GITHUB_REPO}-backend:${IMAGE_TAG:-latest}
+    command: ["node", "dist/bootstrap/quietPlaces.js"]
+    environment:
+      DATABASE_URL: *database_url
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - hushnav-net
+
+  backend:
+    image: ghcr.io/${GITHUB_OWNER}/${GITHUB_REPO}-backend:${IMAGE_TAG:-latest}
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: *database_url
+      MAPBOX_TOKEN: ${MAPBOX_TOKEN}
+      TRANSPORT_VIC_API_KEY: ${TRANSPORT_VIC_API_KEY}
+      SKIP_NOISE_FETCH: ${SKIP_NOISE_FETCH:-false}
+      SKIP_CROWD_FETCH: ${SKIP_CROWD_FETCH:-false}
+      CROWD_MODE: ${CROWD_MODE:-incremental}
+      PORT: 3000
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3000/api/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hushnav-net
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/${GITHUB_OWNER}/${GITHUB_REPO}-frontend:${IMAGE_TAG:-latest}
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test:
+        ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hushnav-net
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  hushnav-net:
+    driver: bridge

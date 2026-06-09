@@ -1,5 +1,4 @@
-pandas
-numpy
-requests
-psycopg2-binary
-statsmodels
+pandas>=2.2
+numpy>=1.26
+requests>=2.32
+psycopg2-binary>=2.9
